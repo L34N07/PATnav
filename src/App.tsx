@@ -2,11 +2,11 @@ import React from 'react'
 import './App.css'
 
 export default function App() {
-  const rows = [
-    { id: 1, name: 'Cargo 1', value: 100 },
-    { id: 2, name: 'Cargo 2', value: 200 },
-    { id: 3, name: 'Cargo 3', value: 300 },
-  ]
+  const rows = Array.from({ length: 50 }, (_, i) => ({
+    id: i + 1,
+    name: `Cargo ${i + 1}`,
+    value: Math.floor(Math.random() * 1000)
+  }))
 
   return (
     <div className="app">
@@ -18,6 +18,7 @@ export default function App() {
           <button>Opcion 3</button>
           <button>Opcion 4</button>
         </div>
+        <div className="table-container">
         <table>
           <thead>
             <tr>
@@ -36,6 +37,7 @@ export default function App() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )
