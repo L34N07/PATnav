@@ -1,4 +1,4 @@
-const { app, BrowserWindow, nativeImage } = require('electron')
+const { app, BrowserWindow } = require('electron')
 const path = require('path')
 
 const isDev = process.env.NODE_ENV === 'development'
@@ -6,20 +6,13 @@ const URL = isDev
   ? 'http://localhost:5173'
   : `file://${path.join(__dirname, 'dist/index.html')}`
 
-function createIcon() {
-  const color = Math.floor(Math.random() * 0xffffff)
-    .toString(16)
-    .padStart(6, '0')
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#${color}"/></svg>`
-  return nativeImage.createFromDataURL('data:image/svg+xml;utf8,' + encodeURIComponent(svg))
-}
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1200,
+    height: 700,
     title: 'Naviera App',
-    icon: createIcon(),
+    icon: path.join(__dirname, 'public', 'logo.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
