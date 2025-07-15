@@ -1,7 +1,13 @@
 # PATnav
 Proyecto ambicion total Naviera
 
-borrar node modules
-npm install --save-dev @vitejs/plugin-react
+## Development
+
+Install dependencies and start the application:
+
+```bash
 npm install
 npm run dev
+```
+
+The Electron window will load the Vite development server.
