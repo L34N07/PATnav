@@ -25,15 +25,7 @@ export default function App() {
             setColumns(data.columns)
             setRows(data.rows)
             setCurrentPage(0)
-            const widths = data.columns.map((col: string) => {
-              const maxLen = data.rows.reduce((m: number, row: any) => {
-                const val = row[col] == null ? '' : String(row[col])
-                return Math.max(m, val.length)
-              }, 0)
-              const ch = maxLen <= 3 ? 2 : 4
-              return ch * 2
-            })
-            setColumnWidths(widths)
+            setColumnWidths(data.columns.map(() => 150))
           }
         } catch (e) {
           console.error('Failed to parse python output', e)
