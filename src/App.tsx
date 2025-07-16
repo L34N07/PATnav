@@ -6,6 +6,8 @@ export default function App() {
   const [rows, setRows] = useState<any[]>([])
   const [currentPage, setCurrentPage] = useState(0)
   const [columnWidths, setColumnWidths] = useState<number[]>([])
+  const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null)
+  const [selectedRow, setSelectedRow] = useState<any | null>(null)
 
   const ITEMS_PER_PAGE = 25
 
@@ -77,6 +79,30 @@ export default function App() {
           <button>Opcion 2</button>
           <button>Opcion 3</button>
           <button>Opcion 4</button>
+          <input
+            type="text"
+            value={selectedRow ? selectedRow[columns[0]] || '' : ''}
+            placeholder={columns[0] || 'Campo 1'}
+            readOnly
+          />
+          <input
+            type="text"
+            value={selectedRow ? selectedRow[columns[1]] || '' : ''}
+            placeholder={columns[1] || 'Campo 2'}
+            readOnly
+          />
+          <input
+            type="text"
+            value={selectedRow ? selectedRow[columns[2]] || '' : ''}
+            placeholder={columns[2] || 'Campo 3'}
+            readOnly
+          />
+          <input
+            type="text"
+            value={selectedRow ? selectedRow[columns[3]] || '' : ''}
+            placeholder={columns[3] || 'Campo 4'}
+            readOnly
+          />
         </div>
         <div className="table-container">
         <table>
@@ -92,7 +118,14 @@ export default function App() {
           </thead>
           <tbody>
             {displayRows.map((row, i) => (
-              <tr key={i}>
+              <tr
+                key={i}
+                className={selectedRowIndex === i ? 'selected' : ''}
+                onClick={() => {
+                  setSelectedRowIndex(i)
+                  setSelectedRow(row)
+                }}
+              >
                 {columns.map((col, idx) => (
                   <td key={col} style={{ width: columnWidths[idx] }}>
                     {row[col]}
