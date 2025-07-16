@@ -1,4 +1,5 @@
 import pyodbc
+import json
 
 SERVER = '192.168.100.13,1433' 
 DATABASE = 'NAVIERA'   
@@ -33,9 +34,9 @@ try:
     with pyodbc.connect(conn_str, timeout=5) as conn:
         cursor = conn.cursor()
         cursor.execute("{CALL sp_traer_clientes}")
-        version = cursor.fetchone()[0]
-        for row in cursor:
-            print(row)
+        columns = [c[0] for c in cursor.description]
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        print(json.dumps({'columns': columns, 'rows': rows}))
 except Exception as e:
     print("Connection failed:")
     print(e)
