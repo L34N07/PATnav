@@ -82,25 +82,25 @@ export default function App() {
           <input
             type="text"
             value={selectedRow ? selectedRow[columns[0]] || '' : ''}
-            placeholder={columns[0] || 'Campo 1'}
+            placeholder={columns[0] || 'Codigo'}
             readOnly
           />
           <input
             type="text"
             value={selectedRow ? selectedRow[columns[1]] || '' : ''}
-            placeholder={columns[1] || 'Campo 2'}
+            placeholder={columns[1] || 'Razon Social'}
             readOnly
           />
           <input
             type="text"
             value={selectedRow ? selectedRow[columns[2]] || '' : ''}
-            placeholder={columns[2] || 'Campo 3'}
+            placeholder={columns[2] || 'Domicilio'}
             readOnly
           />
           <input
             type="text"
             value={selectedRow ? selectedRow[columns[3]] || '' : ''}
-            placeholder={columns[3] || 'Campo 4'}
+            placeholder={columns[3] || 'CUIT'}
             readOnly
           />
         </div>
