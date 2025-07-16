@@ -113,3 +113,13 @@ thead th {
   padding: 5px 10px;
   cursor: pointer;
 }
+
+tr.selected {
+  background-color: #bde5ff;
+}
+
+.sidebar input {
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
