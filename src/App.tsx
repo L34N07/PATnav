@@ -22,10 +22,25 @@ export default function App() {
         try {
           const data = JSON.parse(result)
           if (Array.isArray(data.columns) && Array.isArray(data.rows)) {
-            setColumns(data.columns)
-            setRows(data.rows)
+            const columnMap: Record<string, string> = {
+              'cod_cliente': 'Codigo',
+              'razon_social': 'Razon Social',
+              'dom_fiscal1': 'Domicilio',
+              'cuit': 'CUIT'
+            }
+            const selected = Object.keys(columnMap).filter(c => data.columns.includes(c))
+            const newColumns = selected.map(c => columnMap[c])
+            const newRows = data.rows.map((row: any) => {
+              const r: Record<string, any> = {}
+              selected.forEach(c => {
+                r[columnMap[c]] = row[c]
+              })
+              return r
+            })
+            setColumns(newColumns)
+            setRows(newRows)
             setCurrentPage(0)
-            setColumnWidths(data.columns.map(() => 150))
+            setColumnWidths(newColumns.map(() => 150))
           }
         } catch (e) {
           console.error('Failed to parse python output', e)
