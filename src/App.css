@@ -64,11 +64,29 @@ table {
   table-layout: fixed;
   border-radius: 4px;
   overflow: hidden;
+  font-size: 0.8rem;
 }
 
 th, td {
   border: 1px solid #ccc;
   padding: 8px 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+th {
+  position: relative;
+}
+
+.resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 5px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
 }
 
 thead th {

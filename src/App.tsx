@@ -5,6 +5,7 @@ export default function App() {
   const [columns, setColumns] = useState<string[]>([])
   const [rows, setRows] = useState<any[]>([])
   const [currentPage, setCurrentPage] = useState(0)
+  const [columnWidths, setColumnWidths] = useState<number[]>([])
 
   const ITEMS_PER_PAGE = 25
 
@@ -24,6 +25,7 @@ export default function App() {
             setColumns(data.columns)
             setRows(data.rows)
             setCurrentPage(0)
+            setColumnWidths(data.columns.map(() => 150))
           }
         } catch (e) {
           console.error('Failed to parse python output', e)
@@ -33,6 +35,22 @@ export default function App() {
       console.error('runPython failed', err)
     }
   }
+  const handleMouseDown = (e: React.MouseEvent, index: number) => {
+    const startX = e.clientX;
+    const startWidth = columnWidths[index];
+    const onMouseMove = (ev: MouseEvent) => {
+      const newWidths = [...columnWidths];
+      newWidths[index] = Math.max(50, startWidth + ev.clientX - startX);
+      setColumnWidths(newWidths);
+    };
+    const onMouseUp = () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
 
 
   return (
@@ -49,16 +67,21 @@ export default function App() {
         <table>
           <thead>
             <tr>
-              {columns.map(col => (
-                <th key={col}>{col}</th>
+              {columns.map((col, idx) => (
+                <th key={col} style={{ width: columnWidths[idx] }}>
+                  {col}
+                  <div className="resizer" onMouseDown={(e) => handleMouseDown(e, idx)} />
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {displayRows.map((row, i) => (
               <tr key={i}>
-                {columns.map(col => (
-                  <td key={col}>{row[col]}</td>
+                {columns.map((col, idx) => (
+                  <td key={col} style={{ width: columnWidths[idx] }}>
+                    {row[col]}
+                  </td>
                 ))}
               </tr>
             ))}
