@@ -7,10 +7,11 @@ const URL = isDev
   ? 'http://localhost:5173'
   : `file://${path.join(__dirname, 'dist/index.html')}`
 
+const pythonCmd = process.platform === 'win32' ? 'python' : 'python3'
 
 ipcMain.handle('run-python', () => {
   return new Promise((resolve, reject) => {
-    execFile('python3', [path.join(__dirname, 'script.py')], (error, stdout, stderr) => {
+    execFile(pythonCmd, [path.join(__dirname, 'script.py')], (error, stdout, stderr) => {
       if (error) {
         console.error(stderr)
         reject(stderr)

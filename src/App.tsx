@@ -4,7 +4,6 @@ import './App.css'
 export default function App() {
   const [columns, setColumns] = useState<string[]>([])
   const [rows, setRows] = useState<any[]>([])
-  const [button2Text, setButton2Text] = useState('Opcion 2')
 
   const handleButton1Click = async () => {
     try {
@@ -22,8 +21,6 @@ export default function App() {
       }
     } catch (err) {
       console.error('runPython failed', err)
-    } finally {
-      setButton2Text('hello')
     }
   }
 
@@ -33,8 +30,8 @@ export default function App() {
       <div className="top-bar"><img src="./assets/logopng.png" alt="logo" />La Naviera</div>
       <div className="content">
         <div className="sidebar">
-          <button onClick={handleButton1Click}>Opcion 1</button>
-          <button>{button2Text}</button>
+          <button onClick={handleButton1Click}>Traer Clientes</button>
+          <button>Opcion 2</button>
           <button>Opcion 3</button>
           <button>Opcion 4</button>
         </div>
