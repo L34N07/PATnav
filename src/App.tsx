@@ -6,7 +6,7 @@ export default function App() {
   const [rows, setRows] = useState<any[]>([])
   const [currentPage, setCurrentPage] = useState(0)
 
-  const ITEMS_PER_PAGE = 100
+  const ITEMS_PER_PAGE = 25
 
   const totalPages = Math.ceil(rows.length / ITEMS_PER_PAGE)
   const displayRows = rows.slice(

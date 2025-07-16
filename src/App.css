@@ -1,13 +1,6 @@
-@font-face {
-  font-family: 'Fitgree';
-  src: url('/fonts/fitgree.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
-}
-
 body {
   margin: 0;
-  font-family: 'Fitgree', Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-family: 'Figtree', Arial, "Helvetica Neue", Helvetica, sans-serif;
 }
 
 .app {
@@ -46,7 +39,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-right: 20px;
+  margin-right: 0;
   border-right: 1px solid #ccc;
   padding-right: 20px;
 }
@@ -87,7 +80,7 @@ thead th {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-left: 20px;
+  padding-left: 0;
 }
 
 .pagination {
