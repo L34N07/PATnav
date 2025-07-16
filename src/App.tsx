@@ -10,7 +10,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className="top-bar"><img src="/logopng.png" alt="logo" />La Naviera</div>
+      <div className="top-bar"><img src={new URL('/logopng.png', import.meta.url).href} alt="logo" />La Naviera</div>
       <div className="content">
         <div className="sidebar">
           <button>Opcion 1</button>

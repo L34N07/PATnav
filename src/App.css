@@ -26,6 +26,7 @@ body {
   font-weight: bold;
   display: flex;
   align-items: center;
+  border-bottom: 1px solid #ccc;
 }
 
 .top-bar img {
@@ -37,6 +38,7 @@ body {
   flex: 1;
   display: flex;
   padding: 20px;
+  margin: 20px 0;
 }
 
 .sidebar {
@@ -53,7 +55,7 @@ body {
   padding: 10px;
   background: #fff;
   color: #000;
-  border: 1px solid #000;
+  border: 1px solid #ccc;
   border-radius: 4px;
   cursor: pointer;
 }
