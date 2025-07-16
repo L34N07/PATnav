@@ -10,7 +10,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className="top-bar">La Naviera</div>
+      <div className="top-bar"><img src="/logo.ico" alt="logo" />La Naviera</div>
       <div className="content">
         <div className="sidebar">
           <button>Opcion 1</button>
