@@ -20,6 +20,8 @@ export default function App() {
           console.error('Failed to parse python output', e)
         }
       }
+    } catch (err) {
+      console.error('runPython failed', err)
     } finally {
       setButton2Text('hello')
     }
