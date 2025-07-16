@@ -20,7 +20,7 @@ export default function App() {
   const handleButton1Click = async () => {
     try {
       if (window.electronAPI?.runPython) {
-        const result = await window.electronAPI.runPython()
+        const result = await window.electronAPI.runPython('get_clientes')
         try {
           const data = JSON.parse(result)
           if (Array.isArray(data.columns) && Array.isArray(data.rows)) {
