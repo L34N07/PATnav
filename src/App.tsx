@@ -2,19 +2,26 @@ import React, {useState} from 'react'
 import './App.css'
 
 export default function App() {
-  const rows = Array.from({ length: 50 }, (_, i) => ({
-    id: i + 1,
-    name: `Cargo ${i + 1}`,
-    value: Math.floor(Math.random() * 1000)
-  }))
-
+  const [columns, setColumns] = useState<string[]>([])
+  const [rows, setRows] = useState<any[]>([])
   const [button2Text, setButton2Text] = useState('Opcion 2')
 
   const handleButton1Click = async () => {
     try {
       if (window.electronAPI?.runPython) {
-        await window.electronAPI.runPython()
+        const result = await window.electronAPI.runPython()
+        try {
+          const data = JSON.parse(result)
+          if (Array.isArray(data.columns) && Array.isArray(data.rows)) {
+            setColumns(data.columns)
+            setRows(data.rows)
+          }
+        } catch (e) {
+          console.error('Failed to parse python output', e)
+        }
       }
+    } catch (err) {
+      console.error('runPython failed', err)
     } finally {
       setButton2Text('hello')
     }
@@ -35,17 +42,17 @@ export default function App() {
         <table>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>Valor</th>
+              {columns.map(col => (
+                <th key={col}>{col}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map(row => (
-              <tr key={row.id}>
-                <td>{row.id}</td>
-                <td>{row.name}</td>
-                <td>{row.value}</td>
+            {rows.map((row, i) => (
+              <tr key={i}>
+                {columns.map(col => (
+                  <td key={col}>{row[col]}</td>
+                ))}
               </tr>
             ))}
           </tbody>
