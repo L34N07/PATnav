@@ -1,5 +1,5 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
-const { execFile } = require('child_process')
+const { spawn } = require('child_process')
 const path = require('path')
 
 const isDev = process.env.NODE_ENV === 'development'
@@ -9,16 +9,44 @@ const URL = isDev
 
 const pythonCmd = process.platform === 'win32' ? 'python' : 'python3'
 
-ipcMain.handle('run-python', () => {
+let pythonProc
+
+function startPython() {
+  pythonProc = spawn(pythonCmd, [path.join(__dirname, 'script.py')])
+  pythonProc.stdout.setEncoding('utf8')
+}
+
+function stopPython() {
+  if (pythonProc) {
+    try {
+      pythonProc.stdin.write(JSON.stringify({ cmd: 'exit' }) + '\n')
+    } catch (e) {
+      // ignore if stdin already closed
+    }
+    pythonProc.kill()
+    pythonProc = undefined
+  }
+}
+
+ipcMain.handle('run-python', (_event, cmd, params = []) => {
+  if (!pythonProc) return Promise.reject(new Error('python not running'))
+  const message = JSON.stringify({ cmd, params }) + '\n'
   return new Promise((resolve, reject) => {
-    execFile(pythonCmd, [path.join(__dirname, 'script.py')], (error, stdout, stderr) => {
-      if (error) {
-        console.error(stderr)
-        reject(stderr)
-      } else {
-        resolve(stdout)
-      }
-    })
+    const onData = (data) => {
+      cleanup()
+      resolve(data.toString())
+    }
+    const onErr = (err) => {
+      cleanup()
+      reject(err.toString())
+    }
+    function cleanup() {
+      pythonProc.stdout.off('data', onData)
+      pythonProc.stderr.off('data', onErr)
+    }
+    pythonProc.stdout.once('data', onData)
+    pythonProc.stderr.once('data', onErr)
+    pythonProc.stdin.write(message)
   })
 })
 
@@ -40,6 +68,16 @@ function createWindow() {
   win.loadURL(URL)
 }
 
-app.whenReady().then(createWindow)
-app.on('window-all-closed', () => { app.quit() })
-app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
+app.whenReady().then(() => {
+  startPython()
+  createWindow()
+})
+
+app.on('window-all-closed', () => {
+  stopPython()
+  app.quit()
+})
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow()
+})

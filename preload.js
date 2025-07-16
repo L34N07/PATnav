@@ -1,5 +1,5 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  runPython: () => ipcRenderer.invoke('run-python')
+  runPython: (cmd, params) => ipcRenderer.invoke('run-python', cmd, params)
 })
