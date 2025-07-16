@@ -1,5 +1,5 @@
 export interface ElectronAPI {
-  runPython: () => Promise<string>
+  runPython: (cmd: string, params?: any[]) => Promise<string>
 }
 
 declare global {

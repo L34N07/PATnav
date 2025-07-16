@@ -18,7 +18,14 @@ The Electron window will load the Vite development server.
 connections alive. Electron launches this process when the application
 starts and communicates with it through standard input/output.
 
-To fetch clients from the app you can invoke:
+To run Python commands from the renderer you can call:
+
+```ts
+window.electronAPI.runPython(cmd, params?)
+```
+
+Where `cmd` is the command string (for example `'get_clientes'`) and `params` is
+an optional array of arguments. A simple call fetching clients would look like:
 
 ```ts
 window.electronAPI.runPython('get_clientes')
