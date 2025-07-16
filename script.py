@@ -36,7 +36,7 @@ try:
         cursor.execute("{CALL sp_traer_clientes}")
         columns = [c[0] for c in cursor.description]
         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        print(json.dumps({'columns': columns, 'rows': rows}))
+        print(json.dumps({'columns': columns, 'rows': rows}, default=str))
 except Exception as e:
     print("Connection failed:")
     print(e)
