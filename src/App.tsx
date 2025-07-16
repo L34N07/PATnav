@@ -1,4 +1,4 @@
-import React from 'react'
+import React, {useState} from 'react'
 import './App.css'
 
 export default function App() {
@@ -8,13 +8,26 @@ export default function App() {
     value: Math.floor(Math.random() * 1000)
   }))
 
+  const [button2Text, setButton2Text] = useState('Opcion 2')
+
+  const handleButton1Click = async () => {
+    try {
+      if (window.electronAPI?.runPython) {
+        await window.electronAPI.runPython()
+      }
+    } finally {
+      setButton2Text('hello')
+    }
+  }
+
+
   return (
     <div className="app">
       <div className="top-bar"><img src="./assets/logopng.png" alt="logo" />La Naviera</div>
       <div className="content">
         <div className="sidebar">
-          <button>Opcion 1</button>
-          <button>Opcion 2</button>
+          <button onClick={handleButton1Click}>Opcion 1</button>
+          <button>{button2Text}</button>
           <button>Opcion 3</button>
           <button>Opcion 4</button>
         </div>

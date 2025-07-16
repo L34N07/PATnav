@@ -1,10 +1,25 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, ipcMain } = require('electron')
+const { execFile } = require('child_process')
 const path = require('path')
 
 const isDev = process.env.NODE_ENV === 'development'
 const URL = isDev
   ? 'http://localhost:5173'
   : `file://${path.join(__dirname, 'dist/index.html')}`
+
+
+ipcMain.handle('run-python', () => {
+  return new Promise((resolve, reject) => {
+    execFile('python3', [path.join(__dirname, 'script.py')], (error, stdout, stderr) => {
+      if (error) {
+        console.error(stderr)
+        reject(stderr)
+      } else {
+        resolve(stdout)
+      }
+    })
+  })
+})
 
 
 function createWindow() {
