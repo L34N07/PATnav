@@ -8,6 +8,7 @@ export default function App() {
   const [columnWidths, setColumnWidths] = useState<number[]>([])
   const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null)
   const [selectedRow, setSelectedRow] = useState<any | null>(null)
+  const [activeTable, setActiveTable] = useState<number>(0)
 
   const ITEMS_PER_PAGE = 25
 
@@ -18,6 +19,7 @@ export default function App() {
   )
 
   const handleButton1Click = async () => {
+    setActiveTable(1)
     try {
       if (window.electronAPI?.runPython) {
         const result = await window.electronAPI.runPython('get_clientes')
@@ -54,6 +56,7 @@ export default function App() {
   }
 
   const handleButton2Click = async () => {
+    setActiveTable(2)
     try {
       if (window.electronAPI?.runPython) {
         await window.electronAPI.runPython('modificar_cobros_impagos')
@@ -176,7 +179,9 @@ export default function App() {
                 className={selectedRowIndex === i ? 'selected' : ''}
                 onClick={() => {
                   setSelectedRowIndex(i)
-                  setSelectedRow(row)
+                  if (activeTable === 1) {
+                    setSelectedRow(row)
+                  }
                 }}
               >
                 {columns.map((col, idx) => (
