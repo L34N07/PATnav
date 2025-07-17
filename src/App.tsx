@@ -6,6 +6,8 @@ export default function App() {
   const [rows, setRows] = useState<any[]>([])
   const [allRows, setAllRows] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [filterField, setFilterField] =
+    useState<'dom_fiscal1' | 'cod_cliente' | 'cuit' | 'razon_social'>('dom_fiscal1')
   const [currentPage, setCurrentPage] = useState(0)
   const [columnWidths, setColumnWidths] = useState<number[]>([])
   const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null)
@@ -164,15 +166,32 @@ export default function App() {
     window.addEventListener("mouseup", onMouseUp);
   };
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value;
-    setSearchQuery(query);
+  const applyFilter = (query: string, field: string) => {
+    const columnMap: Record<string, string> = {
+      cod_cliente: 'Codigo',
+      dom_fiscal1: 'Domicilio',
+      cuit: 'CUIT',
+      razon_social: 'Razon Social',
+    }
+    const column = columnMap[field]
     const filtered = allRows.filter(row =>
-      row['Razon Social']?.toLowerCase().includes(query.toLowerCase())
-    );
-    setRows(filtered);
-    setCurrentPage(0);
-  };
+      row[column]?.toString().toLowerCase().includes(query.toLowerCase())
+    )
+    setRows(filtered)
+    setCurrentPage(0)
+  }
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value
+    setSearchQuery(query)
+    applyFilter(query, filterField)
+  }
+
+  const handleFilterFieldChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const field = e.target.value as 'dom_fiscal1' | 'cod_cliente' | 'cuit' | 'razon_social'
+    setFilterField(field)
+    applyFilter(searchQuery, field)
+  }
 
 
 
@@ -187,6 +206,16 @@ export default function App() {
             onChange={handleSearchChange}
             placeholder="Buscar"
           />
+          <select
+            value={filterField}
+            onChange={handleFilterFieldChange}
+            className="filter-select"
+          >
+            <option value="dom_fiscal1">Domicilio</option>
+            <option value="cod_cliente">Codigo</option>
+            <option value="cuit">CUIT</option>
+            <option value="razon_social">Razon Social</option>
+          </select>
           <button onClick={handleButton1Click}>Traer Clientes</button>
           <input
             type="text"
