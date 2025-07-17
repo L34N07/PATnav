@@ -48,11 +48,13 @@ body {
 
 table {
   border-collapse: collapse;
-  width: 100%;
   table-layout: fixed;
+  width: 97%;
+  margin: 15px auto 15px;
   border-radius: 4px;
   overflow: hidden;
   font-size: 0.8rem;
+  background-color: floralwhite;
 }
 
 th, td {
@@ -85,9 +87,10 @@ thead th {
 .table-container {
   flex: 1;
   min-width: 0;
+  justify-content: center;
   overflow-y: auto;
   overflow-x: auto;
-  padding-left: 20px;
+  background-color: #d3d1d150;
 }
 
 .pagination {
@@ -123,7 +126,7 @@ tr.selected {
   border: 1px solid #ccc;
   border-radius: 4px;
   background-color: #afafaf8a;
-  margin-bottom: 60px;
+  margin-bottom: 35px;
 }
 
 .code-input {
@@ -158,13 +161,36 @@ tr.selected {
   background-color: #afafaf8a;
 }
 
-.fetch-button,
-.edit-button,
-.irregularidades-button {
+.fetch-button{
   width: 90%;
   align-self: center;
   padding: 5px;
   margin: 5px;
+  background: #fff;
+  color: #000;
+  border: 1px solid #949494;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.edit-button{
+  width: 90%;
+  align-self: center;
+  padding: 5px;
+  margin-top: 5px;
+  margin-bottom: 35px;
+  background: #fff;
+  color: #000;
+  border: 1px solid #949494;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.irregularidades-button {
+  width: 90%;
+  align-self: center;
+  padding: 5px;
+  margin-top: 5px;
   background: #fff;
   color: #000;
   border: 1px solid #949494;
@@ -192,5 +218,5 @@ tr.selected {
   width: 100%;
   border: none;
   border-bottom: 1px solid #ccc;
-  margin: 10px 0;
+  margin-bottom: 30px;
 }
