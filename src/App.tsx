@@ -76,6 +76,11 @@ export default function App() {
             })
 
             const keys = Object.keys(trimmed).filter(k => columnMap[k])
+            const estadoIdx = keys.indexOf('estado')
+            if (estadoIdx !== -1 && keys.length > 3) {
+              keys.splice(estadoIdx, 1)
+              keys.splice(3, 0, 'estado')
+            }
             const newColumns = keys.map(k => columnMap[k])
             const newRows = data.rows.map((row: any) => {
               const r: Record<string, any> = {}
@@ -88,7 +93,7 @@ export default function App() {
             setColumns(newColumns)
             setRows(newRows)
             setCurrentPage(0)
-            setColumnWidths(newColumns.map(() => 150))
+            setColumnWidths(newColumns.map(() => 100))
             setSelectedRowIndex(null)
             setSelectedRow(null)
           }
