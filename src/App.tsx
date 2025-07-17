@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import './App.css'
+import logo from './assets/logopng.png'
 
 export default function App() {
   const [columns, setColumns] = useState<string[]>([])
@@ -197,7 +198,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className="top-bar"><img src="./assets/logopng.png" alt="logo" />La Naviera</div>
+      <div className="top-bar"><img src={logo} alt="logo" />La Naviera</div>
       <div className="content">
         <div className="sidebar">
           <input className="search-input"

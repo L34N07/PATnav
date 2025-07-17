@@ -10,6 +10,13 @@ npm install
 npm run dev
 ```
 
+For a production build run:
+
+```bash
+npm run build
+npm start
+```
+
 The Electron window will load the Vite development server.
 
 ## Python helper script
