@@ -216,6 +216,7 @@ export default function App() {
             <option value="dom_fiscal1">Domicilio</option>
             <option value="cuit">CUIT</option>
           </select>
+          <hr className="separator" />
           <button className="fetch-button" onClick={handleButton1Click}>Traer Clientes</button>
           <input className="code-input"
             type="text"
@@ -254,6 +255,7 @@ export default function App() {
             Habilitar Edicion
           </label>
           <button className="edit-button" onClick={handleButton3Click}>Editar Cliente</button>
+          <hr className="separator" />
           <button className="irregularidades-button" onClick={handleButton2Click}>Ver Irregularidades</button>
         </div>
         <div className="table-container">
@@ -289,15 +291,17 @@ export default function App() {
             ))}
           </tbody>
         </table>
-        <div className="pagination">
-          <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}>
-            ←
-          </button>
-          <span>{currentPage + 1} / {totalPages || 1}</span>
-          <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}>
-            →
-          </button>
-        </div>
+          {rows.length > 0 && (
+            <div className="pagination">
+              <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}>
+                ←
+              </button>
+              <span>{currentPage + 1} / {totalPages || 1}</span>
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}>
+                →
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
