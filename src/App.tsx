@@ -52,6 +52,38 @@ export default function App() {
       console.error('runPython failed', err)
     }
   }
+
+  const handleButton2Click = async () => {
+    try {
+      if (window.electronAPI?.runPython) {
+        await window.electronAPI.runPython('modificar_cobros_impagos')
+        const result = await window.electronAPI.runPython('traer_incongruencias')
+        try {
+          const data = JSON.parse(result)
+          if (Array.isArray(data.columns) && Array.isArray(data.rows)) {
+            const newColumns = data.columns
+            const newRows = data.rows.map((row: any) => {
+              const r: Record<string, any> = {}
+              newColumns.forEach((c: string) => {
+                r[c] = row[c]
+              })
+              return r
+            })
+            setColumns(newColumns)
+            setRows(newRows)
+            setCurrentPage(0)
+            setColumnWidths(newColumns.map(() => 150))
+            setSelectedRowIndex(null)
+            setSelectedRow(null)
+          }
+        } catch (e) {
+          console.error('Failed to parse python output', e)
+        }
+      }
+    } catch (err) {
+      console.error('runPython failed', err)
+    }
+  }
   const handleMouseDown = (e: React.MouseEvent, index: number) => {
     const startX = e.clientX;
     const startWidth = columnWidths[index];
@@ -76,7 +108,7 @@ export default function App() {
       <div className="content">
         <div className="sidebar">
           <button onClick={handleButton1Click}>Traer Clientes</button>
-          <button>Opcion 2</button>
+          <button onClick={handleButton2Click}>Opcion 2</button>
           <button>Opcion 3</button>
           <button>Opcion 4</button>
           <input
