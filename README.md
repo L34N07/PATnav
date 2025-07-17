@@ -24,7 +24,9 @@ npm run dist
 ```
 
 Make sure the system has Python and its dependencies (like `pyodbc`)
-installed, as the packaged app spawns `script.py` at runtime.
+installed, as the packaged app spawns `script.py` at runtime. When
+packaged, `script.py` is unpacked into the `resources/app.asar.unpacked`
+directory so Electron can run it.
 
 The Electron window will load the Vite development server.
 

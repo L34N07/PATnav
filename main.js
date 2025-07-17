@@ -14,7 +14,7 @@ let pythonProc
 function startPython() {
   const script = process.env.NODE_ENV === 'development'
     ? path.join(__dirname, 'script.py')
-    : path.join(process.resourcesPath, 'script.py')
+    : path.join(process.resourcesPath, 'app.asar.unpacked', 'script.py')
   pythonProc = spawn(pythonCmd, [script])
   pythonProc.stdout.setEncoding('utf8')
 }
