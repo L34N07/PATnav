@@ -62,12 +62,11 @@ export default function App() {
           const data = JSON.parse(result)
           if (Array.isArray(data.columns) && Array.isArray(data.rows)) {
             const columnMap: Record<string, string> = {
-              comprobante: 'Comprobante',
-              prefijo: 'Prefijo',
-              numero: 'Numero',
-              total: 'Total',
-              total_aplicado: 'Total Aplicado',
-              totalaplicado: 'Total Aplicado',
+              tipocomp: 'Comprobante',
+              pref: 'Prefijo',
+              imptotal: 'Total',
+              imptotalapl: 'Total Aplicado',
+              num: 'Numero',
               estado: 'Estado',
             }
 
