@@ -138,6 +138,7 @@ export default function App() {
           new_dom_fiscal,
           new_cuit,
         ])
+        await handleButton1Click()
       }
     } catch (err) {
       console.error('runPython failed', err)
