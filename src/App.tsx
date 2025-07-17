@@ -181,13 +181,13 @@ export default function App() {
       <div className="top-bar"><img src="./assets/logopng.png" alt="logo" />La Naviera</div>
       <div className="content">
         <div className="sidebar">
-          <button onClick={handleButton1Click}>Traer Clientes</button>
           <input
             type="text"
             value={searchQuery}
             onChange={handleSearchChange}
-            placeholder="Buscar Razon Social"
+            placeholder="Buscar"
           />
+          <button onClick={handleButton1Click}>Traer Clientes</button>
           <input
             type="text"
             value={cod_cliente}
