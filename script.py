@@ -88,6 +88,28 @@ def update_cliente(pool: ConnectionPool, cod_cliente, new_razon_social, new_dom_
     )
 
 
+def run_procedure(pool: ConnectionPool, call: str, params=()) -> dict:
+    """Execute a procedure that does not return a result set."""
+    conn = get_connection(pool)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(call, params)
+        conn.commit()
+        return {"status": "ok"}
+    finally:
+        pool.release(conn)
+
+
+def modificar_cobros_impagos(pool: ConnectionPool):
+    """Execute the `modificar_cobros_impagos` procedure."""
+    return run_procedure(pool, '{CALL modificar_cobros_impagos}')
+
+
+def traer_incongruencias(pool: ConnectionPool):
+    """Return the result of the `traer_incongruencias` procedure."""
+    return execute_procedure(pool, '{CALL traer_incongruencias}')
+
+
 def main() -> None:
     """Run a small command loop reading JSON from stdin."""
     pool = ConnectionPool()
@@ -115,6 +137,10 @@ def main() -> None:
             res = get_clientes(pool)
         elif cmd == "update_cliente":
             res = update_cliente(pool, *params)
+        elif cmd == "modificar_cobros_impagos":
+            res = modificar_cobros_impagos(pool)
+        elif cmd == "traer_incongruencias":
+            res = traer_incongruencias(pool)
         elif cmd == "exit":
             break
         else:

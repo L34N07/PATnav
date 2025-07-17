@@ -32,9 +32,13 @@ ipcMain.handle('run-python', (_event, cmd, params = []) => {
   if (!pythonProc) return Promise.reject(new Error('python not running'))
   const message = JSON.stringify({ cmd, params }) + '\n'
   return new Promise((resolve, reject) => {
+    let buffer = ''
     const onData = (data) => {
-      cleanup()
-      resolve(data.toString())
+      buffer += data.toString()
+      if (buffer.includes('\n')) {
+        cleanup()
+        resolve(buffer.trim())
+      }
     }
     const onErr = (err) => {
       cleanup()
@@ -44,7 +48,7 @@ ipcMain.handle('run-python', (_event, cmd, params = []) => {
       pythonProc.stdout.off('data', onData)
       pythonProc.stderr.off('data', onErr)
     }
-    pythonProc.stdout.once('data', onData)
+    pythonProc.stdout.on('data', onData)
     pythonProc.stderr.once('data', onErr)
     pythonProc.stdin.write(message)
   })
