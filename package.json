@@ -1,6 +1,7 @@
 {
   "name": "patnav",
   "version": "1.0.0",
+  "productName": "Naviera App",
   "description": "Proyecto ambicion total Naviera",
   "main": "main.js",
   "dependencies": {
@@ -13,7 +14,16 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development concurrently -k \"vite\" \"electron .\"",
     "build": "vite build",
-    "start": "cross-env NODE_ENV=production electron ."
+    "start": "cross-env NODE_ENV=production electron .",
+    "dist": "electron-builder"
+  },
+  "build":{
+    "appId": "com.l34n07.navieraapp",
+    "productName": "Naviera App",
+    "win":{
+      "target": "portable"
+    }
+    
   },
   "repository": {
     "type": "git",
