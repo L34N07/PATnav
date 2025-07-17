@@ -17,13 +17,37 @@
     "start": "cross-env NODE_ENV=production electron .",
     "dist": "electron-builder"
   },
-  "build":{
+  "build": {
     "appId": "com.l34n07.navieraapp",
     "productName": "Naviera App",
-    "win":{
-      "target": "portable"
+    "directories": {
+      "buildResources": "public"
+    },
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "preload.js",
+      "script.py",
+      "package.json",
+      "public/**/*",
+      "src/assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "public/fonts",
+        "to": "fonts",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/logo.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "src/assets/logopng.png"
     }
-    
+
   },
   "repository": {
     "type": "git",
