@@ -11,21 +11,21 @@ export default function App() {
   const [activeTable, setActiveTable] = useState<number>(0)
   const [editEnabled, setEditEnabled] = useState(false)
 
-  const [new_cod, setNew_cod] = useState('')
-  const [new_razon, setNew_razon] = useState('')
-  const [new_domicilio, setNew_domicilio] = useState('')
+  const [cod_cliente, setCod_cliente] = useState('')
+  const [new_razon_social, setNew_razon_social] = useState('')
+  const [new_dom_fiscal, setNew_dom_fiscal] = useState('')
   const [new_cuit, setNew_cuit] = useState('')
 
   useEffect(() => {
     if (selectedRow) {
-      setNew_cod(selectedRow[columns[0]] || '')
-      setNew_razon(selectedRow[columns[1]] || '')
-      setNew_domicilio(selectedRow[columns[2]] || '')
+      setCod_cliente(selectedRow[columns[0]] || '')
+      setNew_razon_social(selectedRow[columns[1]] || '')
+      setNew_dom_fiscal(selectedRow[columns[2]] || '')
       setNew_cuit(selectedRow[columns[3]] || '')
     } else {
-      setNew_cod('')
-      setNew_razon('')
-      setNew_domicilio('')
+      setCod_cliente('')
+      setNew_razon_social('')
+      setNew_dom_fiscal('')
       setNew_cuit('')
     }
   }, [selectedRow, columns])
@@ -128,6 +128,21 @@ export default function App() {
       console.error('runPython failed', err)
     }
   }
+
+  const handleButton3Click = async () => {
+    try {
+      if (window.electronAPI?.runPython) {
+        await window.electronAPI.runPython('update_cliente', [
+          cod_cliente,
+          new_razon_social,
+          new_dom_fiscal,
+          new_cuit,
+        ])
+      }
+    } catch (err) {
+      console.error('runPython failed', err)
+    }
+  }
   const handleMouseDown = (e: React.MouseEvent, index: number) => {
     const startX = e.clientX;
     const startWidth = columnWidths[index];
@@ -154,22 +169,22 @@ export default function App() {
           <button onClick={handleButton1Click}>Traer Clientes</button>
           <input
             type="text"
-            value={new_cod}
-            onChange={e => setNew_cod(e.target.value)}
+            value={cod_cliente}
+            onChange={e => setCod_cliente(e.target.value)}
             placeholder={columns[0] || 'Codigo'}
             readOnly
           />
           <input
             type="text"
-            value={new_razon}
-            onChange={e => setNew_razon(e.target.value)}
+            value={new_razon_social}
+            onChange={e => setNew_razon_social(e.target.value)}
             placeholder={columns[1] || 'Razon Social'}
             readOnly={!editEnabled}
           />
           <input
             type="text"
-            value={new_domicilio}
-            onChange={e => setNew_domicilio(e.target.value)}
+            value={new_dom_fiscal}
+            onChange={e => setNew_dom_fiscal(e.target.value)}
             placeholder={columns[2] || 'Domicilio'}
             readOnly={!editEnabled}
           />
@@ -188,8 +203,8 @@ export default function App() {
             />
             Habilitar Edicion
           </label>
-          <button onClick={handleButton2Click}>Ver Irregularidades</button>
           <button>Opcion 3</button>
+          <button onClick={handleButton3Click}>Editar Cliente</button>
           <button>Opcion 4</button>
         </div>
         <div className="table-container">
