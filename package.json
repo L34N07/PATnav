@@ -44,7 +44,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/logo.ico"
+      "icon": "src/assets/logopng.png"
     },
     "linux": {
       "target": "AppImage",
