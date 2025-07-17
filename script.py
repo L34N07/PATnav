@@ -92,7 +92,7 @@ def get_clientes(pool: ConnectionPool):
 
 def update_cliente(pool: ConnectionPool, cod_cliente, new_razon_social, new_dom_fiscal, new_cuit):
     """Call the `editar_cliente` procedure with the given arguments."""
-    return execute_procedure(
+    return run_procedure(
         pool,
         '{CALL editar_cliente (?, ?, ?, ?)}',
         (cod_cliente, new_razon_social, new_dom_fiscal, new_cuit)

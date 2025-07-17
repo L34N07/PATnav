@@ -203,8 +203,8 @@ export default function App() {
             />
             Habilitar Edicion
           </label>
-          <button>Opcion 3</button>
           <button onClick={handleButton3Click}>Editar Cliente</button>
+          <button onClick={handleButton2Click}>Ver Irregularidades</button>
           <button>Opcion 4</button>
         </div>
         <div className="table-container">
