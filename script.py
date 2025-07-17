@@ -67,6 +67,17 @@ def execute_procedure(pool: ConnectionPool, call: str, params=()):
     try:
         cursor = conn.cursor()
         cursor.execute(call, params)
+
+        # Some procedures may emit rowcount messages before returning a result
+        # set. Advance through result sets until one with column metadata is
+        # available or no more sets remain.
+        while cursor.description is None and cursor.nextset():
+            pass
+
+        if cursor.description is None:
+            # Procedure returned no result set
+            return {"columns": [], "rows": []}
+
         columns = [c[0] for c in cursor.description]
         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
         return {"columns": columns, "rows": rows}
