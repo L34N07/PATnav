@@ -61,11 +61,34 @@ export default function App() {
         try {
           const data = JSON.parse(result)
           if (Array.isArray(data.columns) && Array.isArray(data.rows)) {
-            const newColumns = data.columns
+            const columnMap: Record<string, string> = {
+              comprobante: 'Comprobante',
+              prefijo: 'Prefijo',
+              numero: 'Numero',
+              total: 'Total',
+              total_aplicado: 'Total Aplicado',
+              totalaplicado: 'Total Aplicado',
+              estado: 'Estado',
+            }
+            const selected = data.columns.filter(
+              (c: string) => columnMap[c.toLowerCase()]
+            )
+            const orderedSelected = [...selected]
+            const estadoIdx = orderedSelected.findIndex(
+              (c) => c.toLowerCase() === 'estado'
+            )
+            if (estadoIdx !== -1) {
+              const [estadoCol] = orderedSelected.splice(estadoIdx, 1)
+              orderedSelected.splice(3, 0, estadoCol)
+            }
+            const newColumns = orderedSelected.map(
+              (c: string) => columnMap[c.toLowerCase()]
+            )
             const newRows = data.rows.map((row: any) => {
               const r: Record<string, any> = {}
-              newColumns.forEach((c: string) => {
-                r[c] = row[c]
+              orderedSelected.forEach((c: string) => {
+                const key = columnMap[c.toLowerCase()]
+                r[key] = row[c]
               })
               return r
             })
@@ -108,7 +131,7 @@ export default function App() {
       <div className="content">
         <div className="sidebar">
           <button onClick={handleButton1Click}>Traer Clientes</button>
-          <button onClick={handleButton2Click}>Opcion 2</button>
+          <button onClick={handleButton2Click}>Ver Irregularidades</button>
           <button>Opcion 3</button>
           <button>Opcion 4</button>
           <input
