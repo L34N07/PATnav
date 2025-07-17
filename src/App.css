@@ -134,8 +134,10 @@ tr.selected {
 }
 
 .edit-toggle {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.8rem;
+  display:flex;
+  align-items:center;
+  width: 45%;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  gap: 0px;
 }
