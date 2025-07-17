@@ -49,7 +49,7 @@ body {
   width: 90%;
   align-self: center;
   padding: 5px;
-  margin: 5px 0;
+  margin: 5px;
   background: #fff;
   color: #000;
   border: 1px solid #949494;
@@ -126,7 +126,7 @@ tr.selected {
 }
 
 .sidebar input {
-  width: 100%;
+  width: 95%;
   padding: 5px;
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -135,11 +135,11 @@ tr.selected {
 
 .sidebar select {
   width: 100%;
-  padding: 5px;
+  padding: 4px;
   border: 1px solid #ccc;
   border-radius: 4px;
   background-color: #afafaf8a;
-  margin-bottom: 20px;
+  margin-bottom: 60px;
 }
 
 .edit-toggle {

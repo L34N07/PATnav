@@ -211,10 +211,10 @@ export default function App() {
             onChange={handleFilterFieldChange}
             className="filter-select"
           >
-            <option value="dom_fiscal1">Domicilio</option>
             <option value="cod_cliente">Codigo</option>
-            <option value="cuit">CUIT</option>
             <option value="razon_social">Razon Social</option>
+            <option value="dom_fiscal1">Domicilio</option>
+            <option value="cuit">CUIT</option>
           </select>
           <button onClick={handleButton1Click}>Traer Clientes</button>
           <input
@@ -255,7 +255,6 @@ export default function App() {
           </label>
           <button onClick={handleButton3Click}>Editar Cliente</button>
           <button onClick={handleButton2Click}>Ver Irregularidades</button>
-          <button>Opcion 4</button>
         </div>
         <div className="table-container">
         <table>
