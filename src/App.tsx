@@ -61,39 +61,11 @@ export default function App() {
         try {
           const data = JSON.parse(result)
           if (Array.isArray(data.columns) && Array.isArray(data.rows)) {
-            const columnMap: Record<string, string> = {
-              comprobante: 'Comprobante',
-              prefijo: 'Prefijo',
-              numero: 'Numero',
-              total: 'Total',
-              total_aplicado: 'Total Aplicado',
-              totalaplicado: 'Total Aplicado',
-              estado: 'Estado',
-            }
-
-            // Normalize incoming column names but keep a mapping to the original
-            const trimmed: Record<string, string> = {}
-            data.columns.forEach((c: string) => {
-              trimmed[c.trim().toLowerCase()] = c
-            })
-
-            const selected = Object.keys(trimmed).filter(
-              (k) => columnMap[k]
-            )
-            const orderedKeys = [...selected]
-            const estadoIdx = orderedKeys.findIndex((k) => k === 'estado')
-            if (estadoIdx !== -1) {
-              const [estadoKey] = orderedKeys.splice(estadoIdx, 1)
-              orderedKeys.splice(3, 0, estadoKey)
-            }
-
-            const newColumns = orderedKeys.map((k) => columnMap[k])
+            const newColumns = data.columns
             const newRows = data.rows.map((row: any) => {
               const r: Record<string, any> = {}
-              orderedKeys.forEach((k) => {
-                const original = trimmed[k]
-                const key = columnMap[k]
-                r[key] = row[original]
+              newColumns.forEach((c: string) => {
+                r[c] = row[c]
               })
               return r
             })
