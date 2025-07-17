@@ -15,7 +15,7 @@
     "dev": "cross-env NODE_ENV=development concurrently -k \"vite\" \"electron .\"",
     "build": "vite build",
     "start": "cross-env NODE_ENV=production electron .",
-    "dist": "electron-builder"
+    "dist": "npm run build && electron-builder"
   },
   "build": {
     "appId": "com.l34n07.navieraapp",
@@ -23,15 +23,18 @@
     "directories": {
       "buildResources": "public"
     },
-    "files": [
-      "dist/**/*",
-      "main.js",
-      "preload.js",
-      "script.py",
-      "package.json",
-      "public/**/*",
-      "src/assets/**/*"
-    ],
+      "files": [
+        "dist/**/*",
+        "main.js",
+        "preload.js",
+        "script.py",
+        "package.json",
+        "public/**/*",
+        "src/assets/**/*"
+      ],
+      "asarUnpack": [
+        "script.py"
+      ],
     "extraResources": [
       {
         "from": "public/fonts",
