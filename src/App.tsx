@@ -70,25 +70,30 @@ export default function App() {
               totalaplicado: 'Total Aplicado',
               estado: 'Estado',
             }
-            const selected = data.columns.filter(
-              (c: string) => columnMap[c.toLowerCase()]
+
+            // Normalize incoming column names but keep a mapping to the original
+            const trimmed: Record<string, string> = {}
+            data.columns.forEach((c: string) => {
+              trimmed[c.trim().toLowerCase()] = c
+            })
+
+            const selected = Object.keys(trimmed).filter(
+              (k) => columnMap[k]
             )
-            const orderedSelected = [...selected]
-            const estadoIdx = orderedSelected.findIndex(
-              (c) => c.toLowerCase() === 'estado'
-            )
+            const orderedKeys = [...selected]
+            const estadoIdx = orderedKeys.findIndex((k) => k === 'estado')
             if (estadoIdx !== -1) {
-              const [estadoCol] = orderedSelected.splice(estadoIdx, 1)
-              orderedSelected.splice(3, 0, estadoCol)
+              const [estadoKey] = orderedKeys.splice(estadoIdx, 1)
+              orderedKeys.splice(3, 0, estadoKey)
             }
-            const newColumns = orderedSelected.map(
-              (c: string) => columnMap[c.toLowerCase()]
-            )
+
+            const newColumns = orderedKeys.map((k) => columnMap[k])
             const newRows = data.rows.map((row: any) => {
               const r: Record<string, any> = {}
-              orderedSelected.forEach((c: string) => {
-                const key = columnMap[c.toLowerCase()]
-                r[key] = row[c]
+              orderedKeys.forEach((k) => {
+                const original = trimmed[k]
+                const key = columnMap[k]
+                r[key] = row[original]
               })
               return r
             })
