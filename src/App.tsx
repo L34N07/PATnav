@@ -61,11 +61,28 @@ export default function App() {
         try {
           const data = JSON.parse(result)
           if (Array.isArray(data.columns) && Array.isArray(data.rows)) {
-            const newColumns = data.columns
+            const columnMap: Record<string, string> = {
+              comprobante: 'Comprobante',
+              prefijo: 'Prefijo',
+              numero: 'Numero',
+              total: 'Total',
+              total_aplicado: 'Total Aplicado',
+              totalaplicado: 'Total Aplicado',
+              estado: 'Estado',
+            }
+
+            const trimmed: Record<string, string> = {}
+            data.columns.forEach((c: string) => {
+              trimmed[c.trim().toLowerCase()] = c
+            })
+
+            const keys = Object.keys(trimmed).filter(k => columnMap[k])
+            const newColumns = keys.map(k => columnMap[k])
             const newRows = data.rows.map((row: any) => {
               const r: Record<string, any> = {}
-              newColumns.forEach((c: string) => {
-                r[c] = row[c]
+              keys.forEach(k => {
+                const original = trimmed[k]
+                r[columnMap[k]] = row[original]
               })
               return r
             })
