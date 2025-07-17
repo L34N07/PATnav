@@ -4,6 +4,8 @@ import './App.css'
 export default function App() {
   const [columns, setColumns] = useState<string[]>([])
   const [rows, setRows] = useState<any[]>([])
+  const [allRows, setAllRows] = useState<any[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(0)
   const [columnWidths, setColumnWidths] = useState<number[]>([])
   const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null)
@@ -62,6 +64,8 @@ export default function App() {
               return r
             })
             setColumns(newColumns)
+            setAllRows(newRows)
+            setSearchQuery('')
             setRows(newRows)
             setCurrentPage(0)
             setColumnWidths(newColumns.map(() => 150))
@@ -160,6 +164,16 @@ export default function App() {
     window.addEventListener("mouseup", onMouseUp);
   };
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    const filtered = allRows.filter(row =>
+      row['Razon Social']?.toLowerCase().includes(query.toLowerCase())
+    );
+    setRows(filtered);
+    setCurrentPage(0);
+  };
+
 
 
   return (
@@ -168,6 +182,12 @@ export default function App() {
       <div className="content">
         <div className="sidebar">
           <button onClick={handleButton1Click}>Traer Clientes</button>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={handleSearchChange}
+            placeholder="Buscar Razon Social"
+          />
           <input
             type="text"
             value={cod_cliente}
