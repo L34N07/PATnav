@@ -129,9 +129,6 @@ export default function App() {
       <div className="content">
         <div className="sidebar">
           <button onClick={handleButton1Click}>Traer Clientes</button>
-          <button onClick={handleButton2Click}>Ver Irregularidades</button>
-          <button>Opcion 3</button>
-          <button>Opcion 4</button>
           <input
             type="text"
             value={selectedRow ? selectedRow[columns[0]] || '' : ''}
@@ -156,6 +153,9 @@ export default function App() {
             placeholder={columns[3] || 'CUIT'}
             readOnly
           />
+          <button onClick={handleButton2Click}>Ver Irregularidades</button>
+          <button>Opcion 3</button>
+          <button>Opcion 4</button>
         </div>
         <div className="table-container">
         <table>
