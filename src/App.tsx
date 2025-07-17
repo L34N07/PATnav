@@ -200,7 +200,7 @@ export default function App() {
       <div className="top-bar"><img src="./assets/logopng.png" alt="logo" />La Naviera</div>
       <div className="content">
         <div className="sidebar">
-          <input
+          <input className="search-input"
             type="text"
             value={searchQuery}
             onChange={handleSearchChange}
@@ -216,29 +216,29 @@ export default function App() {
             <option value="dom_fiscal1">Domicilio</option>
             <option value="cuit">CUIT</option>
           </select>
-          <button onClick={handleButton1Click}>Traer Clientes</button>
-          <input
+          <button className="fetch-button" onClick={handleButton1Click}>Traer Clientes</button>
+          <input className="code-input"
             type="text"
             value={cod_cliente}
             onChange={e => setCod_cliente(e.target.value)}
             placeholder={columns[0] || 'Codigo'}
             readOnly
           />
-          <input
+          <input className="razon-input"
             type="text"
             value={new_razon_social}
             onChange={e => setNew_razon_social(e.target.value)}
             placeholder={columns[1] || 'Razon Social'}
             readOnly={!editEnabled}
           />
-          <input
+          <input className="dom-input"
             type="text"
             value={new_dom_fiscal}
             onChange={e => setNew_dom_fiscal(e.target.value)}
             placeholder={columns[2] || 'Domicilio'}
             readOnly={!editEnabled}
           />
-          <input
+          <input className="cuit-input"
             type="text"
             value={new_cuit}
             onChange={e => setNew_cuit(e.target.value)}
@@ -253,8 +253,8 @@ export default function App() {
             />
             Habilitar Edicion
           </label>
-          <button onClick={handleButton3Click}>Editar Cliente</button>
-          <button onClick={handleButton2Click}>Ver Irregularidades</button>
+          <button className="edit-button" onClick={handleButton3Click}>Editar Cliente</button>
+          <button className="irregularidades-button" onClick={handleButton2Click}>Ver Irregularidades</button>
         </div>
         <div className="table-container">
         <table>

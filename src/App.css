@@ -45,22 +45,6 @@ body {
   padding-right: 20px;
 }
 
-.sidebar button {
-  width: 90%;
-  align-self: center;
-  padding: 5px;
-  margin: 5px;
-  background: #fff;
-  color: #000;
-  border: 1px solid #949494;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.sidebar button:hover {
-  background: #000;
-  color: #fff;
-}
 
 table {
   border-collapse: collapse;
@@ -125,7 +109,7 @@ tr.selected {
   background-color: #bde5ff;
 }
 
-.sidebar input {
+.search-input {
   width: 95%;
   padding: 5px;
   border: 1px solid #ccc;
@@ -133,13 +117,66 @@ tr.selected {
   background-color: #afafaf8a;
 }
 
-.sidebar select {
+.filter-select {
   width: 100%;
   padding: 4px;
   border: 1px solid #ccc;
   border-radius: 4px;
   background-color: #afafaf8a;
   margin-bottom: 60px;
+}
+
+.code-input {
+  width: 95%;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #afafaf8a;
+}
+
+.razon-input {
+  width: 95%;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #afafaf8a;
+}
+
+.dom-input {
+  width: 95%;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #afafaf8a;
+}
+
+.cuit-input {
+  width: 95%;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #afafaf8a;
+}
+
+.fetch-button,
+.edit-button,
+.irregularidades-button {
+  width: 90%;
+  align-self: center;
+  padding: 5px;
+  margin: 5px;
+  background: #fff;
+  color: #000;
+  border: 1px solid #949494;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.fetch-button:hover,
+.edit-button:hover,
+.irregularidades-button:hover {
+  background: #000;
+  color: #fff;
 }
 
 .edit-toggle {
