@@ -17,6 +17,15 @@ npm run build
 npm start
 ```
 
+To generate an installer or portable package using electron-builder:
+
+```bash
+npm run dist
+```
+
+Make sure the system has Python and its dependencies (like `pyodbc`)
+installed, as the packaged app spawns `script.py` at runtime.
+
 The Electron window will load the Vite development server.
 
 ## Python helper script

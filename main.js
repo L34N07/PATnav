@@ -12,7 +12,10 @@ const pythonCmd = process.platform === 'win32' ? 'python' : 'python3'
 let pythonProc
 
 function startPython() {
-  pythonProc = spawn(pythonCmd, [path.join(__dirname, 'script.py')])
+  const script = process.env.NODE_ENV === 'development'
+    ? path.join(__dirname, 'script.py')
+    : path.join(process.resourcesPath, 'script.py')
+  pythonProc = spawn(pythonCmd, [script])
   pythonProc.stdout.setEncoding('utf8')
 }
 
