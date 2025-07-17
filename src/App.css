@@ -133,6 +133,15 @@ tr.selected {
   background-color: #afafaf8a;
 }
 
+.sidebar select {
+  width: 100%;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #afafaf8a;
+  margin-bottom: 20px;
+}
+
 .edit-toggle {
   display:flex;
   align-items:center;
