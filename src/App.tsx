@@ -157,7 +157,7 @@ export default function App() {
             value={new_cod}
             onChange={e => setNew_cod(e.target.value)}
             placeholder={columns[0] || 'Codigo'}
-            readOnly={!editEnabled}
+            readOnly
           />
           <input
             type="text"
