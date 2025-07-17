@@ -87,9 +87,12 @@ thead th {
 .table-container {
   flex: 1;
   min-width: 0;
+  margin-left: 20px;
+  margin-bottom: auto;
   justify-content: center;
   overflow-y: auto;
   overflow-x: auto;
+  border-radius: 10px;
   background-color: #d3d1d150;
 }
 
