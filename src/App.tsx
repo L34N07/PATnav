@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import './App.css'
 
 export default function App() {
@@ -9,6 +9,26 @@ export default function App() {
   const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null)
   const [selectedRow, setSelectedRow] = useState<any | null>(null)
   const [activeTable, setActiveTable] = useState<number>(0)
+  const [editEnabled, setEditEnabled] = useState(false)
+
+  const [new_cod, setNew_cod] = useState('')
+  const [new_razon, setNew_razon] = useState('')
+  const [new_domicilio, setNew_domicilio] = useState('')
+  const [new_cuit, setNew_cuit] = useState('')
+
+  useEffect(() => {
+    if (selectedRow) {
+      setNew_cod(selectedRow[columns[0]] || '')
+      setNew_razon(selectedRow[columns[1]] || '')
+      setNew_domicilio(selectedRow[columns[2]] || '')
+      setNew_cuit(selectedRow[columns[3]] || '')
+    } else {
+      setNew_cod('')
+      setNew_razon('')
+      setNew_domicilio('')
+      setNew_cuit('')
+    }
+  }, [selectedRow, columns])
 
   const ITEMS_PER_PAGE = 25
 
@@ -134,28 +154,40 @@ export default function App() {
           <button onClick={handleButton1Click}>Traer Clientes</button>
           <input
             type="text"
-            value={selectedRow ? selectedRow[columns[0]] || '' : ''}
+            value={new_cod}
+            onChange={e => setNew_cod(e.target.value)}
             placeholder={columns[0] || 'Codigo'}
-            readOnly
+            readOnly={!editEnabled}
           />
           <input
             type="text"
-            value={selectedRow ? selectedRow[columns[1]] || '' : ''}
+            value={new_razon}
+            onChange={e => setNew_razon(e.target.value)}
             placeholder={columns[1] || 'Razon Social'}
-            readOnly
+            readOnly={!editEnabled}
           />
           <input
             type="text"
-            value={selectedRow ? selectedRow[columns[2]] || '' : ''}
+            value={new_domicilio}
+            onChange={e => setNew_domicilio(e.target.value)}
             placeholder={columns[2] || 'Domicilio'}
-            readOnly
+            readOnly={!editEnabled}
           />
           <input
             type="text"
-            value={selectedRow ? selectedRow[columns[3]] || '' : ''}
+            value={new_cuit}
+            onChange={e => setNew_cuit(e.target.value)}
             placeholder={columns[3] || 'CUIT'}
-            readOnly
+            readOnly={!editEnabled}
           />
+          <label className="edit-toggle">
+            <input
+              type="checkbox"
+              checked={editEnabled}
+              onChange={e => setEditEnabled(e.target.checked)}
+            />
+            Habilitar Edicion
+          </label>
           <button onClick={handleButton2Click}>Ver Irregularidades</button>
           <button>Opcion 3</button>
           <button>Opcion 4</button>

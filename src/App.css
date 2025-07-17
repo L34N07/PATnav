@@ -132,3 +132,10 @@ tr.selected {
   border-radius: 4px;
   background-color: #afafaf8a;
 }
+
+.edit-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+}
