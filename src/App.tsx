@@ -194,8 +194,6 @@ export default function App() {
     applyFilter(searchQuery, field)
   }
 
-
-
   return (
     <div className="app">
       <div className="top-bar"><img src={logo} alt="logo" />La Naviera</div>

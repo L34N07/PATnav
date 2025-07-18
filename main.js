@@ -24,7 +24,6 @@ function stopPython() {
     try {
       pythonProc.stdin.write(JSON.stringify({ cmd: 'exit' }) + '\n')
     } catch (e) {
-      // ignore if stdin already closed
     }
     pythonProc.kill()
     pythonProc = undefined
@@ -56,7 +55,6 @@ ipcMain.handle('run-python', (_event, cmd, params = []) => {
     pythonProc.stdin.write(message)
   })
 })
-
 
 function createWindow() {
   const win = new BrowserWindow({

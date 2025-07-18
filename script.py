@@ -4,7 +4,6 @@ import sys
 import queue
 import signal
 
-# Database connection settings
 SERVER = '192.168.100.13,1433'
 DATABASE = 'NAVIERA'
 DRIVER = 'ODBC Driver 18 for SQL Server'
@@ -15,7 +14,6 @@ SQL_PASS = 'test123'
 
 
 def _build_conn_str() -> str:
-    """Return a pyodbc connection string."""
     if USE_WINDOWS_AUTH:
         return (
             f"DRIVER={{{DRIVER}}};"
@@ -37,7 +35,6 @@ def _build_conn_str() -> str:
 
 
 class ConnectionPool:
-    """Very small connection pool for reusing database connections."""
 
     def __init__(self, size: int = 5):
         self._pool: "queue.Queue[pyodbc.Connection]" = queue.Queue(maxsize=size)
@@ -55,27 +52,19 @@ class ConnectionPool:
             conn = self._pool.get_nowait()
             conn.close()
 
-
 def get_connection(pool: ConnectionPool) -> pyodbc.Connection:
-    """Get a connection from the provided pool."""
     return pool.acquire()
 
-
 def execute_procedure(pool: ConnectionPool, call: str, params=()):
-    """Execute a stored procedure using a pooled connection."""
     conn = get_connection(pool)
     try:
         cursor = conn.cursor()
         cursor.execute(call, params)
 
-        # Some procedures may emit rowcount messages before returning a result
-        # set. Advance through result sets until one with column metadata is
-        # available or no more sets remain.
         while cursor.description is None and cursor.nextset():
             pass
 
         if cursor.description is None:
-            # Procedure returned no result set
             return {"columns": [], "rows": []}
 
         columns = [c[0] for c in cursor.description]
@@ -84,23 +73,7 @@ def execute_procedure(pool: ConnectionPool, call: str, params=()):
     finally:
         pool.release(conn)
 
-
-def get_clientes(pool: ConnectionPool):
-    """Return the result of the `sp_traer_clientes` procedure."""
-    return execute_procedure(pool, '{CALL sp_traer_clientes}')
-
-
-def update_cliente(pool: ConnectionPool, cod_cliente, new_razon_social, new_dom_fiscal, new_cuit):
-    """Call the `editar_cliente` procedure with the given arguments."""
-    return run_procedure(
-        pool,
-        '{CALL editar_cliente (?, ?, ?, ?)}',
-        (cod_cliente, new_razon_social, new_dom_fiscal, new_cuit)
-    )
-
-
 def run_procedure(pool: ConnectionPool, call: str, params=()) -> dict:
-    """Execute a procedure that does not return a result set."""
     conn = get_connection(pool)
     try:
         cursor = conn.cursor()
@@ -110,19 +83,23 @@ def run_procedure(pool: ConnectionPool, call: str, params=()) -> dict:
     finally:
         pool.release(conn)
 
+def get_clientes(pool: ConnectionPool):
+    return execute_procedure(pool, '{CALL sp_traer_clientes}')
+
+def update_cliente(pool: ConnectionPool, cod_cliente, new_razon_social, new_dom_fiscal, new_cuit):
+    return run_procedure(
+        pool,
+        '{CALL editar_cliente (?, ?, ?, ?)}',
+        (cod_cliente, new_razon_social, new_dom_fiscal, new_cuit)
+    )
 
 def modificar_cobros_impagos(pool: ConnectionPool):
-    """Execute the `modificar_cobros_impagos` procedure."""
     return run_procedure(pool, '{CALL modificar_cobros_impagos}')
 
-
 def traer_incongruencias(pool: ConnectionPool):
-    """Return the result of the `traer_incongruencias` procedure."""
     return execute_procedure(pool, '{CALL traer_incongruencias}')
 
-
 def main() -> None:
-    """Run a small command loop reading JSON from stdin."""
     pool = ConnectionPool()
 
     def _cleanup(*_args):
@@ -161,7 +138,6 @@ def main() -> None:
         sys.stdout.flush()
 
     pool.close()
-
 
 if __name__ == "__main__":
     main()
