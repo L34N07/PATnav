@@ -15,7 +15,7 @@
     "dev": "cross-env NODE_ENV=development concurrently -k \"vite\" \"electron .\"",
     "build": "vite build",
     "start": "cross-env NODE_ENV=production electron .",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && node scripts/create-electron-package.js"
   },
   "build": {
     "appId": "com.l34n07.navieraapp",
