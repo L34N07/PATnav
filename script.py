@@ -4,13 +4,13 @@ import sys
 import queue
 import signal
 
-SERVER = '192.168.100.13,1433'
+SERVER = '192.168.100.3,1433'
 DATABASE = 'NAVIERA'
 DRIVER = 'ODBC Driver 18 for SQL Server'
 
 USE_WINDOWS_AUTH = True
-SQL_USER = 'test123'
-SQL_PASS = 'test123'
+SQL_USER = 'navexe'
+SQL_PASS = 'navexe1433'
 
 
 def _build_conn_str() -> str:
@@ -21,6 +21,7 @@ def _build_conn_str() -> str:
             f"DATABASE={DATABASE};"
             f"UID={SQL_USER};"
             f"PWD={SQL_PASS};"
+            "Encrypt=no;"
             "TrustServerCertificate=yes;"
         )
     return (
@@ -29,8 +30,8 @@ def _build_conn_str() -> str:
         f"DATABASE={DATABASE};"
         f"UID={SQL_USER};"
         f"PWD={SQL_PASS};"
-        "Encrypt=yes;"
-        "TrustServerCertificate=no;"
+        "Encrypt=no;"
+        "TrustServerCertificate=yes;"
     )
 
 

@@ -255,7 +255,7 @@ export default function App() {
           </label>
           <button className="edit-button" onClick={handleButton3Click}>Editar Cliente</button>
           <hr className="separator" />
-          <button className="irregularidades-button" onClick={handleButton2Click}>Ver Irregularidades</button>
+          <button className="irregularidades-button" onClick={handleButton2Click}>Pagos e Irregularidades</button>
         </div>
         <div className="table-container">
         <table>
