@@ -1,8 +1,12 @@
-import pyodbc
 import json
-import sys
 import queue
 import signal
+import sys
+import threading
+import time
+from typing import Optional
+
+import pyodbc
 
 SERVER = '192.168.100.3,1433'
 DATABASE = 'NAVIERA'
@@ -19,8 +23,7 @@ def _build_conn_str() -> str:
             f"DRIVER={{{DRIVER}}};"
             f"SERVER={SERVER};"
             f"DATABASE={DATABASE};"
-            f"UID={SQL_USER};"
-            f"PWD={SQL_PASS};"
+            "Trusted_Connection=yes;"
             "Encrypt=no;"
             "TrustServerCertificate=yes;"
         )
@@ -37,27 +40,83 @@ def _build_conn_str() -> str:
 
 class ConnectionPool:
 
-    def __init__(self, size: int = 5):
+    def __init__(
+        self,
+        size: int = 5,
+        connect_timeout: int = 10,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+    ):
+        self._size = size
+        self._connect_timeout = connect_timeout
+        self._max_retries = max_retries
+        self._retry_delay = retry_delay
         self._pool: "queue.Queue[pyodbc.Connection]" = queue.Queue(maxsize=size)
-        for _ in range(size):
-            self._pool.put(pyodbc.connect(_build_conn_str(), timeout=5))
+        self._lock = threading.Lock()
+        self._created = 0
 
     def acquire(self) -> pyodbc.Connection:
-        return self._pool.get()
+        try:
+            conn = self._pool.get_nowait()
+        except queue.Empty:
+            conn = self._create_connection()
+        return conn
 
     def release(self, conn: pyodbc.Connection) -> None:
-        self._pool.put(conn)
+        try:
+            self._pool.put_nowait(conn)
+        except queue.Full:
+            conn.close()
 
     def close(self) -> None:
         while not self._pool.empty():
             conn = self._pool.get_nowait()
             conn.close()
+        self._created = 0
+
+    def _create_connection(self) -> pyodbc.Connection:
+        with self._lock:
+            if self._created >= self._size:
+                wait_for_connection = True
+            else:
+                self._created += 1
+                wait_for_connection = False
+
+        if wait_for_connection:
+            return self._pool.get()
+
+        attempt = 0
+        last_exc: Optional[Exception] = None
+        while attempt < self._max_retries:
+            attempt += 1
+            try:
+                conn = pyodbc.connect(_build_conn_str(), timeout=self._connect_timeout)
+                return conn
+            except pyodbc.Error as exc:
+                last_exc = exc
+                _log(f"Connection attempt {attempt} failed: {exc}")
+                time.sleep(self._retry_delay)
+
+        with self._lock:
+            self._created -= 1
+
+        assert last_exc is not None
+        raise last_exc
+
+
+def _log(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
 
 def get_connection(pool: ConnectionPool) -> pyodbc.Connection:
     return pool.acquire()
 
+
 def execute_procedure(pool: ConnectionPool, call: str, params=()):
-    conn = get_connection(pool)
+    try:
+        conn = get_connection(pool)
+    except pyodbc.Error as exc:
+        _log(f"Failed to acquire connection: {exc}")
+        return {"error": str(exc)}
     try:
         cursor = conn.cursor()
         cursor.execute(call, params)
@@ -71,16 +130,31 @@ def execute_procedure(pool: ConnectionPool, call: str, params=()):
         columns = [c[0] for c in cursor.description]
         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
         return {"columns": columns, "rows": rows}
+    except pyodbc.Error as exc:
+        _log(f"Error running procedure '{call}': {exc}")
+        return {"error": str(exc)}
     finally:
         pool.release(conn)
 
+
 def run_procedure(pool: ConnectionPool, call: str, params=()) -> dict:
-    conn = get_connection(pool)
+    try:
+        conn = get_connection(pool)
+    except pyodbc.Error as exc:
+        _log(f"Failed to acquire connection: {exc}")
+        return {"error": str(exc)}
     try:
         cursor = conn.cursor()
         cursor.execute(call, params)
         conn.commit()
         return {"status": "ok"}
+    except pyodbc.Error as exc:
+        try:
+            conn.rollback()
+        except pyodbc.Error:
+            pass
+        _log(f"Error running procedure '{call}': {exc}")
+        return {"error": str(exc)}
     finally:
         pool.release(conn)
 
@@ -122,18 +196,26 @@ def main() -> None:
             cmd = line
             params = []
 
-        if cmd == "get_clientes":
-            res = get_clientes(pool)
-        elif cmd == "update_cliente":
-            res = update_cliente(pool, *params)
-        elif cmd == "modificar_cobros_impagos":
-            res = modificar_cobros_impagos(pool)
-        elif cmd == "traer_incongruencias":
-            res = traer_incongruencias(pool)
-        elif cmd == "exit":
-            break
-        else:
-            res = {"error": "unknown command"}
+        if not isinstance(params, (list, tuple)):
+            params = [params]
+        params = tuple(params)
+
+        try:
+            if cmd == "get_clientes":
+                res = get_clientes(pool)
+            elif cmd == "update_cliente":
+                res = update_cliente(pool, *params)
+            elif cmd == "modificar_cobros_impagos":
+                res = modificar_cobros_impagos(pool)
+            elif cmd == "traer_incongruencias":
+                res = traer_incongruencias(pool)
+            elif cmd == "exit":
+                break
+            else:
+                res = {"error": "unknown command"}
+        except Exception as exc:
+            _log(f"Error handling command '{cmd}': {exc}")
+            res = {"error": str(exc)}
 
         print(json.dumps(res, default=str))
         sys.stdout.flush()
