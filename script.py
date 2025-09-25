@@ -8,39 +8,32 @@ SERVER = '192.168.100.3,1433'
 DATABASE = 'NAVIERA'
 DRIVER = 'ODBC Driver 18 for SQL Server'
 
-USE_WINDOWS_AUTH = True
+USE_WINDOWS_AUTH = False
 SQL_USER = 'navexe'
 SQL_PASS = 'navexe1433'
 
 
 def _build_conn_str() -> str:
-    if USE_WINDOWS_AUTH:
-        return (
-            f"DRIVER={{{DRIVER}}};"
-            f"SERVER={SERVER};"
-            f"DATABASE={DATABASE};"
-            f"UID={SQL_USER};"
-            f"PWD={SQL_PASS};"
-            "Encrypt=no;"
-            "TrustServerCertificate=yes;"
-        )
-    return (
+    base = (
         f"DRIVER={{{DRIVER}}};"
         f"SERVER={SERVER};"
         f"DATABASE={DATABASE};"
-        f"UID={SQL_USER};"
-        f"PWD={SQL_PASS};"
         "Encrypt=yes;"
-        "TrustServerCertificate=no;"
+        "TrustServerCertificate=yes;"
     )
+    if USE_WINDOWS_AUTH:
+        # Windows (Integrated) authentication — no UID/PWD
+        return base + "Trusted_Connection=yes;"
+    else:
+        return base + f"UID={SQL_USER};PWD={SQL_PASS};"
 
 
 class ConnectionPool:
 
-    def __init__(self, size: int = 5):
+    def __init__(self, size: int = 1):
         self._pool: "queue.Queue[pyodbc.Connection]" = queue.Queue(maxsize=size)
         for _ in range(size):
-            self._pool.put(pyodbc.connect(_build_conn_str(), timeout=5))
+            self._pool.put(pyodbc.connect(_build_conn_str(), timeout=10))
 
     def acquire(self) -> pyodbc.Connection:
         return self._pool.get()
@@ -60,11 +53,13 @@ def execute_procedure(pool: ConnectionPool, call: str, params=()):
     conn = get_connection(pool)
     try:
         cursor = conn.cursor()
-        cursor.execute(call, params)
+        try:
+            cursor.execute(call, params)
+        except pyodbc.Error as e:
+            return {"error": "db_execute_failed", "details": str(e)}
 
         while cursor.description is None and cursor.nextset():
             pass
-
         if cursor.description is None:
             return {"columns": [], "rows": []}
 
@@ -72,6 +67,10 @@ def execute_procedure(pool: ConnectionPool, call: str, params=()):
         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
         return {"columns": columns, "rows": rows}
     finally:
+        try:
+            cursor.close()
+        except Exception:
+            pass
         pool.release(conn)
 
 def run_procedure(pool: ConnectionPool, call: str, params=()) -> dict:
