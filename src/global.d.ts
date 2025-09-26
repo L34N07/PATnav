@@ -1,6 +1,4 @@
-export interface ElectronAPI {
-  runPython: (cmd: string, params?: any[]) => Promise<string>
-}
+export interface ElectronAPI {}
 
 declare global {
   interface Window {

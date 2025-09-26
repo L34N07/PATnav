@@ -27,13 +27,9 @@
       "dist/**/*",
       "main.js",
       "preload.js",
-      "script.py",
       "package.json",
       "public/**/*",
       "src/assets/**/*"
-    ],
-    "asarUnpack": [
-      "script.py"
     ],
     "extraResources": [
       {

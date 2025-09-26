@@ -43,113 +43,48 @@ export default function App() {
     (currentPage + 1) * ITEMS_PER_PAGE
   )
 
-  const handleButton1Click = async () => {
+  const handleButton1Click = () => {
     setActiveTable(1)
-    try {
-      if (window.electronAPI?.runPython) {
-        const result = await window.electronAPI.runPython('get_clientes')
-        try {
-          const data = JSON.parse(result)
-          if (Array.isArray(data.columns) && Array.isArray(data.rows)) {
-            const columnMap: Record<string, string> = {
-              'cod_cliente': 'Codigo',
-              'razon_social': 'Razon Social',
-              'dom_fiscal1': 'Domicilio',
-              'cuit': 'CUIT'
-            }
-            const selected = Object.keys(columnMap).filter(c => data.columns.includes(c))
-            const newColumns = selected.map(c => columnMap[c])
-            const newRows = data.rows.map((row: any) => {
-              const r: Record<string, any> = {}
-              selected.forEach(c => {
-                r[columnMap[c]] = row[c]
-              })
-              return r
-            })
-            setColumns(newColumns)
-            setAllRows(newRows)
-            setSearchQuery('')
-            setRows(newRows)
-            setCurrentPage(0)
-            setColumnWidths(newColumns.map(() => 150))
-          }
-        } catch (e) {
-          console.error('Failed to parse python output', e)
-        }
-      }
-    } catch (err) {
-      console.error('runPython failed', err)
-    }
+    setColumns(['Codigo', 'Razon Social', 'Domicilio', 'CUIT'])
+    setAllRows([])
+    setRows([])
+    setSearchQuery('')
+    setCurrentPage(0)
+    setColumnWidths(new Array(4).fill(150))
+    setSelectedRowIndex(null)
+    setSelectedRow(null)
+    console.warn('Python integration was removed. Populate client data using another data source.')
   }
 
-  const handleButton2Click = async () => {
+  const handleButton2Click = () => {
     setActiveTable(2)
-    try {
-      if (window.electronAPI?.runPython) {
-        await window.electronAPI.runPython('modificar_cobros_impagos')
-        const result = await window.electronAPI.runPython('traer_incongruencias')
-        try {
-          const data = JSON.parse(result)
-          if (Array.isArray(data.columns) && Array.isArray(data.rows)) {
-            const columnMap: Record<string, string> = {
-              tipocomp: 'Comprobante',
-              pref: 'Prefijo',
-              imptotal: 'Total',
-              imptotalapl: 'Total Aplicado',
-              num: 'Numero',
-              estado: 'Estado',
-            }
-
-            const trimmed: Record<string, string> = {}
-            data.columns.forEach((c: string) => {
-              trimmed[c.trim().toLowerCase()] = c
-            })
-
-            const keys = Object.keys(trimmed).filter(k => columnMap[k])
-            const estadoIdx = keys.indexOf('estado')
-            if (estadoIdx !== -1 && keys.length > 3) {
-              keys.splice(estadoIdx, 1)
-              keys.splice(3, 0, 'estado')
-            }
-            const newColumns = keys.map(k => columnMap[k])
-            const newRows = data.rows.map((row: any) => {
-              const r: Record<string, any> = {}
-              keys.forEach(k => {
-                const original = trimmed[k]
-                r[columnMap[k]] = row[original]
-              })
-              return r
-            })
-            setColumns(newColumns)
-            setRows(newRows)
-            setCurrentPage(0)
-            setColumnWidths(newColumns.map(() => 100))
-            setSelectedRowIndex(null)
-            setSelectedRow(null)
-          }
-        } catch (e) {
-          console.error('Failed to parse python output', e)
-        }
-      }
-    } catch (err) {
-      console.error('runPython failed', err)
-    }
+    setColumns(['Comprobante', 'Prefijo', 'Total', 'Total Aplicado', 'Numero', 'Estado'])
+    setRows([])
+    setAllRows([])
+    setSearchQuery('')
+    setCurrentPage(0)
+    setColumnWidths(new Array(6).fill(100))
+    setSelectedRowIndex(null)
+    setSelectedRow(null)
+    console.warn('Python integration was removed. Populate irregularities data using another data source.')
   }
 
-  const handleButton3Click = async () => {
-    try {
-      if (window.electronAPI?.runPython) {
-        await window.electronAPI.runPython('update_cliente', [
-          cod_cliente,
-          new_razon_social,
-          new_dom_fiscal,
-          new_cuit,
-        ])
-        await handleButton1Click()
-      }
-    } catch (err) {
-      console.error('runPython failed', err)
+  const handleButton3Click = () => {
+    if (!editEnabled || !selectedRow || columns.length < 4) {
+      console.warn('No client selected or editing disabled.')
+      return
     }
+
+    const updatedRow = {
+      ...selectedRow,
+      [columns[1]]: new_razon_social,
+      [columns[2]]: new_dom_fiscal,
+      [columns[3]]: new_cuit,
+    }
+
+    setSelectedRow(updatedRow)
+    setRows(prev => prev.map(row => (row === selectedRow ? updatedRow : row)))
+    setAllRows(prev => prev.map(row => (row === selectedRow ? updatedRow : row)))
   }
   const handleMouseDown = (e: React.MouseEvent, index: number) => {
     const startX = e.clientX;
