@@ -1,50 +1,25 @@
 import React, { useState, useEffect } from 'react'
 import './App.css'
 import TopBar from './components/TopBar'
-
-type DataRow = Record<string, unknown>
+import AdminSidebar from './components/admin/AdminSidebar'
+import DataTable from './components/admin/DataTable'
+import {
+  CLIENT_COLUMNS,
+  CLIENT_COLUMN_LABELS,
+  CLIENT_DEFAULT_WIDTHS,
+  CLIENT_FILTER_MAP,
+  ClientFilterField,
+  DataRow,
+  pickRowValue,
+  toDisplayValue
+} from './components/admin/dataModel'
 
 type AdminHomeProps = {
   onLogout?: () => void
 }
 
-const CLIENT_COLUMNS = [
-  { key: 'cod_cliente', label: 'Codigo', width: 140 },
-  { key: 'razon_social', label: 'Razon Social', width: 220 },
-  { key: 'dom_fiscal1', label: 'Domicilio', width: 260 },
-  { key: 'cuit', label: 'CUIT', width: 140 }
-] as const
-
-type ClientFilterField = typeof CLIENT_COLUMNS[number]['key']
-
-const CLIENT_COLUMN_LABELS = CLIENT_COLUMNS.map(column => column.label)
-
-const CLIENT_FILTER_MAP: Record<ClientFilterField, string> = CLIENT_COLUMNS.reduce(
-  (acc, column) => {
-    acc[column.key] = column.label
-    return acc
-  },
-  {} as Record<ClientFilterField, string>
-)
-
-const CLIENT_DEFAULT_WIDTHS = CLIENT_COLUMNS.map(column => column.width)
-
-const toDisplayValue = (value: unknown): string => {
-  if (value === null || value === undefined) {
-    return ''
-  }
-  return typeof value === 'string' ? value : String(value)
-}
-
-const pickRowValue = (row: DataRow, key: string): string => {
-  const variants = [key, key.toUpperCase(), key.toLowerCase()]
-  for (const variant of variants) {
-    if (Object.prototype.hasOwnProperty.call(row, variant)) {
-      return toDisplayValue(row[variant])
-    }
-  }
-  return ''
-}
+const ITEMS_PER_PAGE = 25
+const SUCCESS_MESSAGE_DURATION_MS = 3000
 
 export default function AdminHome({ onLogout }: AdminHomeProps) {
   const [columns, setColumns] = useState<string[]>([])
@@ -63,28 +38,40 @@ export default function AdminHome({ onLogout }: AdminHomeProps) {
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const [cod_cliente, setCod_cliente] = useState('')
-  const [new_razon_social, setNew_razon_social] = useState('')
-  const [new_dom_fiscal, setNew_dom_fiscal] = useState('')
-  const [new_cuit, setNew_cuit] = useState('')
+  useEffect(() => {
+    if (!statusMessage) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setStatusMessage(null)
+    }, SUCCESS_MESSAGE_DURATION_MS)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [statusMessage])
+
+  const [codCliente, setCodCliente] = useState('')
+  const [razonSocial, setRazonSocial] = useState('')
+  const [domFiscal, setDomFiscal] = useState('')
+  const [cuit, setCuit] = useState('')
 
   const electronAPI = window.electronAPI
 
   useEffect(() => {
     if (selectedRow && columns.length >= CLIENT_COLUMNS.length) {
-      setCod_cliente(toDisplayValue(selectedRow[columns[0]]))
-      setNew_razon_social(toDisplayValue(selectedRow[columns[1]]))
-      setNew_dom_fiscal(toDisplayValue(selectedRow[columns[2]]))
-      setNew_cuit(toDisplayValue(selectedRow[columns[3]]))
+      setCodCliente(toDisplayValue(selectedRow[columns[0]]))
+      setRazonSocial(toDisplayValue(selectedRow[columns[1]]))
+      setDomFiscal(toDisplayValue(selectedRow[columns[2]]))
+      setCuit(toDisplayValue(selectedRow[columns[3]]))
     } else {
-      setCod_cliente('')
-      setNew_razon_social('')
-      setNew_dom_fiscal('')
-      setNew_cuit('')
+      setCodCliente('')
+      setRazonSocial('')
+      setDomFiscal('')
+      setCuit('')
     }
   }, [selectedRow, columns])
-
-  const ITEMS_PER_PAGE = 25
 
   const totalPages = Math.ceil(rows.length / ITEMS_PER_PAGE)
   const displayRows = rows.slice(
@@ -92,7 +79,7 @@ export default function AdminHome({ onLogout }: AdminHomeProps) {
     (currentPage + 1) * ITEMS_PER_PAGE
   )
 
-  const handleButton1Click = async () => {
+  const handleFetchClients = async () => {
     setIsLoading(true)
     setErrorMessage(null)
     setStatusMessage(null)
@@ -137,7 +124,7 @@ export default function AdminHome({ onLogout }: AdminHomeProps) {
     }
   }
 
-  const handleButton2Click = async () => {
+  const handleFetchIrregularidades = async () => {
     setIsLoading(true)
     setErrorMessage(null)
     setStatusMessage(null)
@@ -183,14 +170,14 @@ export default function AdminHome({ onLogout }: AdminHomeProps) {
     }
   }
 
-  const handleButton3Click = async () => {
+  const handleUpdateClient = async () => {
     if (!editEnabled || !selectedRow || columns.length < CLIENT_COLUMNS.length) {
       console.warn('No client selected or editing disabled.')
       return
     }
 
-    if (!cod_cliente.trim()) {
-      setErrorMessage('El código de cliente no es válido.')
+    if (!codCliente.trim()) {
+      setErrorMessage('El codigo de cliente no es valido.')
       return
     }
 
@@ -200,10 +187,10 @@ export default function AdminHome({ onLogout }: AdminHomeProps) {
 
     try {
       const response = await electronAPI.updateCliente({
-        codCliente: cod_cliente,
-        razonSocial: new_razon_social,
-        domFiscal: new_dom_fiscal,
-        cuit: new_cuit,
+        codCliente,
+        razonSocial,
+        domFiscal,
+        cuit
       })
 
       if (response.error) {
@@ -212,9 +199,9 @@ export default function AdminHome({ onLogout }: AdminHomeProps) {
 
       const updatedRow: DataRow = {
         ...selectedRow,
-        [columns[1]]: new_razon_social,
-        [columns[2]]: new_dom_fiscal,
-        [columns[3]]: new_cuit,
+        [columns[1]]: razonSocial,
+        [columns[2]]: domFiscal,
+        [columns[3]]: cuit
       }
 
       setSelectedRow(updatedRow)
@@ -232,21 +219,14 @@ export default function AdminHome({ onLogout }: AdminHomeProps) {
       setIsLoading(false)
     }
   }
-  const handleMouseDown = (e: React.MouseEvent, index: number) => {
-    const startX = e.clientX;
-    const startWidth = columnWidths[index];
-    const onMouseMove = (ev: MouseEvent) => {
-      const newWidths = [...columnWidths];
-      newWidths[index] = Math.max(50, startWidth + ev.clientX - startX);
-      setColumnWidths(newWidths);
-    };
-    const onMouseUp = () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-  };
+
+  const handleColumnResize = (index: number, width: number) => {
+    setColumnWidths(prevWidths => {
+      const nextWidths = [...prevWidths]
+      nextWidths[index] = width
+      return nextWidths
+    })
+  }
 
   const applyFilter = (query: string, field: ClientFilterField) => {
     if (activeTable !== 1) {
@@ -281,161 +261,82 @@ export default function AdminHome({ onLogout }: AdminHomeProps) {
     setCurrentPage(0)
   }
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value
-    setSearchQuery(query)
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
     if (activeTable === 1) {
-      applyFilter(query, filterField)
+      applyFilter(value, filterField)
     }
   }
 
-  const handleFilterFieldChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const field = e.target.value as ClientFilterField
+  const handleFilterFieldChange = (field: ClientFilterField) => {
     setFilterField(field)
     if (activeTable === 1) {
       applyFilter(searchQuery, field)
     }
   }
 
+  const handleRowSelect = (row: DataRow, index: number) => {
+    setSelectedRowIndex(index)
+    if (activeTable === 1) {
+      setSelectedRow(row)
+    }
+  }
+
+  const handlePageChange = (page: number) => {
+    if (totalPages === 0) {
+      setCurrentPage(0)
+      return
+    }
+    const clampedPage = Math.max(0, Math.min(page, totalPages - 1))
+    setCurrentPage(clampedPage)
+  }
+
   return (
     <div className="app">
-      <TopBar rightContent={onLogout ? (
-        <button className="logout-button" type="button" onClick={onLogout}>
-          Cerrar sesion
-        </button>
-      ) : null} />
+      <TopBar
+        rightContent={onLogout ? (
+          <button className="logout-button" type="button" onClick={onLogout}>
+            Cerrar sesion
+          </button>
+        ) : null}
+      />
       <div className="content">
-        <div className="sidebar">
-          <input className="search-input"
-            type="text"
-            value={searchQuery}
-            onChange={handleSearchChange}
-            placeholder="Buscar"
-          />
-          <select
-            value={filterField}
-            onChange={handleFilterFieldChange}
-            className="filter-select"
-          >
-            <option value="cod_cliente">Codigo</option>
-            <option value="razon_social">Razon Social</option>
-            <option value="dom_fiscal1">Domicilio</option>
-            <option value="cuit">CUIT</option>
-          </select>
-          <hr className="separator" />
-          <button
-            className="fetch-button"
-            onClick={handleButton1Click}
-            disabled={isLoading}
-          >
-            Traer Clientes
-          </button>
-          <input className="code-input"
-            type="text"
-            value={cod_cliente}
-            onChange={e => setCod_cliente(e.target.value)}
-            placeholder={columns[0] || 'Codigo'}
-            readOnly
-          />
-          <input className="razon-input"
-            type="text"
-            value={new_razon_social}
-            onChange={e => setNew_razon_social(e.target.value)}
-            placeholder={columns[1] || 'Razon Social'}
-            readOnly={!editEnabled}
-          />
-          <input className="dom-input"
-            type="text"
-            value={new_dom_fiscal}
-            onChange={e => setNew_dom_fiscal(e.target.value)}
-            placeholder={columns[2] || 'Domicilio'}
-            readOnly={!editEnabled}
-          />
-          <input className="cuit-input"
-            type="text"
-            value={new_cuit}
-            onChange={e => setNew_cuit(e.target.value)}
-            placeholder={columns[3] || 'CUIT'}
-            readOnly={!editEnabled}
-          />
-          <label className="edit-toggle">
-            <input
-              type="checkbox"
-              checked={editEnabled}
-              onChange={e => setEditEnabled(e.target.checked)}
-            />
-            Habilitar Edicion
-          </label>
-          <button
-            className="edit-button"
-            onClick={handleButton3Click}
-            disabled={isLoading || !editEnabled || !selectedRow}
-          >
-            Editar Cliente
-          </button>
-          <hr className="separator" />
-          <button
-            className="irregularidades-button"
-            onClick={handleButton2Click}
-            disabled={isLoading}
-          >
-            Ver Irregularidades
-          </button>
-        </div>
-        <div className="table-container">
-          {errorMessage && (
-            <div className="table-status error">{errorMessage}</div>
-          )}
-          {!errorMessage && statusMessage && !isLoading && (
-            <div className="table-status info">{statusMessage}</div>
-          )}
-          {isLoading && (
-            <div className="table-status loading">Procesando...</div>
-          )}
-          <table>
-            <thead>
-              <tr>
-                {columns.map((col, idx) => (
-                  <th key={col} style={{ width: columnWidths[idx] }}>
-                    {col}
-                    <div className="resizer" onMouseDown={(e) => handleMouseDown(e, idx)} />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {displayRows.map((row, i) => (
-                <tr
-                  key={i}
-                  className={selectedRowIndex === i ? 'selected' : ''}
-                  onClick={() => {
-                    setSelectedRowIndex(i)
-                    if (activeTable === 1) {
-                      setSelectedRow(row)
-                    }
-                  }}
-                >
-                  {columns.map((col, idx) => (
-                    <td key={col} style={{ width: columnWidths[idx] }}>
-                      {toDisplayValue(row[col])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {rows.length > 0 && (
-            <div className="pagination">
-              <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}>
-                ←
-              </button>
-              <span>{currentPage + 1} / {totalPages || 1}</span>
-              <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}>
-                →
-              </button>
-            </div>
-          )}
-        </div>
+        <AdminSidebar
+          searchQuery={searchQuery}
+          onSearchChange={handleSearchChange}
+          filterField={filterField}
+          onFilterFieldChange={handleFilterFieldChange}
+          isLoading={isLoading}
+          onFetchClients={handleFetchClients}
+          onFetchIrregularidades={handleFetchIrregularidades}
+          columns={columns}
+          codCliente={codCliente}
+          razonSocial={razonSocial}
+          onRazonSocialChange={setRazonSocial}
+          domFiscal={domFiscal}
+          onDomFiscalChange={setDomFiscal}
+          cuit={cuit}
+          onCuitChange={setCuit}
+          editEnabled={editEnabled}
+          onToggleEdit={setEditEnabled}
+          onEditClient={handleUpdateClient}
+          canEditClient={Boolean(selectedRow)}
+        />
+        <DataTable
+          columns={columns}
+          rows={displayRows}
+          columnWidths={columnWidths}
+          onColumnResize={handleColumnResize}
+          selectedRowIndex={selectedRowIndex}
+          onRowSelect={handleRowSelect}
+          isLoading={isLoading}
+          statusMessage={statusMessage}
+          errorMessage={errorMessage}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          rowCount={rows.length}
+          onPageChange={handlePageChange}
+        />
       </div>
     </div>
   )
