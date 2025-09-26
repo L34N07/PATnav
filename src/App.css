@@ -19,8 +19,10 @@ body {
   font-weight: bold;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   border-bottom: 1px solid #ccc;
-  border-radius: 10px;;
+  border-radius: 10px;
 }
 
 .top-bar img {
@@ -28,6 +30,35 @@ body {
   margin-right: 10px;
 }
 
+
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.top-bar-title {
+  line-height: 1;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logout-button {
+  padding: 6px 12px;
+  border: 1px solid #949494;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.logout-button:hover {
+  background: #df3232;
+  color: #fff;
+}
 .content {
   flex: 1;
   display: flex;
@@ -251,4 +282,65 @@ tr.selected {
 .table-status.loading {
   background: #fffbe6;
   color: #6b4f00;
+}
+
+.login-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7f7f7;
+}
+
+.login-card {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
+.login-title {
+  margin: 0;
+  text-align: center;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.login-field input {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #fff;
+}
+
+.login-button {
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #000;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-button:hover {
+  background: #333;
+}
+
+.login-error {
+  color: #7f1d1d;
+  background: #ffe6e6;
+  border: 1px solid #f7bcbc;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 0.85rem;
 }
