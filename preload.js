@@ -1,3 +1,10 @@
-const { contextBridge } = require('electron')
+const { contextBridge, ipcRenderer } = require('electron')
 
-contextBridge.exposeInMainWorld('electronAPI', Object.freeze({}))
+const electronAPI = Object.freeze({
+  getClientes: () => ipcRenderer.invoke('python:get_clientes'),
+  traerIncongruencias: () => ipcRenderer.invoke('python:traer_incongruencias'),
+  updateCliente: payload => ipcRenderer.invoke('python:update_cliente', payload),
+  modificarCobrosImpagos: () => ipcRenderer.invoke('python:modificar_cobros_impagos')
+})
+
+contextBridge.exposeInMainWorld('electronAPI', electronAPI)

@@ -208,6 +208,13 @@ tr.selected {
   color: #fff;
 }
 
+.fetch-button:disabled,
+.edit-button:disabled,
+.irregularidades-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .edit-toggle {
   display:flex;
   align-items:center;
@@ -222,4 +229,26 @@ tr.selected {
   border: none;
   border-bottom: 1px solid #ccc;
   margin-bottom: 30px;
+}
+
+.table-status {
+  margin: 10px 20px 0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.table-status.info {
+  background: #e6f4ff;
+  color: #055160;
+}
+
+.table-status.error {
+  background: #ffe6e6;
+  color: #7f1d1d;
+}
+
+.table-status.loading {
+  background: #fffbe6;
+  color: #6b4f00;
 }
