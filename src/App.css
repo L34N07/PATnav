@@ -69,26 +69,25 @@ body {
 
 .admin-menu {
   display: flex;
-  gap: 10px;
+  margin: 0px 12px;
+  padding: 3px 0px 0px 0px;
   border-bottom: 1px solid #ccc;
   border-left: 1px solid #ccc;
   border-right: 1px solid #ccc;
-  padding: 10px,20px;
-  border-radius: 10px;
   background: #f7f7f7;
   align-items: stretch;
-  min-height: 48px;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+  min-height: 40px;
 }
 
 .admin-menu-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 18px;
-  min-height: 48px;
   height: 100%;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-bottom-left-radius: 6px;
   background: transparent;
   cursor: pointer;
   font-weight: 600;

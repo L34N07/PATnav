@@ -130,7 +130,7 @@ export default function AdminSidebar({
         onClick={onFetchIrregularidades}
         disabled={isLoading}
       >
-        Ver Irregularidades
+        Actualizar pagos e Irregularidades
       </button>
     </div>
   )
