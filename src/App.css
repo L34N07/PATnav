@@ -1,6 +1,13 @@
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
-  margin: 10px;
+  margin: 0;
   font-family: 'Figtree', Arial, "Helvetica Neue", Helvetica, sans-serif;
+  background: #f7f7f7;
 }
 
 .app {
@@ -51,7 +58,7 @@ body {
   padding: 6px 12px;
   border: 1px solid #949494;
   border-radius: 6px;
-  background: #fff;
+  background: #f7f7f7;
   cursor: pointer;
 }
 
@@ -59,6 +66,46 @@ body {
   background: #df3232;
   color: #fff;
 }
+
+.admin-menu {
+  display: flex;
+  gap: 10px;
+  border-bottom: 1px solid #ccc;
+  border-left: 1px solid #ccc;
+  border-right: 1px solid #ccc;
+  padding: 10px,20px;
+  border-radius: 10px;
+  background: #f7f7f7;
+  align-items: stretch;
+  min-height: 48px;
+}
+
+.admin-menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  min-height: 48px;
+  height: 100%;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 600;
+  color: #333;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.admin-menu-button:hover {
+  background: #e4e4e4;
+}
+
+.admin-menu-button.active {
+  background: #000;
+  color: #fff;
+  border-color: #000;
+}
+
 .content {
   flex: 1;
   display: flex;
@@ -344,3 +391,5 @@ tr.selected {
   padding: 8px;
   font-size: 0.85rem;
 }
+
+
