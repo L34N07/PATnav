@@ -70,7 +70,7 @@ body {
 .admin-menu {
   display: flex;
   margin: 0px 12px;
-  padding: 3px 0px 0px 0px;
+  padding: 3px 5px 0px 5px;
   border-bottom: 1px solid #ccc;
   border-left: 1px solid #ccc;
   border-right: 1px solid #ccc;
@@ -87,7 +87,8 @@ body {
   justify-content: center;
   height: 100%;
   border: 1px solid transparent;
-  border-bottom-left-radius: 6px;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
   background: transparent;
   cursor: pointer;
   font-weight: 600;
@@ -392,3 +393,20 @@ tr.selected {
 }
 
 
+
+.test-view2 {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.test-view2-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.test-view2 .table-container {
+  margin-left: 0;
+}
