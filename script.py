@@ -155,6 +155,10 @@ def run_procedure(
         _close_cursor(cursor)
         pool.release(conn)
 
+def get_app_user(pool: ConnectionPool, username: Any) -> Dict[str, Any]:
+    return execute_procedure(pool, "EXEC traer_appUser @userName=?", (username,))
+
+
 def get_clientes(pool: ConnectionPool) -> Dict[str, Any]:
     return execute_procedure(pool, "{CALL sp_traer_clientes}")
 
@@ -177,6 +181,13 @@ def modificar_cobros_impagos(pool: ConnectionPool) -> Dict[str, Any]:
 
 def traer_incongruencias(pool: ConnectionPool) -> Dict[str, Any]:
     return execute_procedure(pool, "{CALL traer_incongruencias}")
+
+def _handle_get_app_user(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
+    if len(params) != 1:
+        return {"error": "invalid_params", "details": "get_app_user expects exactly 1 parameter"}
+    username = params[0]
+    return get_app_user(pool, username)
+
 
 def _handle_get_clientes(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
     if params:
@@ -219,6 +230,7 @@ def _handle_traer_incongruencias(
     return traer_incongruencias(pool)
 
 COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, Any]]] = {
+    "get_app_user": _handle_get_app_user,
     "get_clientes": _handle_get_clientes,
     "update_cliente": _handle_update_cliente,
     "modificar_cobros_impagos": _handle_modificar_cobros_impagos,

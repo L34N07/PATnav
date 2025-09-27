@@ -6,6 +6,8 @@ export interface PythonResult<Row = Record<string, unknown>> {
   details?: string
 }
 
+export type AppUserResult = PythonResult<Record<string, unknown>>
+
 export interface UpdateClientePayload {
   codCliente: string
   razonSocial: string
@@ -15,6 +17,7 @@ export interface UpdateClientePayload {
 
 export interface ElectronAPI {
   getClientes: () => Promise<PythonResult>
+  getAppUser: (username: string) => Promise<AppUserResult>
   traerIncongruencias: () => Promise<PythonResult>
   updateCliente: (payload: UpdateClientePayload) => Promise<PythonResult>
   modificarCobrosImpagos: () => Promise<PythonResult>

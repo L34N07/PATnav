@@ -2,71 +2,178 @@ import React, { useState } from 'react'
 import './App.css'
 import AdminHome from './AdminHome'
 import UserHome from './UserHome'
+import { ADMIN_PAGES, type AdminPageId } from './adminPages'
 
-type View = 'login' | 'admin' | 'user'
-type Role = Exclude<View, 'login'>
+type Role = 'admin' | 'user'
 
-type UserCredentials = {
-  password: string
-  view: Role
+type Session = {
+  role: Role
+  username: string
+  allowedPageIds: AdminPageId[]
 }
 
-const USERS: Record<Role, UserCredentials> = {
-  admin: { password: 'admin', view: 'admin' },
-  user: { password: 'user', view: 'user' }
+type RowEntry = {
+  key: string
+  value: unknown
 }
 
-const isKnownUser = (value: string): value is Role => {
-  return value === 'admin' || value === 'user'
+const PASSWORD_FIELD_CANDIDATES = ['password', 'pass', 'contrasena', 'apppassword']
+const TYPE_FIELD_CANDIDATES = ['tipo', 'type', 'usertype', 'tipo_usuario', 'perfil', 'appusertype']
+const ALL_PAGE_IDS: AdminPageId[] = ADMIN_PAGES.map(page => page.id)
+
+const normalizeKey = (value: string) => value.trim().toLowerCase()
+
+const buildRowMap = (row: Record<string, unknown>) => {
+  const map = new Map<string, RowEntry>()
+  Object.entries(row).forEach(([key, value]) => {
+    map.set(normalizeKey(key), { key, value })
+  })
+  return map
+}
+
+const findEntry = (rowMap: Map<string, RowEntry>, candidates: string[]) => {
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue
+    }
+    const entry = rowMap.get(normalizeKey(candidate))
+    if (entry) {
+      return entry
+    }
+  }
+  return undefined
+}
+
+const isViewEnabled = (value: unknown) => {
+  if (value === null || value === undefined) {
+    return false
+  }
+
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0
+  }
+
+  const normalized = String(value).trim().toLowerCase()
+  if (normalized === '' || normalized === '0' || normalized === 'false' || normalized === 'no') {
+    return false
+  }
+
+  return true
+}
+
+const deriveAllowedPages = (rowMap: Map<string, RowEntry>): AdminPageId[] => {
+  const allowed: AdminPageId[] = []
+
+  for (const page of ADMIN_PAGES) {
+    const candidates = [page.permissionKey, page.id]
+    const entry = findEntry(rowMap, candidates)
+    if (entry && isViewEnabled(entry.value) && !allowed.includes(page.id)) {
+      allowed.push(page.id)
+    }
+  }
+
+  return allowed
 }
 
 export default function App() {
-  const [view, setView] = useState<View>('login')
+  const [session, setSession] = useState<Session | null>(null)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const resetForm = () => {
     setUsername('')
     setPassword('')
   }
 
-  const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
     const trimmedUser = username.trim()
     if (!trimmedUser || password.length === 0) {
       setError('Ingrese usuario y contrasena')
       return
     }
 
-    if (!isKnownUser(trimmedUser)) {
-      setError('Credenciales invalidas')
+    const electronAPI = window.electronAPI
+    if (!electronAPI?.getAppUser) {
+      setError('Servicio de autenticacion no disponible')
       return
     }
 
-    const credentials = USERS[trimmedUser]
-    if (credentials.password !== password) {
-      setError('Credenciales invalidas')
-      return
-    }
+    setIsSubmitting(true)
+    try {
+      const result = await electronAPI.getAppUser(trimmedUser)
+      if (result.error) {
+        console.error('get_app_user failed:', result)
+        setError('No se pudo validar las credenciales')
+        return
+      }
 
-    setView(credentials.view)
-    setError(null)
-    resetForm()
+      const rows = result.rows ?? []
+      if (rows.length === 0) {
+        setError('Credenciales invalidas')
+        return
+      }
+
+      const row = (rows[0] ?? {}) as Record<string, unknown>
+      const rowMap = buildRowMap(row)
+
+      const passwordEntry = findEntry(rowMap, PASSWORD_FIELD_CANDIDATES)
+      if (!passwordEntry) {
+        setError('El usuario no tiene contrasena configurada')
+        return
+      }
+
+      const storedPassword = String(passwordEntry.value ?? '').trim()
+      if (storedPassword !== password) {
+        setError('Credenciales invalidas')
+        return
+      }
+
+      const typeEntry = findEntry(rowMap, TYPE_FIELD_CANDIDATES)
+      if (!typeEntry) {
+        setError('No se pudo determinar el tipo de usuario')
+        return
+      }
+
+      const userTypeRaw = String(typeEntry.value ?? '').trim().toLowerCase()
+      if (userTypeRaw !== 'admin' && userTypeRaw !== 'user') {
+        setError(`Tipo de usuario desconocido: ${typeEntry.value ?? ''}`)
+        return
+      }
+
+      const role = userTypeRaw as Role
+      const allowedPageIds = role === 'admin' ? [...ALL_PAGE_IDS] : deriveAllowedPages(rowMap)
+
+      setSession({ role, username: trimmedUser, allowedPageIds })
+      setError(null)
+      resetForm()
+    } catch (err) {
+      console.error('Login error', err)
+      setError('No se pudo validar las credenciales')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleLogout = () => {
-    setView('login')
+    setSession(null)
     setError(null)
     resetForm()
   }
 
-  if (view === 'admin') {
+  if (session?.role === 'admin') {
     return <AdminHome onLogout={handleLogout} />
   }
 
-  if (view === 'user') {
-    return <UserHome onLogout={handleLogout} />
+  if (session?.role === 'user') {
+    return <UserHome onLogout={handleLogout} allowedPageIds={session.allowedPageIds} />
   }
 
   return (
@@ -93,10 +200,11 @@ export default function App() {
           />
         </label>
         {error ? <div className="login-error">{error}</div> : null}
-        <button className="login-button" type="submit">
-          Ingresar
+        <button className="login-button" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Ingresando...' : 'Ingresar'}
         </button>
       </form>
     </div>
   )
 }
+

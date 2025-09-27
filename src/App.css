@@ -410,3 +410,14 @@ tr.selected {
 .test-view2 .table-container {
   margin-left: 0;
 }
+
+.no-views-message {
+  margin: 24px;
+  padding: 16px;
+  border: 1px dashed #ccc;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #555;
+  text-align: center;
+}
+

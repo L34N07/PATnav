@@ -206,6 +206,12 @@ const createWindow = () => {
   win.loadURL(URL)
 }
 
+ipcMain.handle('python:get_app_user', async (_event, payload) => {
+  const bridge = getPythonBridge()
+  const { username } = payload || {}
+  return bridge.call('get_app_user', [username])
+})
+
 ipcMain.handle('python:get_clientes', async () => {
   const bridge = getPythonBridge()
   return bridge.call('get_clientes')
