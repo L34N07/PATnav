@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import './App.css'
-import TopBar from './components/TopBar'
-import { ADMIN_PAGES, type AdminPageId } from './adminPages'
+import React, { useCallback, useEffect, useMemo, useState } from "react"
+import "./App.css"
+import HomeShell from "./components/HomeShell"
+import { ADMIN_PAGES, type AdminPageId } from "./adminPages"
 
 type UserHomeProps = {
   onLogout?: () => void
@@ -27,37 +27,22 @@ export default function UserHome({ onLogout, allowedPageIds }: UserHomeProps) {
     }
   }, [visiblePages, activePageId])
 
-  const activePage = activePageId
-    ? visiblePages.find(page => page.id === activePageId) ?? null
-    : null
-  const ActiveComponent = activePage?.component
+  const handleSelectPage = useCallback((pageId: AdminPageId) => {
+    setActivePageId(pageId)
+  }, [])
+
+  const emptyState =
+    visiblePages.length === 0 ? (
+      <div className="no-views-message">No hay vistas habilitadas para este usuario.</div>
+    ) : null
 
   return (
-    <div className="app">
-      <TopBar
-        rightContent={onLogout ? (
-          <button className="logout-button" type="button" onClick={onLogout}>
-            Cerrar sesion
-          </button>
-        ) : null}
-      />
-      <div className="admin-menu">
-        {visiblePages.map(page => (
-          <button
-            key={page.id}
-            type="button"
-            className={`admin-menu-button${activePageId === page.id ? ' active' : ''}`}
-            onClick={() => setActivePageId(page.id)}
-          >
-            {page.label}
-          </button>
-        ))}
-      </div>
-      {visiblePages.length === 0 ? (
-        <div className="no-views-message">No hay vistas habilitadas para este usuario.</div>
-      ) : ActiveComponent ? (
-        <ActiveComponent />
-      ) : null}
-    </div>
+    <HomeShell
+      onLogout={onLogout}
+      leftPages={visiblePages}
+      activePageId={activePageId}
+      onSelectPage={handleSelectPage}
+      emptyState={emptyState}
+    />
   )
 }

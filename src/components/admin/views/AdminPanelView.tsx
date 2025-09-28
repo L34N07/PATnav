@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAutoDismissMessage } from '../../../hooks/useAutoDismissMessage'
 import { ADMIN_PAGES } from '../../../adminPages'
 import {
   buildRowMap,
@@ -58,6 +59,8 @@ export default function AdminPanelView() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  useAutoDismissMessage(statusMessage, setStatusMessage, SUCCESS_MESSAGE_DURATION_MS)
+
   const selectedUser = useMemo(
     () => (selectedUserId != null ? users.find(user => user.userId === selectedUserId) ?? null : null),
     [users, selectedUserId]
@@ -72,19 +75,6 @@ export default function AdminPanelView() {
     setPermissionDraft({ ...selectedUser.permissions })
   }, [selectedUser])
 
-  useEffect(() => {
-    if (!statusMessage) {
-      return
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setStatusMessage(null)
-    }, SUCCESS_MESSAGE_DURATION_MS)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [statusMessage])
 
   const fetchUsers = useCallback(async () => {
     if (!electronAPI?.getAppUsers) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useState } from "react"
 import DataTable from "../DataTable"
 import {
   CLIENT_COLUMNS,
@@ -7,6 +7,8 @@ import {
   DataRow,
   pickRowValue
 } from "../dataModel"
+import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
+import { usePagination } from "../../../hooks/usePagination"
 
 const ITEMS_PER_PAGE = 25
 const SUCCESS_MESSAGE_DURATION_MS = 3000
@@ -16,31 +18,17 @@ export default function TestView2() {
   const [rows, setRows] = useState<DataRow[]>([])
   const [columnWidths, setColumnWidths] = useState<number[]>([])
   const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null)
-  const [currentPage, setCurrentPage] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const electronAPI = window.electronAPI
 
-  useEffect(() => {
-    if (!statusMessage) {
-      return
-    }
+  useAutoDismissMessage(statusMessage, setStatusMessage, SUCCESS_MESSAGE_DURATION_MS)
 
-    const timeoutId = window.setTimeout(() => {
-      setStatusMessage(null)
-    }, SUCCESS_MESSAGE_DURATION_MS)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [statusMessage])
-
-  const totalPages = Math.ceil(rows.length / ITEMS_PER_PAGE)
-  const displayRows = rows.slice(
-    currentPage * ITEMS_PER_PAGE,
-    (currentPage + 1) * ITEMS_PER_PAGE
+  const { currentPage, pageCount, pageItems, goToPage, resetPage, itemCount } = usePagination(
+    rows,
+    ITEMS_PER_PAGE
   )
 
   const handleFetchClients = async () => {
@@ -67,7 +55,7 @@ export default function TestView2() {
       setColumns(CLIENT_COLUMN_LABELS)
       setRows(fetchedRows)
       setColumnWidths([...CLIENT_DEFAULT_WIDTHS])
-      setCurrentPage(0)
+      resetPage()
       setStatusMessage("Clientes cargados correctamente.")
     } catch (error) {
       console.error("No se pudieron traer los clientes:", error)
@@ -95,16 +83,6 @@ export default function TestView2() {
     setSelectedRowIndex(index)
   }
 
-  const handlePageChange = (page: number) => {
-    if (totalPages === 0) {
-      setCurrentPage(0)
-      return
-    }
-
-    const clampedPage = Math.max(0, Math.min(page, totalPages - 1))
-    setCurrentPage(clampedPage)
-  }
-
   return (
     <div className="content">
       <div className="test-view2">
@@ -120,7 +98,7 @@ export default function TestView2() {
         </div>
         <DataTable
           columns={columns}
-          rows={displayRows}
+          rows={pageItems}
           columnWidths={columnWidths}
           onColumnResize={handleColumnResize}
           selectedRowIndex={selectedRowIndex}
@@ -129,9 +107,9 @@ export default function TestView2() {
           statusMessage={statusMessage}
           errorMessage={errorMessage}
           currentPage={currentPage}
-          totalPages={totalPages}
-          rowCount={rows.length}
-          onPageChange={handlePageChange}
+          totalPages={pageCount}
+          rowCount={itemCount}
+          onPageChange={goToPage}
         />
       </div>
     </div>

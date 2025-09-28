@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useEffect, useState } from "react"
 import AdminSidebar from "../AdminSidebar"
 import DataTable from "../DataTable"
 import {
@@ -11,25 +11,25 @@ import {
   pickRowValue,
   toDisplayValue
 } from "../dataModel"
+import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
+import { usePagination } from "../../../hooks/usePagination"
 
 const ITEMS_PER_PAGE = 25
 const SUCCESS_MESSAGE_DURATION_MS = 3000
 
-type TableId = 0 | 1 | 2
+type DatasetKind = "none" | "clients" | "irregularidades"
 
 export default function TestView() {
   const [columns, setColumns] = useState<string[]>([])
-  const [rows, setRows] = useState<DataRow[]>([])
-  const [allRows, setAllRows] = useState<DataRow[]>([])
+  const [datasetRows, setDatasetRows] = useState<DataRow[]>([])
+  const [visibleRows, setVisibleRows] = useState<DataRow[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [filterField, setFilterField] = useState<ClientFilterField>("dom_fiscal1")
-  const [currentPage, setCurrentPage] = useState(0)
   const [columnWidths, setColumnWidths] = useState<number[]>([])
   const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null)
   const [selectedRow, setSelectedRow] = useState<DataRow | null>(null)
-  const [activeTable, setActiveTable] = useState<TableId>(0)
+  const [activeDataset, setActiveDataset] = useState<DatasetKind>("none")
   const [editEnabled, setEditEnabled] = useState(false)
-
   const [isLoading, setIsLoading] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -41,19 +41,12 @@ export default function TestView() {
 
   const electronAPI = window.electronAPI
 
-  useEffect(() => {
-    if (!statusMessage) {
-      return
-    }
+  useAutoDismissMessage(statusMessage, setStatusMessage, SUCCESS_MESSAGE_DURATION_MS)
 
-    const timeoutId = window.setTimeout(() => {
-      setStatusMessage(null)
-    }, SUCCESS_MESSAGE_DURATION_MS)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [statusMessage])
+  const { currentPage, pageCount, pageItems, goToPage, resetPage, itemCount } = usePagination(
+    visibleRows,
+    ITEMS_PER_PAGE
+  )
 
   useEffect(() => {
     if (selectedRow && columns.length >= CLIENT_COLUMNS.length) {
@@ -69,19 +62,17 @@ export default function TestView() {
     }
   }, [selectedRow, columns])
 
-  const totalPages = Math.ceil(rows.length / ITEMS_PER_PAGE)
-  const displayRows = rows.slice(
-    currentPage * ITEMS_PER_PAGE,
-    (currentPage + 1) * ITEMS_PER_PAGE
-  )
+  const resetSelection = () => {
+    setSelectedRowIndex(null)
+    setSelectedRow(null)
+  }
 
   const handleFetchClients = async () => {
     setIsLoading(true)
     setErrorMessage(null)
     setStatusMessage(null)
-    setActiveTable(1)
-    setSelectedRowIndex(null)
-    setSelectedRow(null)
+    setActiveDataset("clients")
+    resetSelection()
 
     try {
       const result = await electronAPI.getClientes()
@@ -99,17 +90,17 @@ export default function TestView() {
       })
 
       setColumns(CLIENT_COLUMN_LABELS)
-      setAllRows(fetchedRows)
-      setRows(fetchedRows)
+      setDatasetRows(fetchedRows)
+      setVisibleRows(fetchedRows)
       setColumnWidths([...CLIENT_DEFAULT_WIDTHS])
       setSearchQuery("")
-      setCurrentPage(0)
+      resetPage()
       setStatusMessage("Clientes cargados correctamente.")
     } catch (error) {
       console.error("No se pudieron traer los clientes:", error)
       setColumns([])
-      setAllRows([])
-      setRows([])
+      setDatasetRows([])
+      setVisibleRows([])
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -124,9 +115,8 @@ export default function TestView() {
     setIsLoading(true)
     setErrorMessage(null)
     setStatusMessage(null)
-    setActiveTable(2)
-    setSelectedRowIndex(null)
-    setSelectedRow(null)
+    setActiveDataset("irregularidades")
+    resetSelection()
 
     try {
       const result = await electronAPI.traerIncongruencias()
@@ -145,17 +135,17 @@ export default function TestView() {
       })
 
       setColumns(cols)
-      setAllRows(dataset)
-      setRows(dataset)
+      setDatasetRows(dataset)
+      setVisibleRows(dataset)
       setColumnWidths(new Array(cols.length).fill(150))
       setSearchQuery("")
-      setCurrentPage(0)
+      resetPage()
       setStatusMessage("Irregularidades cargadas correctamente.")
     } catch (error) {
       console.error("No se pudieron traer las irregularidades:", error)
       setColumns([])
-      setAllRows([])
-      setRows([])
+      setDatasetRows([])
+      setVisibleRows([])
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -201,8 +191,8 @@ export default function TestView() {
       }
 
       setSelectedRow(updatedRow)
-      setRows(prev => prev.map(row => (row === selectedRow ? updatedRow : row)))
-      setAllRows(prev => prev.map(row => (row === selectedRow ? updatedRow : row)))
+      setVisibleRows(prev => prev.map(row => (row === selectedRow ? updatedRow : row)))
+      setDatasetRows(prev => prev.map(row => (row === selectedRow ? updatedRow : row)))
       setStatusMessage("Cliente actualizado correctamente.")
     } catch (error) {
       console.error("No se pudo editar el cliente:", error)
@@ -224,28 +214,28 @@ export default function TestView() {
     })
   }
 
-  const applyFilter = (query: string, field: ClientFilterField) => {
-    if (activeTable !== 1) {
-      setRows(allRows)
-      setCurrentPage(0)
+  const applyClientFilter = (query: string, field: ClientFilterField) => {
+    if (activeDataset !== "clients") {
+      setVisibleRows(datasetRows)
+      resetPage()
       return
     }
 
     const column = CLIENT_FILTER_MAP[field]
     if (!column) {
-      setRows(allRows)
-      setCurrentPage(0)
+      setVisibleRows(datasetRows)
+      resetPage()
       return
     }
 
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) {
-      setRows(allRows)
-      setCurrentPage(0)
+      setVisibleRows(datasetRows)
+      resetPage()
       return
     }
 
-    const filtered = allRows.filter(row => {
+    const filtered = datasetRows.filter(row => {
       const value = toDisplayValue(row[column])
       if (!value) {
         return false
@@ -253,39 +243,29 @@ export default function TestView() {
       return value.toLowerCase().includes(normalizedQuery)
     })
 
-    setRows(filtered)
-    setCurrentPage(0)
+    setVisibleRows(filtered)
+    resetPage()
   }
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value)
-    if (activeTable === 1) {
-      applyFilter(value, filterField)
+    if (activeDataset === "clients") {
+      applyClientFilter(value, filterField)
     }
   }
 
   const handleFilterFieldChange = (field: ClientFilterField) => {
     setFilterField(field)
-    if (activeTable === 1) {
-      applyFilter(searchQuery, field)
+    if (activeDataset === "clients") {
+      applyClientFilter(searchQuery, field)
     }
   }
 
   const handleRowSelect = (row: DataRow, index: number) => {
     setSelectedRowIndex(index)
-    if (activeTable === 1) {
+    if (activeDataset === "clients") {
       setSelectedRow(row)
     }
-  }
-
-  const handlePageChange = (page: number) => {
-    if (totalPages === 0) {
-      setCurrentPage(0)
-      return
-    }
-
-    const clampedPage = Math.max(0, Math.min(page, totalPages - 1))
-    setCurrentPage(clampedPage)
   }
 
   return (
@@ -313,7 +293,7 @@ export default function TestView() {
       />
       <DataTable
         columns={columns}
-        rows={displayRows}
+        rows={pageItems}
         columnWidths={columnWidths}
         onColumnResize={handleColumnResize}
         selectedRowIndex={selectedRowIndex}
@@ -322,9 +302,9 @@ export default function TestView() {
         statusMessage={statusMessage}
         errorMessage={errorMessage}
         currentPage={currentPage}
-        totalPages={totalPages}
-        rowCount={rows.length}
-        onPageChange={handlePageChange}
+        totalPages={pageCount}
+        rowCount={itemCount}
+        onPageChange={goToPage}
       />
     </div>
   )
