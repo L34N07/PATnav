@@ -14,9 +14,7 @@ export default function UserHome({ onLogout, allowedPageIds }: UserHomeProps) {
     [allowedPageIds]
   )
 
-  const [activePageId, setActivePageId] = useState<AdminPageId | null>(
-    visiblePages.length > 0 ? visiblePages[0].id : null
-  )
+  const [activePageId, setActivePageId] = useState<AdminPageId | null>(null)
 
   useEffect(() => {
     if (visiblePages.length === 0) {
@@ -24,8 +22,8 @@ export default function UserHome({ onLogout, allowedPageIds }: UserHomeProps) {
       return
     }
 
-    if (!visiblePages.some(page => page.id === activePageId)) {
-      setActivePageId(visiblePages[0].id)
+    if (activePageId != null && !visiblePages.some(page => page.id === activePageId)) {
+      setActivePageId(null)
     }
   }, [visiblePages, activePageId])
 

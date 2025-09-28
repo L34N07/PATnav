@@ -245,6 +245,16 @@ body {
   border-bottom-left-radius: 10px;
   border-bottom-right-radius: 10px;
   min-height: 40px;
+  justify-content: space-between;
+}
+
+.admin-menu-group {
+  display: flex;
+  gap: 4px;
+}
+
+.admin-menu-group-right {
+  margin-left: auto;
 }
 
 .admin-menu-button {
