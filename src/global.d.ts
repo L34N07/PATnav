@@ -15,12 +15,21 @@ export interface UpdateClientePayload {
   cuit: string
 }
 
+export interface UpdateUserPermissionsPayload {
+  userId: number
+  permissions: Record<string, boolean>
+}
+
 export interface ElectronAPI {
   getClientes: () => Promise<PythonResult>
   getAppUser: (username: string) => Promise<AppUserResult>
+  getAppUsers: (userType?: string) => Promise<AppUserResult>
   traerIncongruencias: () => Promise<PythonResult>
   updateCliente: (payload: UpdateClientePayload) => Promise<PythonResult>
   modificarCobrosImpagos: () => Promise<PythonResult>
+  updateUserPermissions: (
+    payload: UpdateUserPermissionsPayload
+  ) => Promise<PythonResult>
 }
 
 declare global {

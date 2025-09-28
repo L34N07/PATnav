@@ -212,6 +212,13 @@ ipcMain.handle('python:get_app_user', async (_event, payload) => {
   return bridge.call('get_app_user', [username])
 })
 
+ipcMain.handle('python:get_app_users', async (_event, payload) => {
+  const bridge = getPythonBridge()
+  const { userType } = payload || {}
+  const params = userType ? [userType] : []
+  return bridge.call('get_app_users', params)
+})
+
 ipcMain.handle('python:get_clientes', async () => {
   const bridge = getPythonBridge()
   return bridge.call('get_clientes')
@@ -231,6 +238,12 @@ ipcMain.handle('python:update_cliente', async (_event, payload) => {
 ipcMain.handle('python:modificar_cobros_impagos', async () => {
   const bridge = getPythonBridge()
   return bridge.call('modificar_cobros_impagos')
+})
+
+ipcMain.handle('python:update_user_permissions', async (_event, payload) => {
+  const bridge = getPythonBridge()
+  const { userId, permissions } = payload || {}
+  return bridge.call('update_user_permissions', [userId, permissions])
 })
 
 app.whenReady().then(() => {

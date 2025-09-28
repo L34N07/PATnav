@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import './App.css'
 import AdminHome from './AdminHome'
 import UserHome from './UserHome'
+import { buildRowMap, deriveAllowedPages, findEntry } from './adminPermissions'
 import { ADMIN_PAGES, type AdminPageId } from './adminPages'
 
 type Role = 'admin' | 'user'
@@ -12,72 +13,9 @@ type Session = {
   allowedPageIds: AdminPageId[]
 }
 
-type RowEntry = {
-  key: string
-  value: unknown
-}
-
 const PASSWORD_FIELD_CANDIDATES = ['password', 'pass', 'contrasena', 'apppassword']
 const TYPE_FIELD_CANDIDATES = ['tipo', 'type', 'usertype', 'tipo_usuario', 'perfil', 'appusertype']
 const ALL_PAGE_IDS: AdminPageId[] = ADMIN_PAGES.map(page => page.id)
-
-const normalizeKey = (value: string) => value.trim().toLowerCase()
-
-const buildRowMap = (row: Record<string, unknown>) => {
-  const map = new Map<string, RowEntry>()
-  Object.entries(row).forEach(([key, value]) => {
-    map.set(normalizeKey(key), { key, value })
-  })
-  return map
-}
-
-const findEntry = (rowMap: Map<string, RowEntry>, candidates: string[]) => {
-  for (const candidate of candidates) {
-    if (!candidate) {
-      continue
-    }
-    const entry = rowMap.get(normalizeKey(candidate))
-    if (entry) {
-      return entry
-    }
-  }
-  return undefined
-}
-
-const isViewEnabled = (value: unknown) => {
-  if (value === null || value === undefined) {
-    return false
-  }
-
-  if (typeof value === 'boolean') {
-    return value
-  }
-
-  if (typeof value === 'number') {
-    return value !== 0
-  }
-
-  const normalized = String(value).trim().toLowerCase()
-  if (normalized === '' || normalized === '0' || normalized === 'false' || normalized === 'no') {
-    return false
-  }
-
-  return true
-}
-
-const deriveAllowedPages = (rowMap: Map<string, RowEntry>): AdminPageId[] => {
-  const allowed: AdminPageId[] = []
-
-  for (const page of ADMIN_PAGES) {
-    const candidates = [page.permissionKey, page.id]
-    const entry = findEntry(rowMap, candidates)
-    if (entry && isViewEnabled(entry.value) && !allowed.includes(page.id)) {
-      allowed.push(page.id)
-    }
-  }
-
-  return allowed
-}
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)

@@ -159,6 +159,14 @@ def get_app_user(pool: ConnectionPool, username: Any) -> Dict[str, Any]:
     return execute_procedure(pool, "EXEC traer_appUser @userName=?", (username,))
 
 
+def get_app_users_by_type(pool: ConnectionPool, user_type: Any) -> Dict[str, Any]:
+    return execute_procedure(
+        pool,
+        "EXEC traer_appUsers_por_tipo @userType=?",
+        (user_type,),
+    )
+
+
 def get_clientes(pool: ConnectionPool) -> Dict[str, Any]:
     return execute_procedure(pool, "{CALL sp_traer_clientes}")
 
@@ -182,11 +190,52 @@ def modificar_cobros_impagos(pool: ConnectionPool) -> Dict[str, Any]:
 def traer_incongruencias(pool: ConnectionPool) -> Dict[str, Any]:
     return execute_procedure(pool, "{CALL traer_incongruencias}")
 
+
+def update_user_permissions(
+    pool: ConnectionPool,
+    user_id: Any,
+    permissions: Dict[str, Any],
+
+) -> Dict[str, Any]:
+    try:
+        parsed_user_id = int(user_id)
+    except (TypeError, ValueError):
+        return {
+            "error": "invalid_params",
+            "details": "user_id must be an integer",
+        }
+
+    if not isinstance(permissions, dict):
+        return {
+            "error": "invalid_params",
+            "details": "permissions must be a mapping",
+        }
+
+    test_view = 1 if bool(permissions.get("testView")) else 0
+    test_view2 = 1 if bool(permissions.get("testView2")) else 0
+
+    return run_procedure(
+        pool,
+        "{CALL update_user_permission (?, ?, ?)}",
+        (parsed_user_id, test_view, test_view2),
+    )
+
 def _handle_get_app_user(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
     if len(params) != 1:
         return {"error": "invalid_params", "details": "get_app_user expects exactly 1 parameter"}
     username = params[0]
     return get_app_user(pool, username)
+
+
+def _handle_get_app_users(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
+    if len(params) > 1:
+        return {
+            "error": "invalid_params",
+            "details": "get_app_users accepts at most 1 parameter",
+        }
+
+    user_type = params[0] if params else "user"
+    return get_app_users_by_type(pool, user_type)
 
 
 def _handle_get_clientes(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
@@ -229,12 +278,35 @@ def _handle_traer_incongruencias(
         }
     return traer_incongruencias(pool)
 
+def _handle_update_user_permissions(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+
+) -> Dict[str, Any]:
+    if len(params) != 2:
+        return {
+            "error": "invalid_params",
+            "details": "update_user_permissions expects user_id and permissions map",
+        }
+
+    user_id = params[0]
+    permissions = params[1]
+    if not isinstance(permissions, dict):
+        return {
+            "error": "invalid_params",
+            "details": "permissions must be an object",
+        }
+
+    return update_user_permissions(pool, user_id, permissions)
+
 COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, Any]]] = {
     "get_app_user": _handle_get_app_user,
+    "get_app_users": _handle_get_app_users,
     "get_clientes": _handle_get_clientes,
     "update_cliente": _handle_update_cliente,
     "modificar_cobros_impagos": _handle_modificar_cobros_impagos,
     "traer_incongruencias": _handle_traer_incongruencias,
+    "update_user_permissions": _handle_update_user_permissions,
 
 }
 
