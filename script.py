@@ -1,151 +1,146 @@
 import json
-import queue
 import signal
 import sys
-import threading
-import time
-from typing import Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import pyodbc
 
-SERVER = '192.168.100.3,1433'
-DATABASE = 'NAVIERA'
-DRIVER = 'ODBC Driver 18 for SQL Server'
+SERVER = '192.168.100.2,1433'
 
-USE_WINDOWS_AUTH = True
+DATABASE = 'NAVIERA'
+
+DRIVER = 'ODBC Driver 17 for SQL Server'
+
+USE_WINDOWS_AUTH = False
+
 SQL_USER = 'navexe'
+
 SQL_PASS = 'navexe1433'
 
+CONNECT_TIMEOUT = 10
 
 def _build_conn_str() -> str:
+    parts = [
+        f"DRIVER={{{DRIVER}}};",
+        f"SERVER={SERVER};",
+        f"DATABASE={DATABASE};",
+        "Encrypt=yes;",
+        "TrustServerCertificate=yes;",
+    ]
     if USE_WINDOWS_AUTH:
-        return (
-            f"DRIVER={{{DRIVER}}};"
-            f"SERVER={SERVER};"
-            f"DATABASE={DATABASE};"
-            "Trusted_Connection=yes;"
-            "Encrypt=no;"
-            "TrustServerCertificate=yes;"
-        )
-    return (
-        f"DRIVER={{{DRIVER}}};"
-        f"SERVER={SERVER};"
-        f"DATABASE={DATABASE};"
-        f"UID={SQL_USER};"
-        f"PWD={SQL_PASS};"
-        "Encrypt=no;"
-        "TrustServerCertificate=yes;"
-    )
+        parts.append("Trusted_Connection=yes;")
+    else:
+        parts.append(f"UID={SQL_USER};PWD={SQL_PASS};")
+    return "".join(parts)
 
+CONNECTION_STRING = _build_conn_str()
+
+class ConnectionAcquireError(Exception):
+    """Raised when the pool cannot establish a database connection."""
+    def __init__(self, details: str) -> None:
+        super().__init__(details)
+        self.details = details
+
+def _close_cursor(cursor: Optional['pyodbc.Cursor']) -> None:
+    if cursor is None:
+        return
+    try:
+        cursor.close()
+    except pyodbc.Error:
+        pass
+
+def _execute_call(
+    cursor: 'pyodbc.Cursor',
+    call: str,
+    params: Sequence[Any],
+
+) -> None:
+    if params:
+        cursor.execute(call, tuple(params))
+    else:
+        cursor.execute(call)
 
 class ConnectionPool:
-
-    def __init__(
-        self,
-        size: int = 5,
-        connect_timeout: int = 10,
-        max_retries: int = 3,
-        retry_delay: float = 1.0,
-    ):
-        self._size = size
-        self._connect_timeout = connect_timeout
-        self._max_retries = max_retries
-        self._retry_delay = retry_delay
-        self._pool: "queue.Queue[pyodbc.Connection]" = queue.Queue(maxsize=size)
-        self._lock = threading.Lock()
-        self._created = 0
-
-    def acquire(self) -> pyodbc.Connection:
-        try:
-            conn = self._pool.get_nowait()
-        except queue.Empty:
-            conn = self._create_connection()
-        return conn
-
-    def release(self, conn: pyodbc.Connection) -> None:
-        try:
-            self._pool.put_nowait(conn)
-        except queue.Full:
-            conn.close()
-
-    def close(self) -> None:
-        while not self._pool.empty():
-            conn = self._pool.get_nowait()
-            conn.close()
-        self._created = 0
-
+    def __init__(self, size: int = 1):
+        self._pool: List[pyodbc.Connection] = []
+        self._max_size = max(1, size)
     def _create_connection(self) -> pyodbc.Connection:
-        with self._lock:
-            if self._created >= self._size:
-                wait_for_connection = True
+        return pyodbc.connect(CONNECTION_STRING, timeout=CONNECT_TIMEOUT)
+    def acquire(self) -> pyodbc.Connection:
+        if self._pool:
+            return self._pool.pop()
+        try:
+            return self._create_connection()
+        except pyodbc.Error as exc:
+            raise ConnectionAcquireError(str(exc)) from exc
+    def release(self, conn: Optional[pyodbc.Connection]) -> None:
+        if conn is None:
+            return
+        try:
+            if len(self._pool) < self._max_size:
+                self._pool.append(conn)
             else:
-                self._created += 1
-                wait_for_connection = False
-
-        if wait_for_connection:
-            return self._pool.get()
-
-        attempt = 0
-        last_exc: Optional[Exception] = None
-        while attempt < self._max_retries:
-            attempt += 1
+                conn.close()
+        except pyodbc.Error:
+            pass
+    def discard(self, conn: Optional[pyodbc.Connection]) -> None:
+        if conn is None:
+            return
+        try:
+            conn.close()
+        except pyodbc.Error:
+            pass
+    def close(self) -> None:
+        while self._pool:
+            conn = self._pool.pop()
             try:
-                conn = pyodbc.connect(_build_conn_str(), timeout=self._connect_timeout)
-                return conn
-            except pyodbc.Error as exc:
-                last_exc = exc
-                _log(f"Connection attempt {attempt} failed: {exc}")
-                time.sleep(self._retry_delay)
+                conn.close()
+            except pyodbc.Error:
+                pass
 
-        with self._lock:
-            self._created -= 1
+def execute_procedure(
+    pool: ConnectionPool,
+    call: str,
+    params: Sequence[Any] = (),
 
-        assert last_exc is not None
-        raise last_exc
-
-
-def _log(message: str) -> None:
-    print(message, file=sys.stderr, flush=True)
-
-def get_connection(pool: ConnectionPool) -> pyodbc.Connection:
-    return pool.acquire()
-
-
-def execute_procedure(pool: ConnectionPool, call: str, params=()):
+) -> Dict[str, Any]:
     try:
-        conn = get_connection(pool)
-    except pyodbc.Error as exc:
-        _log(f"Failed to acquire connection: {exc}")
-        return {"error": str(exc)}
+        conn = pool.acquire()
+    except ConnectionAcquireError as exc:
+        return {"error": "connection_failed", "details": exc.details}
+    cursor: Optional['pyodbc.Cursor'] = None
     try:
         cursor = conn.cursor()
-        cursor.execute(call, params)
-
+        _execute_call(cursor, call, params)
         while cursor.description is None and cursor.nextset():
             pass
-
         if cursor.description is None:
             return {"columns": [], "rows": []}
-
-        columns = [c[0] for c in cursor.description]
+        columns = [column[0] for column in cursor.description]
         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
         return {"columns": columns, "rows": rows}
     except pyodbc.Error as exc:
-        _log(f"Error running procedure '{call}': {exc}")
-        return {"error": str(exc)}
+        pool.discard(conn)
+        conn = None
+        return {"error": "db_execute_failed", "details": str(exc)}
     finally:
+        _close_cursor(cursor)
         pool.release(conn)
 
+def run_procedure(
+    pool: ConnectionPool,
+    call: str,
+    params: Sequence[Any] = (),
 
-def run_procedure(pool: ConnectionPool, call: str, params=()) -> dict:
+) -> Dict[str, Any]:
     try:
-        conn = get_connection(pool)
-    except pyodbc.Error as exc:
-        _log(f"Failed to acquire connection: {exc}")
-        return {"error": str(exc)}
+        conn = pool.acquire()
+    except ConnectionAcquireError as exc:
+        return {"error": "connection_failed", "details": exc.details}
+    cursor: Optional['pyodbc.Cursor'] = None
     try:
         cursor = conn.cursor()
-        cursor.execute(call, params)
+        _execute_call(cursor, call, params)
         conn.commit()
         return {"status": "ok"}
     except pyodbc.Error as exc:
@@ -153,37 +148,188 @@ def run_procedure(pool: ConnectionPool, call: str, params=()) -> dict:
             conn.rollback()
         except pyodbc.Error:
             pass
-        _log(f"Error running procedure '{call}': {exc}")
-        return {"error": str(exc)}
+        pool.discard(conn)
+        conn = None
+        return {"error": "db_execute_failed", "details": str(exc)}
     finally:
+        _close_cursor(cursor)
         pool.release(conn)
 
-def get_clientes(pool: ConnectionPool):
-    return execute_procedure(pool, '{CALL sp_traer_clientes}')
+def get_app_user(pool: ConnectionPool, username: Any) -> Dict[str, Any]:
+    return execute_procedure(pool, "EXEC traer_appUser @userName=?", (username,))
 
-def update_cliente(pool: ConnectionPool, cod_cliente, new_razon_social, new_dom_fiscal, new_cuit):
-    return run_procedure(
+
+def get_app_users_by_type(pool: ConnectionPool, user_type: Any) -> Dict[str, Any]:
+    return execute_procedure(
         pool,
-        '{CALL editar_cliente (?, ?, ?, ?)}',
-        (cod_cliente, new_razon_social, new_dom_fiscal, new_cuit)
+        "EXEC traer_appUsers_por_tipo @userType=?",
+        (user_type,),
     )
 
-def modificar_cobros_impagos(pool: ConnectionPool):
-    return run_procedure(pool, '{CALL modificar_cobros_impagos}')
 
-def traer_incongruencias(pool: ConnectionPool):
-    return execute_procedure(pool, '{CALL traer_incongruencias}')
+def get_clientes(pool: ConnectionPool) -> Dict[str, Any]:
+    return execute_procedure(pool, "{CALL sp_traer_clientes}")
+
+def update_cliente(
+    pool: ConnectionPool,
+    cod_cliente: Any,
+    new_razon_social: Any,
+    new_dom_fiscal: Any,
+    new_cuit: Any,
+
+) -> Dict[str, Any]:
+    return run_procedure(
+        pool,
+        "{CALL editar_cliente (?, ?, ?, ?)}",
+        (cod_cliente, new_razon_social, new_dom_fiscal, new_cuit),
+    )
+
+def modificar_cobros_impagos(pool: ConnectionPool) -> Dict[str, Any]:
+    return run_procedure(pool, "{CALL modificar_cobros_impagos}")
+
+def traer_incongruencias(pool: ConnectionPool) -> Dict[str, Any]:
+    return execute_procedure(pool, "{CALL traer_incongruencias}")
+
+
+def update_user_permissions(
+    pool: ConnectionPool,
+    user_id: Any,
+    permissions: Dict[str, Any],
+
+) -> Dict[str, Any]:
+    try:
+        parsed_user_id = int(user_id)
+    except (TypeError, ValueError):
+        return {
+            "error": "invalid_params",
+            "details": "user_id must be an integer",
+        }
+
+    if not isinstance(permissions, dict):
+        return {
+            "error": "invalid_params",
+            "details": "permissions must be a mapping",
+        }
+
+    test_view = 1 if bool(permissions.get("testView")) else 0
+    test_view2 = 1 if bool(permissions.get("testView2")) else 0
+
+    return run_procedure(
+        pool,
+        "{CALL update_user_permission (?, ?, ?)}",
+        (parsed_user_id, test_view, test_view2),
+    )
+
+def _handle_get_app_user(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
+    if len(params) != 1:
+        return {"error": "invalid_params", "details": "get_app_user expects exactly 1 parameter"}
+    username = params[0]
+    return get_app_user(pool, username)
+
+
+def _handle_get_app_users(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
+    if len(params) > 1:
+        return {
+            "error": "invalid_params",
+            "details": "get_app_users accepts at most 1 parameter",
+        }
+
+    user_type = params[0] if params else "user"
+    return get_app_users_by_type(pool, user_type)
+
+
+def _handle_get_clientes(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
+    if params:
+        return {
+            "error": "invalid_params",
+            "details": "get_clientes does not accept parameters",
+        }
+    return get_clientes(pool)
+
+def _handle_update_cliente(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
+    if len(params) != 4:
+        return {
+            "error": "invalid_params",
+            "details": "update_cliente expects 4 parameters",
+        }
+    return update_cliente(pool, *params)
+
+def _handle_modificar_cobros_impagos(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+
+) -> Dict[str, Any]:
+    if params:
+        return {
+            "error": "invalid_params",
+            "details": "modificar_cobros_impagos does not accept parameters",
+        }
+    return modificar_cobros_impagos(pool)
+
+def _handle_traer_incongruencias(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+
+) -> Dict[str, Any]:
+    if params:
+        return {
+            "error": "invalid_params",
+            "details": "traer_incongruencias does not accept parameters",
+        }
+    return traer_incongruencias(pool)
+
+def _handle_update_user_permissions(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+
+) -> Dict[str, Any]:
+    if len(params) != 2:
+        return {
+            "error": "invalid_params",
+            "details": "update_user_permissions expects user_id and permissions map",
+        }
+
+    user_id = params[0]
+    permissions = params[1]
+    if not isinstance(permissions, dict):
+        return {
+            "error": "invalid_params",
+            "details": "permissions must be an object",
+        }
+
+    return update_user_permissions(pool, user_id, permissions)
+
+COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, Any]]] = {
+    "get_app_user": _handle_get_app_user,
+    "get_app_users": _handle_get_app_users,
+    "get_clientes": _handle_get_clientes,
+    "update_cliente": _handle_update_cliente,
+    "modificar_cobros_impagos": _handle_modificar_cobros_impagos,
+    "traer_incongruencias": _handle_traer_incongruencias,
+    "update_user_permissions": _handle_update_user_permissions,
+
+}
+
+def _normalize_params(raw: Any) -> List[Any]:
+    if raw is None:
+        return []
+    if isinstance(raw, (list, tuple)):
+        return list(raw)
+    return [raw]
+
+def _dispatch(pool: ConnectionPool, cmd: str, params: Sequence[Any]) -> Dict[str, Any]:
+    handler = COMMAND_HANDLERS.get(cmd)
+    if handler is None:
+        return {"error": "unknown command"}
+    return handler(pool, params)
 
 def main() -> None:
     pool = ConnectionPool()
-
-    def _cleanup(*_args):
+    def _cleanup(*_args: Any) -> None:
         pool.close()
         sys.exit(0)
-
     signal.signal(signal.SIGINT, _cleanup)
     signal.signal(signal.SIGTERM, _cleanup)
-
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -191,36 +337,20 @@ def main() -> None:
         try:
             payload = json.loads(line)
             cmd = payload.get("cmd")
-            params = payload.get("params", [])
+            params = _normalize_params(payload.get("params"))
         except json.JSONDecodeError:
             cmd = line
             params = []
-
-        if not isinstance(params, (list, tuple)):
-            params = [params]
-        params = tuple(params)
-
-        try:
-            if cmd == "get_clientes":
-                res = get_clientes(pool)
-            elif cmd == "update_cliente":
-                res = update_cliente(pool, *params)
-            elif cmd == "modificar_cobros_impagos":
-                res = modificar_cobros_impagos(pool)
-            elif cmd == "traer_incongruencias":
-                res = traer_incongruencias(pool)
-            elif cmd == "exit":
-                break
-            else:
-                res = {"error": "unknown command"}
-        except Exception as exc:
-            _log(f"Error handling command '{cmd}': {exc}")
-            res = {"error": str(exc)}
-
+        if cmd == "exit":
+            break
+        if not cmd:
+            res = {"error": "missing_command"}
+        else:
+            res = _dispatch(pool, cmd, params)
         print(json.dumps(res, default=str))
         sys.stdout.flush()
-
     pool.close()
 
 if __name__ == "__main__":
     main()
+

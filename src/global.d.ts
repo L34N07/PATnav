@@ -1,5 +1,35 @@
+export interface PythonResult<Row = Record<string, unknown>> {
+  columns?: string[]
+  rows?: Row[]
+  status?: string
+  error?: string
+  details?: string
+}
+
+export type AppUserResult = PythonResult<Record<string, unknown>>
+
+export interface UpdateClientePayload {
+  codCliente: string
+  razonSocial: string
+  domFiscal: string
+  cuit: string
+}
+
+export interface UpdateUserPermissionsPayload {
+  userId: number
+  permissions: Record<string, boolean>
+}
+
 export interface ElectronAPI {
-  runPython: (cmd: string, params?: any[]) => Promise<string>
+  getClientes: () => Promise<PythonResult>
+  getAppUser: (username: string) => Promise<AppUserResult>
+  getAppUsers: (userType?: string) => Promise<AppUserResult>
+  traerIncongruencias: () => Promise<PythonResult>
+  updateCliente: (payload: UpdateClientePayload) => Promise<PythonResult>
+  modificarCobrosImpagos: () => Promise<PythonResult>
+  updateUserPermissions: (
+    payload: UpdateUserPermissionsPayload
+  ) => Promise<PythonResult>
 }
 
 declare global {

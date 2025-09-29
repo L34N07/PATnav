@@ -15,7 +15,8 @@
     "dev": "cross-env NODE_ENV=development concurrently -k \"vite\" \"electron .\"",
     "build": "vite build",
     "start": "cross-env NODE_ENV=production electron .",
-    "dist": "npm run build && node scripts/create-electron-package.js"
+    "dist": "npm run build && electron-builder",
+    "build:python": "python -m PyInstaller --onefile --clean --distpath release --workpath build --specpath build script.py"
   },
   "build": {
     "appId": "com.l34n07.navieraapp",
@@ -23,23 +24,25 @@
     "directories": {
       "buildResources": "public"
     },
-      "files": [
-        "dist/**/*",
-        "main.js",
-        "preload.js",
-        "script.py",
-        "package.json",
-        "public/**/*",
-        "src/assets/**/*"
-      ],
-      "asarUnpack": [
-        "script.py"
-      ],
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "preload.js",
+      "package.json",
+      "public/**/*",
+      "src/assets/**/*"
+    ],
     "extraResources": [
       {
         "from": "public/fonts",
         "to": "fonts",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "release/script.exe",
+        "to": "script.exe"
       }
     ],
     "win": {
@@ -50,7 +53,6 @@
       "target": "AppImage",
       "icon": "src/assets/logopng.png"
     }
-
   },
   "repository": {
     "type": "git",
@@ -64,10 +66,11 @@
   },
   "homepage": "https://github.com/L34N07/PATNav#readme",
   "devDependencies": {
-    "electron": "^29.0.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "electron": "^38.1.2",
+    "electron-builder": "^26.0.12",
     "typescript": "^5.8.3"
   }
 }
