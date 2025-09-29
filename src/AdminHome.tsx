@@ -21,7 +21,7 @@ type AdminHomePageId = AdminHomePage["id"]
 
 const ADMIN_PANEL_PAGE: AdminPanelPage = {
   id: "adminPanel",
-  label: "Panel Admin",
+  label: "Admin Panel",
   component: AdminPanelView
 }
 
