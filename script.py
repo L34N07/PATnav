@@ -1,4 +1,4 @@
-import json
+﻿import json
 import signal
 import sys
 from typing import Any, Callable, Dict, List, Optional, Sequence
