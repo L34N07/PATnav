@@ -119,6 +119,11 @@ export default function TestView() {
     resetSelection()
 
     try {
+      const updateResult = await electronAPI.modificarCobrosImpagos()
+      if (updateResult.error) {
+        throw new Error(updateResult.details || updateResult.error)
+      }
+
       const result = await electronAPI.traerIncongruencias()
       if (result.error) {
         throw new Error(result.details || result.error)
@@ -140,7 +145,7 @@ export default function TestView() {
       setColumnWidths(new Array(cols.length).fill(150))
       setSearchQuery("")
       resetPage()
-      setStatusMessage("Irregularidades cargadas correctamente.")
+      setStatusMessage("Cobros impagos actualizados e irregularidades cargadas correctamente.")
     } catch (error) {
       console.error("No se pudieron traer las irregularidades:", error)
       setColumns([])
