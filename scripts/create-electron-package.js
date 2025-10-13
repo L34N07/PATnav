@@ -8,6 +8,13 @@ async function main() {
 
   const platform = process.platform;
   const arch = process.arch;
+  const supportedArchs = new Set(['x64', 'arm64']);
+
+  if (!supportedArchs.has(arch)) {
+    throw new Error(
+      `Unsupported architecture "${arch}". 32-bit builds are no longer produced. Run with a 64-bit Node.js/Electron runtime.`
+    );
+  }
 
   const electronDist = path.join(projectRoot, 'node_modules', 'electron', 'dist');
   if (!fs.existsSync(electronDist)) {
@@ -17,6 +24,7 @@ async function main() {
   const releaseRoot = path.join(projectRoot, 'release');
   const releaseDir = path.join(releaseRoot, `${platform}-${arch}`);
 
+  await cleanupLegacy32BitDirs(releaseRoot);
   await fsp.rm(releaseDir, { recursive: true, force: true });
   await copyDir(electronDist, releaseDir);
 
@@ -104,6 +112,19 @@ async function copyDir(src, dest) {
 async function copyItem(src, dest) {
   await fsp.mkdir(path.dirname(dest), { recursive: true });
   await fsp.copyFile(src, dest);
+}
+
+async function cleanupLegacy32BitDirs(rootDir) {
+  if (!fs.existsSync(rootDir)) {
+    return;
+  }
+
+  const entries = await fsp.readdir(rootDir, { withFileTypes: true });
+  const removals = entries
+    .filter((entry) => entry.isDirectory() && /(^|-)ia32\b/i.test(entry.name))
+    .map((entry) => fsp.rm(path.join(rootDir, entry.name), { recursive: true, force: true }));
+
+  await Promise.all(removals);
 }
 
 main().catch((err) => {

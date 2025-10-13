@@ -13,5 +13,5 @@ export type AdminPageDefinition = {
 
 export const ADMIN_PAGES: AdminPageDefinition[] = [
   { id: 'test', label: 'Clientes / Pagos', permissionKey: 'testView', component: TestView },
-  { id: 'test2', label: 'Test View 2', permissionKey: 'testView2', component: TestView2 }
+  { id: 'test2', label: 'Prestamos y Devoluciones', permissionKey: 'testView2', component: TestView2 }
 ]

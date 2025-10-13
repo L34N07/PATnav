@@ -240,6 +240,16 @@ ipcMain.handle('python:modificar_cobros_impagos', async () => {
   return bridge.call('modificar_cobros_impagos')
 })
 
+ipcMain.handle('python:resumen_remitos', async () => {
+  const bridge = getPythonBridge()
+  return bridge.call('resumen_remitos')
+})
+
+ipcMain.handle('python:traer_resumen_prestamos', async () => {
+  const bridge = getPythonBridge()
+  return bridge.call('traer_resumen_prestamos')
+})
+
 ipcMain.handle('python:update_user_permissions', async (_event, payload) => {
   const bridge = getPythonBridge()
   const { userId, permissions } = payload || {}

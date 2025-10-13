@@ -587,6 +587,83 @@ tr.selected {
   margin-left: 0;
 }
 
+.loan-summary-panel {
+  margin-left: 0;
+  margin-right: 20px;
+  padding: 16px;
+  background: #f1f1f1;
+  border: 1px solid #d1d1d1;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.loan-summary-panel .table-status {
+  margin: 0;
+}
+
+.loan-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loan-empty-state {
+  padding: 24px;
+  border: 1px dashed #c0c0c0;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #555;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.loan-actions {
+  margin-left: 20px;
+  padding-left: 20px;
+  padding-right: 0;
+  border-left: 1px solid #ccc;
+  border-right: none;
+}
+
+.loan-actions .fetch-button + .fetch-button {
+  margin-top: 12px;
+}
+
+.loan-actions__loading {
+  margin-top: 12px;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.loan-card {
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.loan-card summary {
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.loan-card-body {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.loan-card-body strong {
+  font-weight: 600;
+}
+
 .no-views-message {
   margin: 24px;
   padding: 16px;

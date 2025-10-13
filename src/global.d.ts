@@ -27,6 +27,8 @@ export interface ElectronAPI {
   traerIncongruencias: () => Promise<PythonResult>
   updateCliente: (payload: UpdateClientePayload) => Promise<PythonResult>
   modificarCobrosImpagos: () => Promise<PythonResult>
+  resumen_remitos: () => Promise<PythonResult>
+  traer_resumen_prestamos: () => Promise<PythonResult>
   updateUserPermissions: (
     payload: UpdateUserPermissionsPayload
   ) => Promise<PythonResult>

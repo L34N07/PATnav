@@ -191,6 +191,14 @@ def traer_incongruencias(pool: ConnectionPool) -> Dict[str, Any]:
     return execute_procedure(pool, "{CALL traer_incongruencias}")
 
 
+def resumen_remitos(pool: ConnectionPool) -> Dict[str, Any]:
+    return run_procedure(pool, "{CALL resumen_remitos}")
+
+
+def traer_resumen_prestamos(pool: ConnectionPool) -> Dict[str, Any]:
+    return execute_procedure(pool, "{CALL traer_resumen_prestamos}")
+
+
 def update_user_permissions(
     pool: ConnectionPool,
     user_id: Any,
@@ -278,6 +286,31 @@ def _handle_traer_incongruencias(
         }
     return traer_incongruencias(pool)
 
+def _handle_resumen_remitos(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+
+) -> Dict[str, Any]:
+    if params:
+        return {
+            "error": "invalid_params",
+            "details": "resumen_remitos does not accept parameters",
+        }
+    return resumen_remitos(pool)
+
+
+def _handle_traer_resumen_prestamos(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+
+) -> Dict[str, Any]:
+    if params:
+        return {
+            "error": "invalid_params",
+            "details": "traer_resumen_prestamos does not accept parameters",
+        }
+    return traer_resumen_prestamos(pool)
+
 def _handle_update_user_permissions(
     pool: ConnectionPool,
     params: Sequence[Any],
@@ -306,6 +339,8 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "update_cliente": _handle_update_cliente,
     "modificar_cobros_impagos": _handle_modificar_cobros_impagos,
     "traer_incongruencias": _handle_traer_incongruencias,
+    "resumen_remitos": _handle_resumen_remitos,
+    "traer_resumen_prestamos": _handle_traer_resumen_prestamos,
     "update_user_permissions": _handle_update_user_permissions,
 
 }

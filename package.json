@@ -15,8 +15,8 @@
     "dev": "cross-env NODE_ENV=development concurrently -k \"vite\" \"electron .\"",
     "build": "vite build",
     "start": "cross-env NODE_ENV=production electron .",
-    "dist": "npm run build && electron-builder",
-    "build:python": "python -m PyInstaller --onefile --clean --distpath release --workpath build --specpath build script.py"
+    "dist": "npm run build && electron-builder --x64",
+    "build:python": "python -m PyInstaller --onefile --clean --target-arch 64bit --distpath release --workpath build --specpath build script.py"
   },
   "build": {
     "appId": "com.l34n07.navieraapp",
@@ -46,11 +46,25 @@
       }
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "src/assets/logopng.png"
     },
     "linux": {
-      "target": "AppImage",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "src/assets/logopng.png"
     }
   },
