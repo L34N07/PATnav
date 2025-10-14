@@ -18,21 +18,23 @@ export default function LoanMovementCard({
       className={`movement-card ${isSelected ? "selected" : ""}`}
       onClick={onSelect}
     >
-      <div className="movement-card-group">
-        <span className="movement-card-label">Fecha</span>
-        <span className="movement-card-value">{movement.fechaRemito}</span>
-      </div>
-      <div className="movement-card-group">
-        <span className="movement-card-label">Remito</span>
-        <span className="movement-card-value">{movement.numeroRemito}</span>
-      </div>
-      <div className="movement-card-group">
-        <span className="movement-card-label">Item</span>
-        <span className="movement-card-value">{movement.itemLabel}</span>
-      </div>
-      <div className="movement-card-group">
-        <span className="movement-card-label">Cantidad</span>
-        <span className="movement-card-value">{movement.cantidad}</span>
+      <div className="movement-card-content">
+        <div className="movement-card-group">
+          <span className="movement-card-label">Fecha</span>
+          <span className="movement-card-value">{movement.fechaRemito}</span>
+        </div>
+        <div className="movement-card-group">
+          <span className="movement-card-label">Remito</span>
+          <span className="movement-card-value">{movement.numeroRemito}</span>
+        </div>
+        <div className="movement-card-group">
+          <span className="movement-card-label">Item</span>
+          <span className="movement-card-value">{movement.itemLabel}</span>
+        </div>
+        <div className="movement-card-group">
+          <span className="movement-card-label">Cantidad</span>
+          <span className="movement-card-value">{movement.cantidad}</span>
+        </div>
       </div>
       {movement.infoExtra && (
         <div className="movement-card-extra">

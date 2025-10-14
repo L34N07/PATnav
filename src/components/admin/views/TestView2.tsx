@@ -248,7 +248,7 @@ const toLoanMovementRow = (
   const itemLabel = ITEM_LABELS[rawItemCode] ?? (rawItemCode ? `Item ${rawItemCode}` : "Item sin especificar")
   const cantidad = Number(row.cantidad ?? 0)
   const infoExtra = String(row.INFOEXTRA ?? "").trim()
-  const identifier = `${codCliente}-${sortKey}-${numeroRemito || index}`
+  const identifier = `${codCliente}-${sortKey}-${numeroRemito || "remito"}-${index}`
 
   return {
     id: identifier,
