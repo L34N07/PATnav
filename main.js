@@ -1,12 +1,56 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const { spawn } = require('child_process')
 const fs = require('fs')
+const http = require('http')
+const https = require('https')
 const path = require('path')
 
 const isDev = process.env.NODE_ENV === 'development'
-const URL = isDev
-  ? 'http://localhost:5173'
-  : `file://${path.join(__dirname, 'dist/index.html')}`
+const DEV_URL = 'http://localhost:5173'
+const PROD_URL = `file://${path.join(__dirname, 'dist/index.html')}`
+const URL = isDev ? DEV_URL : PROD_URL
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+// Polls the renderer dev server until it responds so Electron can load it without failing.
+const waitForRenderer = async (targetUrl, { timeout = 30000, interval = 250 } = {}) => {
+  const deadline = Date.now() + timeout
+  const parsed = new URL(targetUrl)
+  const client = parsed.protocol === 'https:' ? https : http
+
+  const tryConnect = () =>
+    new Promise((resolve, reject) => {
+      const request = client.request(
+        {
+          method: 'HEAD',
+          hostname: parsed.hostname,
+          port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+          path: `${parsed.pathname || '/'}${parsed.search || ''}`
+        },
+        response => {
+          response.destroy()
+          resolve()
+        }
+      )
+
+      request.on('error', reject)
+      request.setTimeout(interval, () => {
+        request.destroy(new Error('timeout'))
+      })
+      request.end()
+    })
+
+  while (Date.now() < deadline) {
+    try {
+      await tryConnect()
+      return
+    } catch (error) {
+      await sleep(interval)
+    }
+  }
+
+  throw new Error(`Timed out waiting for renderer dev server at ${targetUrl}`)
+}
 
 class PythonBridge {
   constructor(executablePath) {
@@ -189,7 +233,7 @@ const getPythonBridge = () => {
   return pythonBridge
 }
 
-const createWindow = () => {
+const createWindow = async () => {
   const win = new BrowserWindow({
     width: 1200,
     height: 700,
@@ -203,7 +247,25 @@ const createWindow = () => {
   })
 
   win.removeMenu()
-  win.loadURL(URL)
+
+  let targetUrl = URL
+
+  if (isDev) {
+    try {
+      await waitForRenderer(DEV_URL)
+    } catch (error) {
+      console.error('Renderer dev server not detected within timeout:', error)
+      targetUrl = PROD_URL
+    }
+  }
+
+  try {
+    await win.loadURL(targetUrl)
+  } catch (error) {
+    console.error('Failed to load renderer URL:', error)
+  }
+
+  return win
 }
 
 ipcMain.handle('python:get_app_user', async (_event, payload) => {
@@ -256,7 +318,6 @@ ipcMain.handle('python:traer_movimientos_cliente', async (_event, payload) => {
   return bridge.call('traer_movimientos_cliente', [codCliente])
 })
 
-
 ipcMain.handle('python:actualizar_infoextra_por_registro', async (_event, payload) => {
   const bridge = getPythonBridge()
   const {
@@ -274,20 +335,21 @@ ipcMain.handle('python:actualizar_infoextra_por_registro', async (_event, payloa
     infoExtra
   ])
 })
+
 ipcMain.handle('python:update_user_permissions', async (_event, payload) => {
   const bridge = getPythonBridge()
   const { userId, permissions } = payload || {}
   return bridge.call('update_user_permissions', [userId, permissions])
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   try {
     getPythonBridge()
   } catch (error) {
     console.error('Failed to start python bridge:', error)
   }
 
-  createWindow()
+  await createWindow()
 })
 
 app.on('window-all-closed', () => {
@@ -299,7 +361,9 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
+    createWindow().catch(error => {
+      console.error('Failed to recreate window on activate:', error)
+    })
   }
 })
 

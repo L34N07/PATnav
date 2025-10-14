@@ -12,10 +12,23 @@ export default function LoanMovementCard({
   isSelected,
   onSelect
 }: LoanMovementCardProps) {
+  const estadoRaw = movement.infoExtra
+  const estadoCode = estadoRaw.trim().toUpperCase()
+  const estadoValue = estadoRaw || "\u00A0"
+  const estadoToneClass =
+    estadoCode === "VD" ? "tone-vd" : estadoCode === "VP" ? "tone-vp" : ""
+  const cardClassName = [
+    "movement-card",
+    estadoToneClass,
+    isSelected ? "selected" : ""
+  ]
+    .filter(Boolean)
+    .join(" ")
+
   return (
     <button
       type="button"
-      className={`movement-card ${isSelected ? "selected" : ""}`}
+      className={cardClassName}
       onClick={onSelect}
     >
       <div className="movement-card-content">
@@ -36,12 +49,10 @@ export default function LoanMovementCard({
           <span className="movement-card-value">{movement.cantidad}</span>
         </div>
       </div>
-      {movement.infoExtra && (
-        <div className="movement-card-extra">
-          <span className="movement-card-label">Info Extra</span>
-          <span className="movement-card-extra-value">{movement.infoExtra}</span>
-        </div>
-      )}
+      <div className="movement-card-estado">
+        <span className="movement-card-label">Estado</span>
+        <span className="movement-card-estado-value">{estadoValue}</span>
+      </div>
     </button>
   )
 }

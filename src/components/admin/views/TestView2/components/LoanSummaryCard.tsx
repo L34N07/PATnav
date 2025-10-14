@@ -32,8 +32,19 @@ export default function LoanSummaryCard({
         className="loan-card-header"
         onClick={onToggle}
         aria-expanded={isExpanded}
+        aria-label={summaryLabel}
       >
-        <span>{summaryLabel}</span>
+        <div className="loan-card-header-info">
+          <span className="loan-card-header-item">
+            <strong>Cliente:</strong> {row.CLIENTE}
+          </span>
+          <span className="loan-card-header-item">
+            <strong>Comprobante:</strong> {row.COMPROBANTE}
+          </span>
+          <span className="loan-card-header-item">
+            <strong>Estado:</strong> {row.ESTADO}
+          </span>
+        </div>
         <span className="loan-card-indicator" aria-hidden="true">
           {isExpanded ? "-" : "+"}
         </span>
