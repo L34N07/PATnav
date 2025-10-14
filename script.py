@@ -199,6 +199,14 @@ def traer_resumen_prestamos(pool: ConnectionPool) -> Dict[str, Any]:
     return execute_procedure(pool, "{CALL traer_resumen_prestamos}")
 
 
+def traer_movimientos_cliente(pool: ConnectionPool, cod_cliente: Any) -> Dict[str, Any]:
+    return execute_procedure(
+        pool,
+        "{CALL traer_movimientos_cliente (?)}",
+        (cod_cliente,),
+    )
+
+
 def update_user_permissions(
     pool: ConnectionPool,
     user_id: Any,
@@ -311,6 +319,18 @@ def _handle_traer_resumen_prestamos(
         }
     return traer_resumen_prestamos(pool)
 
+def _handle_traer_movimientos_cliente(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+
+) -> Dict[str, Any]:
+    if len(params) != 1:
+        return {
+            "error": "invalid_params",
+            "details": "traer_movimientos_cliente expects cod_cliente",
+        }
+    return traer_movimientos_cliente(pool, params[0])
+
 def _handle_update_user_permissions(
     pool: ConnectionPool,
     params: Sequence[Any],
@@ -341,6 +361,7 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "traer_incongruencias": _handle_traer_incongruencias,
     "resumen_remitos": _handle_resumen_remitos,
     "traer_resumen_prestamos": _handle_traer_resumen_prestamos,
+    "traer_movimientos_cliente": _handle_traer_movimientos_cliente,
     "update_user_permissions": _handle_update_user_permissions,
 
 }

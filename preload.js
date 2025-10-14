@@ -9,6 +9,8 @@ const electronAPI = Object.freeze({
   modificarCobrosImpagos: () => ipcRenderer.invoke('python:modificar_cobros_impagos'),
   resumen_remitos: () => ipcRenderer.invoke('python:resumen_remitos'),
   traer_resumen_prestamos: () => ipcRenderer.invoke('python:traer_resumen_prestamos'),
+  traer_movimientos_cliente: codCliente =>
+    ipcRenderer.invoke('python:traer_movimientos_cliente', { codCliente }),
   updateUserPermissions: payload => ipcRenderer.invoke('python:update_user_permissions', payload)
 })
 

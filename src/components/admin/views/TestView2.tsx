@@ -1,15 +1,19 @@
-import React, { useMemo, useState } from "react"
+import React, { useState } from "react"
 import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
+import LoanSummaryCard from "./TestView2/components/LoanSummaryCard"
+import { LoanMovementRow, LoanSummaryRow } from "./TestView2/types"
 
 const STATUS_MESSAGE_DURATION_MS = 3000
-
-type LoanSummaryRow = {
-  CLIENTE: number
-  COMPROBANTE: number
-  ESTADO: string
-  CANTIDAD: number
-  FECHA: string
+const ITEM_LABELS: Record<number, string> = {
+  1: "Bidon x20",
+  2: "Bidon x10",
+  5: "Envase x20",
+  6: "Envase x10"
 }
+
+type MovementsByClient = Record<number, LoanMovementRow[]>
+type MovementErrorsByClient = Record<number, string | null>
+type MovementSelectionMap = Record<number, string | null>
 
 export default function TestView2() {
   const electronAPI = window.electronAPI
@@ -19,6 +23,11 @@ export default function TestView2() {
   const [rows, setRows] = useState<LoanSummaryRow[]>([])
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [expandedCardIndex, setExpandedCardIndex] = useState<number | null>(null)
+  const [movementsByClient, setMovementsByClient] = useState<MovementsByClient>({})
+  const [movementErrors, setMovementErrors] = useState<MovementErrorsByClient>({})
+  const [movementLoadingClient, setMovementLoadingClient] = useState<number | null>(null)
+  const [selectedMovementByClient, setSelectedMovementByClient] = useState<MovementSelectionMap>({})
 
   useAutoDismissMessage(statusMessage, setStatusMessage, STATUS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, STATUS_MESSAGE_DURATION_MS)
@@ -70,8 +79,14 @@ export default function TestView2() {
         throw new Error(result.details || result.error)
       }
 
-      const fetchedRows = (result?.rows ?? []).map(toLoanSummaryRow)
+      const fetchedRows = (result?.rows ?? [])
+        .map(toLoanSummaryRow)
+        .sort((a, b) => a.fechaSortKey - b.fechaSortKey)
       setRows(fetchedRows)
+      setExpandedCardIndex(null)
+      setMovementsByClient({})
+      setMovementErrors({})
+      setSelectedMovementByClient({})
 
       if (fetchedRows.length > 0) {
         setStatusMessage("Resumen de prestamos cargado correctamente.")
@@ -90,10 +105,71 @@ export default function TestView2() {
     }
   }
 
-  const cards = useMemo(
-    () => rows.map((row, index) => renderLoanCard(row, index)),
-    [rows]
-  )
+  const handleToggleCard = (index: number) => {
+    const isSameCard = expandedCardIndex === index
+    const nextIndex = isSameCard ? null : index
+    setExpandedCardIndex(nextIndex)
+
+    if (!isSameCard) {
+      const targetRow = rows[index]
+      if (!targetRow) {
+        return
+      }
+
+      const clientId = targetRow.CLIENTE
+      setSelectedMovementByClient(prev => ({ ...prev, [clientId]: null }))
+      if (!movementsByClient[clientId] && movementLoadingClient !== clientId) {
+        void loadMovements(clientId)
+      }
+    }
+  }
+
+  const handleSelectMovement = (clientId: number, movementId: string) => {
+    setSelectedMovementByClient(prev => ({
+      ...prev,
+      [clientId]: prev[clientId] === movementId ? null : movementId
+    }))
+  }
+
+  const loadMovements = async (codCliente: number) => {
+    if (!electronAPI?.traer_movimientos_cliente) {
+      setMovementErrors(prev => ({
+        ...prev,
+        [codCliente]: "No se encuentra disponible la accion de movimientos."
+      }))
+      return
+    }
+
+    setMovementLoadingClient(codCliente)
+    setMovementErrors(prev => ({ ...prev, [codCliente]: null }))
+
+    try {
+      const result = await electronAPI.traer_movimientos_cliente(codCliente)
+      if (result?.error) {
+        throw new Error(result.details || result.error)
+      }
+
+      const fetchedMovements = sortMovements(
+        (result?.rows ?? []).map((row, index) =>
+          toLoanMovementRow(row as Record<string, unknown>, codCliente, index)
+        )
+      )
+
+      setMovementsByClient(prev => ({ ...prev, [codCliente]: fetchedMovements }))
+    } catch (error) {
+      console.error("No se pudieron cargar movimientos del cliente:", error)
+      setMovementsByClient(prev => ({ ...prev, [codCliente]: [] }))
+      setMovementErrors(prev => ({
+        ...prev,
+        [codCliente]:
+          error instanceof Error
+            ? error.message
+            : "Error desconocido al cargar los movimientos."
+      }))
+    } finally {
+      setMovementLoadingClient(prev => (prev === codCliente ? null : prev))
+    }
+  }
 
   return (
     <div className="content">
@@ -103,8 +179,20 @@ export default function TestView2() {
           <div className="table-status info">{statusMessage}</div>
         )}
         <div className="loan-cards">
-          {cards.length > 0 ? (
-            cards
+          {rows.length > 0 ? (
+            rows.map((row, index) => (
+              <LoanSummaryCard
+                key={`${row.CLIENTE}-${row.COMPROBANTE}-${row.fechaSortKey}-${index}`}
+                row={row}
+                isExpanded={expandedCardIndex === index}
+                isLoadingMovements={movementLoadingClient === row.CLIENTE}
+                movementError={movementErrors[row.CLIENTE] ?? null}
+                movements={movementsByClient[row.CLIENTE]}
+                selectedMovementId={selectedMovementByClient[row.CLIENTE] ?? null}
+                onToggle={() => handleToggleCard(index)}
+                onSelectMovement={movementId => handleSelectMovement(row.CLIENTE, movementId)}
+              />
+            ))
           ) : (
             <div className="loan-empty-state">
               No hay datos para mostrar. Utilice el panel derecho para cargar el resumen.
@@ -137,41 +225,84 @@ export default function TestView2() {
   )
 }
 
-const toLoanSummaryRow = (row: Record<string, unknown>): LoanSummaryRow => ({
-  CLIENTE: Number(row.CLIENTE ?? 0),
-  COMPROBANTE: Number(row.COMPROBANTE ?? 0),
-  ESTADO: String(row.ESTADO ?? ""),
-  CANTIDAD: Number(row.CANTIDAD ?? 0),
-  FECHA: formatDateValue(row.FECHA)
-})
+const toLoanSummaryRow = (row: Record<string, unknown>): LoanSummaryRow => {
+  const { display, sortKey } = parseDateValue(row.FECHA)
+  return {
+    CLIENTE: Number(row.CLIENTE ?? 0),
+    COMPROBANTE: Number(row.COMPROBANTE ?? 0),
+    ESTADO: String(row.ESTADO ?? ""),
+    CANTIDAD: Number(row.CANTIDAD ?? 0),
+    FECHA: display,
+    fechaSortKey: sortKey
+  }
+}
 
-const formatDateValue = (value: unknown) => {
+const toLoanMovementRow = (
+  row: Record<string, unknown>,
+  codCliente: number,
+  index: number
+): LoanMovementRow => {
+  const { display, sortKey } = parseDateValue(row.fecha_remito)
+  const numeroRemito = String(row.numero_remito ?? "").trim()
+  const rawItemCode = Number(row.cod_item ?? 0)
+  const itemLabel = ITEM_LABELS[rawItemCode] ?? (rawItemCode ? `Item ${rawItemCode}` : "Item sin especificar")
+  const cantidad = Number(row.cantidad ?? 0)
+  const infoExtra = String(row.INFOEXTRA ?? "").trim()
+  const identifier = `${codCliente}-${sortKey}-${numeroRemito || index}`
+
+  return {
+    id: identifier,
+    fechaRemito: display,
+    fechaSortKey: sortKey,
+    numeroRemito: numeroRemito || "-",
+    itemCode: rawItemCode,
+    itemLabel,
+    cantidad,
+    infoExtra
+  }
+}
+
+const parseDateValue = (
+  value: unknown
+): { display: string; sortKey: number } => {
   if (!value) {
-    return ""
+    return { display: "", sortKey: Number.POSITIVE_INFINITY }
   }
 
-  const date = new Date(value as string | number)
-  // Fallback to raw string if the date is invalid
-  if (Number.isNaN(date.getTime())) {
-    return String(value)
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed)
+    if (match) {
+      const [, yearStr, monthStr, dayStr] = match
+      const year = Number(yearStr)
+      const month = Number(monthStr)
+      const day = Number(dayStr)
+      if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+        const sortKey = Date.UTC(year, month - 1, day)
+        const display = `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`
+        return { display, sortKey }
+      }
+    }
   }
 
-  return date.toLocaleDateString()
+  const fallbackDate = new Date(value as string | number)
+  if (!Number.isNaN(fallbackDate.getTime())) {
+    return {
+      display: fallbackDate.toLocaleDateString(),
+      sortKey: fallbackDate.getTime()
+    }
+  }
+
+  return { display: String(value), sortKey: Number.POSITIVE_INFINITY }
 }
 
-const renderLoanCard = (row: LoanSummaryRow, index: number) => {
-  const summaryLabel = `Cliente ${row.CLIENTE} - Comprobante ${row.COMPROBANTE} - Estado ${row.ESTADO}`
-
-  return (
-    <details className="loan-card" key={`${row.CLIENTE}-${row.COMPROBANTE}-${index}`}>
-      <summary>{summaryLabel}</summary>
-      <div className="loan-card-body">
-        <span><strong>Cliente:</strong> {row.CLIENTE}</span>
-        <span><strong>Comprobante:</strong> {row.COMPROBANTE}</span>
-        <span><strong>Estado:</strong> {row.ESTADO}</span>
-        <span><strong>Cantidad:</strong> {row.CANTIDAD}</span>
-        <span><strong>Fecha:</strong> {row.FECHA}</span>
-      </div>
-    </details>
-  )
-}
+const sortMovements = (rows: LoanMovementRow[]): LoanMovementRow[] =>
+  [...rows].sort((a, b) => {
+    if (a.fechaSortKey !== b.fechaSortKey) {
+      return a.fechaSortKey - b.fechaSortKey
+    }
+    if (a.numeroRemito !== b.numeroRemito) {
+      return a.numeroRemito.localeCompare(b.numeroRemito)
+    }
+    return a.id.localeCompare(b.id)
+  })

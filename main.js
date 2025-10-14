@@ -250,6 +250,12 @@ ipcMain.handle('python:traer_resumen_prestamos', async () => {
   return bridge.call('traer_resumen_prestamos')
 })
 
+ipcMain.handle('python:traer_movimientos_cliente', async (_event, payload) => {
+  const bridge = getPythonBridge()
+  const { codCliente } = payload || {}
+  return bridge.call('traer_movimientos_cliente', [codCliente])
+})
+
 ipcMain.handle('python:update_user_permissions', async (_event, payload) => {
   const bridge = getPythonBridge()
   const { userId, permissions } = payload || {}
