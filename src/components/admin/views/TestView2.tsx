@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react"
+import React, { useMemo, useRef, useState } from "react"
 import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
 import LoanSummaryCard from "./TestView2/components/LoanSummaryCard"
 import { LoanMovementRow, LoanSummaryRow } from "./TestView2/types"
@@ -31,6 +31,7 @@ export default function TestView2() {
   const [movementLoadingClient, setMovementLoadingClient] = useState<number | null>(null)
   const [selectedMovementByClient, setSelectedMovementByClient] = useState<MovementSelectionMap>({})
   const [isInfoExtraUpdating, setIsInfoExtraUpdating] = useState(false)
+  const summaryCardRefs = useRef<Array<HTMLDivElement | null>>([])
 
   useAutoDismissMessage(statusMessage, setStatusMessage, STATUS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, STATUS_MESSAGE_DURATION_MS)
@@ -129,6 +130,17 @@ export default function TestView2() {
     const isSameCard = expandedCardIndex === index
     const nextIndex = isSameCard ? null : index
     setExpandedCardIndex(nextIndex)
+
+    if (!isSameCard && nextIndex !== null) {
+      requestAnimationFrame(() => {
+        const targetCard = summaryCardRefs.current[nextIndex]
+        targetCard?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+          inline: "nearest"
+        })
+      })
+    }
 
     if (!isSameCard) {
       const targetRow = rows[index]
@@ -270,6 +282,9 @@ export default function TestView2() {
                 selectedMovementId={selectedMovementByClient[row.CLIENTE] ?? null}
                 onToggle={() => handleToggleCard(index)}
                 onSelectMovement={movementId => handleSelectMovement(row.CLIENTE, movementId)}
+                ref={element => {
+                  summaryCardRefs.current[index] = element
+                }}
               />
             ))
           ) : (
@@ -280,37 +295,44 @@ export default function TestView2() {
         </div>
       </div>
       <div className="sidebar loan-actions">
-        <button
-          className="fetch-button"
-          type="button"
-          onClick={handleExecuteResumen}
-          disabled={isAnyActionRunning}
-        >
-          Comprobar Prestamos Y Devoluciones
-        </button>
-        <button
-          className="fetch-button"
-          type="button"
-          onClick={handleLoadSummary}
-          disabled={isAnyActionRunning}
-        >
-          Cargar Resumen
-        </button>
-        {isAnyActionRunning && (
-          <span className="loan-actions__loading">Procesando...</span>
-        )}
+        <div className="loan-actions__button-group">
+          <span className="loan-actions__section-title">Acciones</span>
+          <button
+            className="fetch-button"
+            type="button"
+            onClick={handleExecuteResumen}
+            disabled={isAnyActionRunning}
+          >
+            Comprobar VP y VD
+          </button>
+          <button
+            className="fetch-button"
+            type="button"
+            onClick={handleLoadSummary}
+            disabled={isAnyActionRunning}
+          >
+            Mostrar Resumen
+          </button>
+          {isAnyActionRunning && (
+            <span className="loan-actions__loading">Procesando...</span>
+          )}
+        </div>
+        <div className="loan-actions__divider" aria-hidden="true" />
         <div className="loan-actions__infoextra">
-          {INFO_EXTRA_OPTIONS.map(option => (
-            <button
-              key={option}
-              className="fetch-button infoextra-button"
-              type="button"
-              onClick={() => handleUpdateInfoExtra(option)}
-              disabled={isInfoExtraActionDisabled}
-            >
-              {option}
-            </button>
-          ))}
+          <span className="loan-actions__section-title">Actualizar</span>
+          <div className="loan-actions__infoextra-buttons">
+            {INFO_EXTRA_OPTIONS.map(option => (
+              <button
+                key={option}
+                className="fetch-button infoextra-button"
+                type="button"
+                onClick={() => handleUpdateInfoExtra(option)}
+                disabled={isInfoExtraActionDisabled}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

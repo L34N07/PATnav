@@ -8,7 +8,7 @@ const path = require('path')
 const isDev = process.env.NODE_ENV === 'development'
 const DEV_URL = 'http://localhost:5173'
 const PROD_URL = `file://${path.join(__dirname, 'dist/index.html')}`
-const URL = isDev ? DEV_URL : PROD_URL
+const DEFAULT_URL = isDev ? DEV_URL : PROD_URL
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -248,7 +248,7 @@ const createWindow = async () => {
 
   win.removeMenu()
 
-  let targetUrl = URL
+  let targetUrl = DEFAULT_URL
 
   if (isDev) {
     try {
