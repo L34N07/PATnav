@@ -215,7 +215,7 @@ def actualizar_infoextra_por_registro(
     nro_orden: Any,
     infoextra: Any,
 ) -> Dict[str, Any]:
-    return execute_procedure(
+    return run_procedure(
         pool,
         "{CALL actualizar_infoextra_por_registro (?, ?, ?, ?, ?)}",
         (numero_remito, prefijo_remito, tipo_comprobante, nro_orden, infoextra),
