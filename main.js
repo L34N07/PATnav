@@ -256,6 +256,24 @@ ipcMain.handle('python:traer_movimientos_cliente', async (_event, payload) => {
   return bridge.call('traer_movimientos_cliente', [codCliente])
 })
 
+
+ipcMain.handle('python:actualizar_infoextra_por_registro', async (_event, payload) => {
+  const bridge = getPythonBridge()
+  const {
+    numeroRemito,
+    prefijoRemito,
+    tipoComprobante,
+    nroOrden,
+    infoExtra
+  } = payload || {}
+  return bridge.call('actualizar_infoextra_por_registro', [
+    numeroRemito,
+    prefijoRemito,
+    tipoComprobante,
+    nroOrden,
+    infoExtra
+  ])
+})
 ipcMain.handle('python:update_user_permissions', async (_event, payload) => {
   const bridge = getPythonBridge()
   const { userId, permissions } = payload || {}

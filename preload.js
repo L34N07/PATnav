@@ -11,6 +11,8 @@ const electronAPI = Object.freeze({
   traer_resumen_prestamos: () => ipcRenderer.invoke('python:traer_resumen_prestamos'),
   traer_movimientos_cliente: codCliente =>
     ipcRenderer.invoke('python:traer_movimientos_cliente', { codCliente }),
+  actualizar_infoextra_por_registro: payload =>
+    ipcRenderer.invoke('python:actualizar_infoextra_por_registro', payload),
   updateUserPermissions: payload => ipcRenderer.invoke('python:update_user_permissions', payload)
 })
 

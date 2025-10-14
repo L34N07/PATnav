@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
 import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
 import LoanSummaryCard from "./TestView2/components/LoanSummaryCard"
 import { LoanMovementRow, LoanSummaryRow } from "./TestView2/types"
@@ -10,6 +10,8 @@ const ITEM_LABELS: Record<number, string> = {
   5: "Envase x20",
   6: "Envase x10"
 }
+
+const INFO_EXTRA_OPTIONS: ReadonlyArray<"A" | "P" | "D"> = ["A", "P", "D"]
 
 type MovementsByClient = Record<number, LoanMovementRow[]>
 type MovementErrorsByClient = Record<number, string | null>
@@ -28,11 +30,29 @@ export default function TestView2() {
   const [movementErrors, setMovementErrors] = useState<MovementErrorsByClient>({})
   const [movementLoadingClient, setMovementLoadingClient] = useState<number | null>(null)
   const [selectedMovementByClient, setSelectedMovementByClient] = useState<MovementSelectionMap>({})
+  const [isInfoExtraUpdating, setIsInfoExtraUpdating] = useState(false)
 
   useAutoDismissMessage(statusMessage, setStatusMessage, STATUS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, STATUS_MESSAGE_DURATION_MS)
 
-  const isAnyActionRunning = isResumenRunning || isSummaryLoading
+  const expandedClientId =
+    expandedCardIndex !== null && rows[expandedCardIndex]
+      ? rows[expandedCardIndex].CLIENTE
+      : null
+  const selectedMovementId =
+    expandedClientId !== null
+      ? selectedMovementByClient[expandedClientId] ?? null
+      : null
+  const selectedMovement = useMemo(() => {
+    if (expandedClientId === null || !selectedMovementId) {
+      return null
+    }
+    const clientMovements = movementsByClient[expandedClientId] ?? []
+    return clientMovements.find(movement => movement.id === selectedMovementId) ?? null
+  }, [expandedClientId, selectedMovementId, movementsByClient])
+
+  const isAnyActionRunning = isResumenRunning || isSummaryLoading || isInfoExtraUpdating
+  const isInfoExtraActionDisabled = isAnyActionRunning || !selectedMovement
 
   const handleExecuteResumen = async () => {
     if (!electronAPI?.resumen_remitos) {
@@ -171,6 +191,65 @@ export default function TestView2() {
     }
   }
 
+  const handleUpdateInfoExtra = async (infoExtraValue: "A" | "P" | "D") => {
+    if (!electronAPI?.actualizar_infoextra_por_registro) {
+      setErrorMessage("No se encuentra disponible la accion de actualizar INFOEXTRA.")
+      return
+    }
+
+    if (!selectedMovement || expandedClientId === null) {
+      setErrorMessage("Seleccione un movimiento para actualizar.")
+      return
+    }
+
+    setIsInfoExtraUpdating(true)
+    setErrorMessage(null)
+    setStatusMessage(null)
+
+    try {
+      const numeroRemitoParam =
+        selectedMovement.numeroRemito === "-" ? "" : selectedMovement.numeroRemito
+      const result = await electronAPI.actualizar_infoextra_por_registro({
+        numeroRemito: numeroRemitoParam,
+        prefijoRemito: selectedMovement.prefijoRemito,
+        tipoComprobante: selectedMovement.tipoComprobante,
+        nroOrden: selectedMovement.nroOrden,
+        infoExtra: infoExtraValue
+      })
+
+      if (result?.error) {
+        throw new Error(result.details || result.error)
+      }
+
+      setMovementsByClient(prev => {
+        const existing = prev[expandedClientId]
+        if (!existing) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          [expandedClientId]: existing.map(movement =>
+            movement.id === selectedMovement.id
+              ? { ...movement, infoExtra: infoExtraValue }
+              : movement
+          )
+        }
+      })
+
+      setStatusMessage("Información extra actualizada correctamente.")
+    } catch (error) {
+      console.error("No se pudo actualizar INFOEXTRA:", error)
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Error desconocido al actualizar la información extra."
+      )
+    } finally {
+      setIsInfoExtraUpdating(false)
+    }
+  }
+
   return (
     <div className="content">
       <div className="table-container loan-summary-panel">
@@ -207,7 +286,7 @@ export default function TestView2() {
           onClick={handleExecuteResumen}
           disabled={isAnyActionRunning}
         >
-          Coprobar Prestamos Y Devoluciones
+          Comprobar Prestamos Y Devoluciones
         </button>
         <button
           className="fetch-button"
@@ -220,6 +299,19 @@ export default function TestView2() {
         {isAnyActionRunning && (
           <span className="loan-actions__loading">Procesando...</span>
         )}
+        <div className="loan-actions__infoextra">
+          {INFO_EXTRA_OPTIONS.map(option => (
+            <button
+              key={option}
+              className="fetch-button infoextra-button"
+              type="button"
+              onClick={() => handleUpdateInfoExtra(option)}
+              disabled={isInfoExtraActionDisabled}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -244,10 +336,16 @@ const toLoanMovementRow = (
 ): LoanMovementRow => {
   const { display, sortKey } = parseDateValue(row.fecha_remito)
   const numeroRemito = String(row.numero_remito ?? "").trim()
+  const prefijoRemito = String(row.prefijo_remito ?? "").trim()
+  const tipoComprobante = String(row.tipo_comprobante ?? "").trim()
+  const nroOrden = String(row.nro_orden ?? "").trim()
   const rawItemCode = Number(row.cod_item ?? 0)
   const itemLabel = ITEM_LABELS[rawItemCode] ?? (rawItemCode ? `Item ${rawItemCode}` : "Item sin especificar")
   const cantidad = Number(row.cantidad ?? 0)
-  const infoExtra = String(row.INFOEXTRA ?? "").trim()
+  const infoExtra =
+    row.INFOEXTRA !== null && row.INFOEXTRA !== undefined
+      ? String(row.INFOEXTRA)
+      : ""
   const identifier = `${codCliente}-${sortKey}-${numeroRemito || "remito"}-${index}`
 
   return {
@@ -255,6 +353,9 @@ const toLoanMovementRow = (
     fechaRemito: display,
     fechaSortKey: sortKey,
     numeroRemito: numeroRemito || "-",
+    prefijoRemito,
+    tipoComprobante,
+    nroOrden,
     itemCode: rawItemCode,
     itemLabel,
     cantidad,
@@ -299,7 +400,7 @@ const parseDateValue = (
 const sortMovements = (rows: LoanMovementRow[]): LoanMovementRow[] =>
   [...rows].sort((a, b) => {
     if (a.fechaSortKey !== b.fechaSortKey) {
-      return a.fechaSortKey - b.fechaSortKey
+      return b.fechaSortKey - a.fechaSortKey
     }
     if (a.numeroRemito !== b.numeroRemito) {
       return a.numeroRemito.localeCompare(b.numeroRemito)

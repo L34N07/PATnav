@@ -12,6 +12,9 @@ export type LoanMovementRow = {
   fechaRemito: string
   fechaSortKey: number
   numeroRemito: string
+  prefijoRemito: string
+  tipoComprobante: string
+  nroOrden: string
   itemCode: number
   itemLabel: string
   cantidad: number

@@ -20,6 +20,14 @@ export interface UpdateUserPermissionsPayload {
   permissions: Record<string, boolean>
 }
 
+export interface ActualizarInfoextraPayload {
+  numeroRemito: string | number
+  prefijoRemito: string | number
+  tipoComprobante: string
+  nroOrden: string | number
+  infoExtra: string
+}
+
 export interface ElectronAPI {
   getClientes: () => Promise<PythonResult>
   getAppUser: (username: string) => Promise<AppUserResult>
@@ -30,6 +38,9 @@ export interface ElectronAPI {
   resumen_remitos: () => Promise<PythonResult>
   traer_resumen_prestamos: () => Promise<PythonResult>
   traer_movimientos_cliente: (codCliente: number | string) => Promise<PythonResult>
+  actualizar_infoextra_por_registro: (
+    payload: ActualizarInfoextraPayload
+  ) => Promise<PythonResult>
   updateUserPermissions: (
     payload: UpdateUserPermissionsPayload
   ) => Promise<PythonResult>

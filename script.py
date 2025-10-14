@@ -207,6 +207,21 @@ def traer_movimientos_cliente(pool: ConnectionPool, cod_cliente: Any) -> Dict[st
     )
 
 
+def actualizar_infoextra_por_registro(
+    pool: ConnectionPool,
+    numero_remito: Any,
+    prefijo_remito: Any,
+    tipo_comprobante: Any,
+    nro_orden: Any,
+    infoextra: Any,
+) -> Dict[str, Any]:
+    return execute_procedure(
+        pool,
+        "{CALL actualizar_infoextra_por_registro (?, ?, ?, ?, ?)}",
+        (numero_remito, prefijo_remito, tipo_comprobante, nro_orden, infoextra),
+    )
+
+
 def update_user_permissions(
     pool: ConnectionPool,
     user_id: Any,
@@ -331,6 +346,30 @@ def _handle_traer_movimientos_cliente(
         }
     return traer_movimientos_cliente(pool, params[0])
 
+
+def _handle_actualizar_infoextra_por_registro(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+
+) -> Dict[str, Any]:
+    if len(params) != 5:
+        return {
+            "error": "invalid_params",
+            "details": (
+                "actualizar_infoextra_por_registro expects "
+                "numero_remito, prefijo_remito, tipo_comprobante, nro_orden and INFOEXTRA"
+            ),
+        }
+    return actualizar_infoextra_por_registro(
+        pool,
+        params[0],
+        params[1],
+        params[2],
+        params[3],
+        params[4],
+    )
+
+
 def _handle_update_user_permissions(
     pool: ConnectionPool,
     params: Sequence[Any],
@@ -362,6 +401,7 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "resumen_remitos": _handle_resumen_remitos,
     "traer_resumen_prestamos": _handle_traer_resumen_prestamos,
     "traer_movimientos_cliente": _handle_traer_movimientos_cliente,
+    "actualizar_infoextra_por_registro": _handle_actualizar_infoextra_por_registro,
     "update_user_permissions": _handle_update_user_permissions,
 
 }
