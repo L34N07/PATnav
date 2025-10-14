@@ -1,9 +1,10 @@
 import React, { useMemo, useRef, useState } from "react"
 import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
+import NotificationToast from "../../NotificationToast"
 import LoanSummaryCard from "./TestView2/components/LoanSummaryCard"
 import { LoanMovementRow, LoanSummaryRow } from "./TestView2/types"
 
-const STATUS_MESSAGE_DURATION_MS = 3000
+const STATUS_MESSAGE_DURATION_MS = 2000
 const ITEM_LABELS: Record<number, string> = {
   1: "Bidon x20",
   2: "Bidon x10",
@@ -263,79 +264,87 @@ export default function TestView2() {
   }
 
   return (
-    <div className="content">
-      <div className="table-container loan-summary-panel">
-        {errorMessage && <div className="table-status error">{errorMessage}</div>}
-        {!errorMessage && statusMessage && (
-          <div className="table-status info">{statusMessage}</div>
-        )}
-        <div className="loan-cards">
-          {rows.length > 0 ? (
-            rows.map((row, index) => (
-              <LoanSummaryCard
-                key={`${row.CLIENTE}-${row.COMPROBANTE}-${row.fechaSortKey}-${index}`}
-                row={row}
-                isExpanded={expandedCardIndex === index}
-                isLoadingMovements={movementLoadingClient === row.CLIENTE}
-                movementError={movementErrors[row.CLIENTE] ?? null}
-                movements={movementsByClient[row.CLIENTE]}
-                selectedMovementId={selectedMovementByClient[row.CLIENTE] ?? null}
-                onToggle={() => handleToggleCard(index)}
-                onSelectMovement={movementId => handleSelectMovement(row.CLIENTE, movementId)}
-                ref={element => {
-                  summaryCardRefs.current[index] = element
-                }}
-              />
-            ))
-          ) : (
-            <div className="loan-empty-state">
-              No hay datos para mostrar. Utilice el panel derecho para cargar el resumen.
+    <>
+      {(errorMessage || statusMessage) && (
+        <div className="notification-toast-wrapper">
+          {errorMessage ? (
+            <NotificationToast tone="error">{errorMessage}</NotificationToast>
+          ) : null}
+          {!errorMessage && statusMessage ? (
+            <NotificationToast tone="success">{statusMessage}</NotificationToast>
+          ) : null}
+        </div>
+      )}
+      <div className="content">
+        <div className="table-container loan-summary-panel">
+          <div className="loan-cards">
+            {rows.length > 0 ? (
+              rows.map((row, index) => (
+                <LoanSummaryCard
+                  key={`${row.CLIENTE}-${row.COMPROBANTE}-${row.fechaSortKey}-${index}`}
+                  row={row}
+                  isExpanded={expandedCardIndex === index}
+                  isLoadingMovements={movementLoadingClient === row.CLIENTE}
+                  movementError={movementErrors[row.CLIENTE] ?? null}
+                  movements={movementsByClient[row.CLIENTE]}
+                  selectedMovementId={selectedMovementByClient[row.CLIENTE] ?? null}
+                  onToggle={() => handleToggleCard(index)}
+                  onSelectMovement={movementId => handleSelectMovement(row.CLIENTE, movementId)}
+                  ref={element => {
+                    summaryCardRefs.current[index] = element
+                  }}
+                />
+              ))
+            ) : (
+              <div className="loan-empty-state">
+                No hay datos para mostrar. Utilice el panel derecho para cargar el resumen.
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="sidebar loan-actions">
+          <div className="loan-actions__button-group">
+            <span className="loan-actions__section-title">Acciones</span>
+            <button
+              className="fetch-button"
+              type="button"
+              onClick={handleExecuteResumen}
+              disabled={isAnyActionRunning}
+            >
+              Comprobar VP y VD
+            </button>
+            <button
+              className="fetch-button"
+              type="button"
+              onClick={handleLoadSummary}
+              disabled={isAnyActionRunning}
+            >
+              Mostrar Resumen
+            </button>
+            {isAnyActionRunning && (
+              <span className="loan-actions__loading">Procesando...</span>
+            )}
+          </div>
+          <div className="loan-actions__divider" aria-hidden="true" />
+          <div className="loan-actions__infoextra">
+            <span className="loan-actions__section-title">Actualizar</span>
+            <div className="loan-actions__infoextra-buttons">
+              {INFO_EXTRA_OPTIONS.map(option => (
+                <button
+                  key={option}
+                  className="fetch-button infoextra-button"
+                  type="button"
+                  onClick={() => handleUpdateInfoExtra(option)}
+                  disabled={isInfoExtraActionDisabled}
+                >
+                  {option}
+                </button>
+              ))}
             </div>
-          )}
-        </div>
-      </div>
-      <div className="sidebar loan-actions">
-        <div className="loan-actions__button-group">
-          <span className="loan-actions__section-title">Acciones</span>
-          <button
-            className="fetch-button"
-            type="button"
-            onClick={handleExecuteResumen}
-            disabled={isAnyActionRunning}
-          >
-            Comprobar VP y VD
-          </button>
-          <button
-            className="fetch-button"
-            type="button"
-            onClick={handleLoadSummary}
-            disabled={isAnyActionRunning}
-          >
-            Mostrar Resumen
-          </button>
-          {isAnyActionRunning && (
-            <span className="loan-actions__loading">Procesando...</span>
-          )}
-        </div>
-        <div className="loan-actions__divider" aria-hidden="true" />
-        <div className="loan-actions__infoextra">
-          <span className="loan-actions__section-title">Actualizar</span>
-          <div className="loan-actions__infoextra-buttons">
-            {INFO_EXTRA_OPTIONS.map(option => (
-              <button
-                key={option}
-                className="fetch-button infoextra-button"
-                type="button"
-                onClick={() => handleUpdateInfoExtra(option)}
-                disabled={isInfoExtraActionDisabled}
-              >
-                {option}
-              </button>
-            ))}
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 

@@ -71,7 +71,7 @@ export default function HomeShell<PageId extends string>({
           </div>
         ) : null}
       </div>
-      {body}
+      <div className="app-content">{body}</div>
     </div>
   )
 }

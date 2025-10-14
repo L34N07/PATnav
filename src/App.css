@@ -8,14 +8,35 @@ body {
   margin: 0;
   font-family: 'Figtree', Arial, "Helvetica Neue", Helvetica, sans-serif;
   background: #f7f7f7;
+  overflow: hidden;
+}
+
+.app-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #f7f7f7;
+}
+
+.app-root > * {
+  flex: 1;
+  min-height: 0;
 }
 
 .app {
   color: #000;
   background-color: #fff;
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .top-bar {
@@ -52,6 +73,46 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.notification-toast-wrapper {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1400;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(420px, calc(100% - 32px));
+  pointer-events: none;
+}
+
+.notification-toast {
+  padding: 10px 16px;
+  border-radius: 9px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.3;
+  border: 1px solid transparent;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.notification-toast--success {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: rgba(5, 150, 105, 0.55);
+  color: #047857;
+}
+
+.notification-toast--error {
+  background: rgba(248, 113, 113, 0.24);
+  border-color: rgba(220, 38, 38, 0.55);
+  color: #b91c1c;
 }
 
 .logout-button {
@@ -286,11 +347,23 @@ body {
   flex: 1;
   display: flex;
   padding: 20px;
-  margin: 0px 0;
+  margin: 0;
   background: #fff;
-  min-height: 100vh;
+  min-height: 0;
 }
 
+.test-view-layout {
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.test-view-layout__sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  gap: 16px;
+  flex-shrink: 0;
+}
 .sidebar {
   width: 260px;
   display: flex;
@@ -510,11 +583,15 @@ tr.selected {
 }
 
 .login-wrapper {
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #f7f7f7;
+  padding: 24px;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .login-card {
@@ -647,6 +724,27 @@ tr.selected {
   gap: 12px;
   padding-top: 50px;
   margin-bottom: 30px;
+}
+
+.test-view-layout__sidebar .loan-actions {
+  margin-left: 0;
+  padding-left: 16px;
+  padding-right: 16px;
+  border-left: 1px solid #ccc;
+  border-right: 1px solid #ccc;
+  border-radius: 10px;
+  background: #f9f9f9;
+  width: 100%;
+  align-items: stretch;
+}
+
+.test-view-layout__sidebar .loan-actions__button-group {
+  align-items: stretch;
+}
+
+.test-view-layout__sidebar .loan-actions__button-group .fetch-button,
+.test-view-layout__sidebar .loan-actions__button-group .irregularidades-button {
+  width: 100%;
 }
 
 .loan-actions__section-title {

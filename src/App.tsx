@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { type ReactNode, useState } from 'react'
 import './App.css'
 import AdminHome from './AdminHome'
 import UserHome from './UserHome'
@@ -106,43 +106,45 @@ export default function App() {
     resetForm()
   }
 
+  let content: ReactNode
+
   if (session?.role === 'admin') {
-    return <AdminHome onLogout={handleLogout} />
+    content = <AdminHome onLogout={handleLogout} />
+  } else if (session?.role === 'user') {
+    content = <UserHome onLogout={handleLogout} allowedPageIds={session.allowedPageIds} />
+  } else {
+    content = (
+      <div className="login-wrapper">
+        <form className="login-card" onSubmit={handleLogin}>
+          <h1 className="login-title">La Naviera</h1>
+          <label className="login-field">
+            Usuario
+            <input
+              type="text"
+              value={username}
+              onChange={event => setUsername(event.target.value)}
+              autoComplete="username"
+              autoFocus
+            />
+          </label>
+          <label className="login-field">
+            Contrasena
+            <input
+              type="password"
+              value={password}
+              onChange={event => setPassword(event.target.value)}
+              autoComplete="current-password"
+            />
+          </label>
+          {error ? <div className="login-error">{error}</div> : null}
+          <button className="login-button" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Ingresando...' : 'Ingresar'}
+          </button>
+        </form>
+      </div>
+    )
   }
 
-  if (session?.role === 'user') {
-    return <UserHome onLogout={handleLogout} allowedPageIds={session.allowedPageIds} />
-  }
-
-  return (
-    <div className="login-wrapper">
-      <form className="login-card" onSubmit={handleLogin}>
-        <h1 className="login-title">La Naviera</h1>
-        <label className="login-field">
-          Usuario
-          <input
-            type="text"
-            value={username}
-            onChange={event => setUsername(event.target.value)}
-            autoComplete="username"
-            autoFocus
-          />
-        </label>
-        <label className="login-field">
-          Contrasena
-          <input
-            type="password"
-            value={password}
-            onChange={event => setPassword(event.target.value)}
-            autoComplete="current-password"
-          />
-        </label>
-        {error ? <div className="login-error">{error}</div> : null}
-        <button className="login-button" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Ingresando...' : 'Ingresar'}
-        </button>
-      </form>
-    </div>
-  )
+  return <div className="app-root">{content}</div>
 }
 

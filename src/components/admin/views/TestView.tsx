@@ -13,9 +13,11 @@ import {
 } from "../dataModel"
 import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
 import { usePagination } from "../../../hooks/usePagination"
+import NotificationToast from "../../NotificationToast"
 
 const ITEMS_PER_PAGE = 25
-const SUCCESS_MESSAGE_DURATION_MS = 3000
+const SUCCESS_MESSAGE_DURATION_MS = 2000
+const ERROR_MESSAGE_DURATION_MS = 2600
 
 type DatasetKind = "none" | "clients" | "irregularidades"
 
@@ -42,6 +44,7 @@ export default function TestView() {
   const electronAPI = window.electronAPI
 
   useAutoDismissMessage(statusMessage, setStatusMessage, SUCCESS_MESSAGE_DURATION_MS)
+  useAutoDismissMessage(errorMessage, setErrorMessage, ERROR_MESSAGE_DURATION_MS)
 
   const { currentPage, pageCount, pageItems, goToPage, resetPage, itemCount } = usePagination(
     visibleRows,
@@ -274,43 +277,55 @@ export default function TestView() {
   }
 
   return (
-    <div className="content">
-      <AdminSidebar
-        searchQuery={searchQuery}
-        onSearchChange={handleSearchChange}
-        filterField={filterField}
-        onFilterFieldChange={handleFilterFieldChange}
-        isLoading={isLoading}
-        onFetchClients={handleFetchClients}
-        onFetchIrregularidades={handleFetchIrregularidades}
-        columns={columns}
-        codCliente={codCliente}
-        razonSocial={razonSocial}
-        onRazonSocialChange={setRazonSocial}
-        domFiscal={domFiscal}
-        onDomFiscalChange={setDomFiscal}
-        cuit={cuit}
-        onCuitChange={setCuit}
-        editEnabled={editEnabled}
-        onToggleEdit={setEditEnabled}
-        onEditClient={handleUpdateClient}
-        canEditClient={Boolean(selectedRow)}
-      />
-      <DataTable
-        columns={columns}
-        rows={pageItems}
-        columnWidths={columnWidths}
-        onColumnResize={handleColumnResize}
-        selectedRowIndex={selectedRowIndex}
-        onRowSelect={handleRowSelect}
-        isLoading={isLoading}
-        statusMessage={statusMessage}
-        errorMessage={errorMessage}
-        currentPage={currentPage}
-        totalPages={pageCount}
-        rowCount={itemCount}
-        onPageChange={goToPage}
-      />
-    </div>
+    <>
+      {(statusMessage || errorMessage) && (
+        <div className="notification-toast-wrapper">
+          {errorMessage ? (
+            <NotificationToast tone="error">{errorMessage}</NotificationToast>
+          ) : null}
+          {!errorMessage && statusMessage ? (
+            <NotificationToast tone="success">{statusMessage}</NotificationToast>
+          ) : null}
+        </div>
+      )}
+      <div className="content">
+        <AdminSidebar
+          searchQuery={searchQuery}
+          onSearchChange={handleSearchChange}
+          filterField={filterField}
+          onFilterFieldChange={handleFilterFieldChange}
+          isLoading={isLoading}
+          onFetchClients={handleFetchClients}
+          onFetchIrregularidades={handleFetchIrregularidades}
+          columns={columns}
+          codCliente={codCliente}
+          razonSocial={razonSocial}
+          onRazonSocialChange={setRazonSocial}
+          domFiscal={domFiscal}
+          onDomFiscalChange={setDomFiscal}
+          cuit={cuit}
+          onCuitChange={setCuit}
+          editEnabled={editEnabled}
+          onToggleEdit={setEditEnabled}
+          onEditClient={handleUpdateClient}
+          canEditClient={Boolean(selectedRow)}
+        />
+        <DataTable
+          columns={columns}
+          rows={pageItems}
+          columnWidths={columnWidths}
+          onColumnResize={handleColumnResize}
+          selectedRowIndex={selectedRowIndex}
+          onRowSelect={handleRowSelect}
+          isLoading={isLoading}
+          statusMessage={null}
+          errorMessage={null}
+          currentPage={currentPage}
+          totalPages={pageCount}
+          rowCount={itemCount}
+          onPageChange={goToPage}
+        />
+      </div>
+    </>
   )
 }

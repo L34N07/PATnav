@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAutoDismissMessage } from '../../../hooks/useAutoDismissMessage'
+import NotificationToast from '../../NotificationToast'
 import { ADMIN_PAGES } from '../../../adminPages'
 import {
   buildRowMap,
@@ -24,7 +25,8 @@ const USER_ID_FIELD_CANDIDATES = [
   'appuser_id',
   'appuserid'
 ]
-const SUCCESS_MESSAGE_DURATION_MS = 3500
+const SUCCESS_MESSAGE_DURATION_MS = 2000
+const ERROR_MESSAGE_DURATION_MS = 2600
 
 const toDisplayValue = (value: unknown) => String(value ?? '').trim()
 const toNumericId = (value: unknown) => {
@@ -60,6 +62,7 @@ export default function AdminPanelView() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useAutoDismissMessage(statusMessage, setStatusMessage, SUCCESS_MESSAGE_DURATION_MS)
+  useAutoDismissMessage(errorMessage, setErrorMessage, ERROR_MESSAGE_DURATION_MS)
 
   const selectedUser = useMemo(
     () => (selectedUserId != null ? users.find(user => user.userId === selectedUserId) ?? null : null),
@@ -218,86 +221,93 @@ export default function AdminPanelView() {
   }
 
   return (
-    <div className="admin-panel">
-      <div className="admin-panel-header">
-        <div>
-          <h2 className="admin-panel-title">Panel de administracion</h2>
-          <p className="admin-panel-subtitle">
-            Gestiona las vistas habilitadas para los usuarios del tipo "user".
-          </p>
+    <>
+      {(statusMessage || errorMessage) && (
+        <div className="notification-toast-wrapper">
+          {errorMessage ? (
+            <NotificationToast tone="error">{errorMessage}</NotificationToast>
+          ) : null}
+          {!errorMessage && statusMessage ? (
+            <NotificationToast tone="success">{statusMessage}</NotificationToast>
+          ) : null}
         </div>
-        <div className="admin-panel-actions">
-          <button
-            className="admin-panel-button"
-            type="button"
-            onClick={handleRefresh}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Cargando...' : 'Recargar'}
-          </button>
+      )}
+      <div className="admin-panel">
+        <div className="admin-panel-header">
+          <div>
+            <h2 className="admin-panel-title">Panel de administracion</h2>
+            <p className="admin-panel-subtitle">
+              Gestiona las vistas habilitadas para los usuarios del tipo "user".
+            </p>
+          </div>
+          <div className="admin-panel-actions">
+            <button
+              className="admin-panel-button"
+              type="button"
+              onClick={handleRefresh}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Cargando...' : 'Recargar'}
+            </button>
+          </div>
         </div>
-      </div>
-      <div className="admin-panel-body">
-        <div className="admin-panel-users">
-          <h3 className="admin-panel-section-title">Usuarios</h3>
-          {users.length === 0 ? (
-            <div className="admin-panel-empty">
-              {isLoading ? 'Cargando usuarios...' : 'No hay usuarios de tipo user disponibles.'}
-            </div>
-          ) : (
-            <ul className="admin-panel-user-list">
-              {users.map(user => (
-                <li key={user.userId}>
-                  <button
-                    type="button"
-                    className={`admin-panel-user${user.userId === selectedUserId ? ' selected' : ''}`}
-                    onClick={() => setSelectedUserId(user.userId)}
-                    disabled={isLoading}
-                  >
-                    {user.username}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div className="admin-panel-permissions">
-          <h3 className="admin-panel-section-title">Permisos por vista</h3>
-          {!selectedUser ? (
-            <div className="admin-panel-empty">Selecciona un usuario para editar sus permisos.</div>
-          ) : (
-            <>
-              <div className="admin-panel-permission-grid">
-                {ADMIN_PAGES.map(page => (
-                  <label key={page.id} className="admin-panel-permission-item">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(permissionDraft[page.permissionKey])}
-                      onChange={() => handleTogglePermission(page.permissionKey)}
-                      disabled={isUpdating}
-                    />
-                    <span>{page.label}</span>
-                  </label>
-                ))}
+        <div className="admin-panel-body">
+          <div className="admin-panel-users">
+            <h3 className="admin-panel-section-title">Usuarios</h3>
+            {users.length === 0 ? (
+              <div className="admin-panel-empty">
+                {isLoading ? 'Cargando usuarios...' : 'No hay usuarios de tipo user disponibles.'}
               </div>
-              <button
-                className="admin-panel-button primary"
-                type="button"
-                onClick={handleUpdatePermissions}
-                disabled={!hasChanges || isUpdating}
-              >
-                {isUpdating ? 'Actualizando...' : 'Actualizar Permisos'}
-              </button>
-            </>
-          )}
+            ) : (
+              <ul className="admin-panel-user-list">
+                {users.map(user => (
+                  <li key={user.userId}>
+                    <button
+                      type="button"
+                      className={`admin-panel-user${user.userId === selectedUserId ? ' selected' : ''}`}
+                      onClick={() => setSelectedUserId(user.userId)}
+                      disabled={isLoading}
+                    >
+                      {user.username}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="admin-panel-permissions">
+            <h3 className="admin-panel-section-title">Permisos por vista</h3>
+            {!selectedUser ? (
+              <div className="admin-panel-empty">Selecciona un usuario para editar sus permisos.</div>
+            ) : (
+              <>
+                <div className="admin-panel-permission-grid">
+                  {ADMIN_PAGES.map(page => (
+                    <label key={page.id} className="admin-panel-permission-item">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(permissionDraft[page.permissionKey])}
+                        onChange={() => handleTogglePermission(page.permissionKey)}
+                        disabled={isUpdating}
+                      />
+                      <span>{page.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <button
+                  className="admin-panel-button primary"
+                  type="button"
+                  onClick={handleUpdatePermissions}
+                  disabled={!hasChanges || isUpdating}
+                >
+                  {isUpdating ? 'Actualizando...' : 'Actualizar Permisos'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
+        <div className="admin-panel-messages" />
       </div>
-      <div className="admin-panel-messages">
-        {statusMessage ? (
-          <div className="admin-panel-status">{statusMessage}</div>
-        ) : null}
-        {errorMessage ? <div className="admin-panel-error">{errorMessage}</div> : null}
-      </div>
-    </div>
+    </>
   )
 }

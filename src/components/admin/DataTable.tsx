@@ -60,8 +60,42 @@ export default function DataTable({
   const canGoNext = totalPages > 0 && currentPage < totalPages - 1
   const showPagination = rowCount > 0
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (rows.length === 0) {
+      return
+    }
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      const lastIndex = rows.length - 1
+
+      let nextIndex: number
+      if (event.key === 'ArrowDown') {
+        if (selectedRowIndex === null || selectedRowIndex === undefined) {
+          nextIndex = 0
+        } else {
+          nextIndex = Math.min(lastIndex, selectedRowIndex + 1)
+        }
+      } else {
+        if (selectedRowIndex === null || selectedRowIndex === undefined) {
+          nextIndex = lastIndex
+        } else {
+          nextIndex = Math.max(0, selectedRowIndex - 1)
+        }
+      }
+
+      if (rows[nextIndex] && nextIndex !== selectedRowIndex) {
+        onRowSelect(rows[nextIndex], nextIndex)
+      }
+    }
+  }
+
   return (
-    <div className="table-container">
+    <div
+      className="table-container"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+    >
       {errorMessage && <div className="table-status error">{errorMessage}</div>}
       {!errorMessage && statusMessage && !isLoading && (
         <div className="table-status info">{statusMessage}</div>
