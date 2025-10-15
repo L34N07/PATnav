@@ -1,12 +1,10 @@
-import React, { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { forwardRef, useEffect, useMemo, useRef } from "react"
 import { LoanMovementRow, LoanSummaryRow } from "../types"
 import LoanMovementCard from "./LoanMovementCard"
 
 const EXCLUDED_ESTADOS = new Set(["VP", "VD", "A", "P", "D"])
 // Throttle arrow-key navigation so holding a key does not skip over items
-const MOVEMENT_NAVIGATION_COOLDOWN_MS = 100
-const MOVEMENT_VIRTUAL_WINDOW = 250
-const MOVEMENT_VIRTUAL_SHIFT = 100
+const MOVEMENT_NAVIGATION_COOLDOWN_MS = 60
 
 type LoanSummaryCardProps = {
   row: LoanSummaryRow
@@ -43,9 +41,6 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
     const movementButtonRefs = useRef<Array<HTMLButtonElement | null>>([])
     const autoSelectPendingRef = useRef(false)
     const lastNavigationTimeRef = useRef(0)
-    const movementGridRef = useRef<HTMLDivElement | null>(null)
-    const [virtualWindowStart, setVirtualWindowStart] = useState(0)
-    const [estimatedItemHeight, setEstimatedItemHeight] = useState<number | null>(null)
     const displayMovements = useMemo(() => {
       if (!movements) {
         return undefined
@@ -158,211 +153,9 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
       return roundedAverage.toLocaleString("es-AR")
     }, [displayMovements])
 
-    const totalMovements = displayMovements?.length ?? 0
-    const virtualizationEnabled = totalMovements > MOVEMENT_VIRTUAL_WINDOW
-    const maxVirtualStart = Math.max(0, totalMovements - MOVEMENT_VIRTUAL_WINDOW)
-    const windowStart = virtualizationEnabled
-      ? Math.max(0, Math.min(virtualWindowStart, maxVirtualStart))
-      : 0
-    const windowSize = virtualizationEnabled ? Math.min(MOVEMENT_VIRTUAL_WINDOW, totalMovements) : totalMovements
-    const windowEnd = virtualizationEnabled ? Math.min(windowStart + windowSize, totalMovements) : totalMovements
-    const visibleMovements = virtualizationEnabled
-      ? displayMovements?.slice(windowStart, windowEnd)
-      : displayMovements
-    const topSpacerHeight =
-      virtualizationEnabled && estimatedItemHeight
-        ? windowStart * estimatedItemHeight
-        : 0
-    const bottomSpacerHeight =
-      virtualizationEnabled && estimatedItemHeight
-        ? (totalMovements - windowEnd) * estimatedItemHeight
-        : 0
-
-    const updateVirtualWindowStart = useCallback(
-      (nextStart: number | ((current: number) => number)) => {
-        setVirtualWindowStart(prev => {
-          if (!virtualizationEnabled) {
-            return 0
-          }
-          const resolved = typeof nextStart === "function" ? nextStart(prev) : nextStart
-          const clamped = Math.max(0, Math.min(resolved, maxVirtualStart))
-          return clamped === prev ? prev : clamped
-        })
-      },
-      [virtualizationEnabled, maxVirtualStart]
-    )
-
     useEffect(() => {
-      if (!virtualizationEnabled && estimatedItemHeight !== null) {
-        setEstimatedItemHeight(null)
-      }
-    }, [virtualizationEnabled, estimatedItemHeight])
-
-    useEffect(() => {
-      if (!virtualizationEnabled && virtualWindowStart !== 0) {
-        setVirtualWindowStart(0)
-      } else if (virtualizationEnabled && virtualWindowStart > maxVirtualStart) {
-        setVirtualWindowStart(maxVirtualStart)
-      }
-    }, [virtualizationEnabled, virtualWindowStart, maxVirtualStart])
-
-    useEffect(() => {
-      if (!isExpanded) {
-        setVirtualWindowStart(0)
-      }
-    }, [isExpanded])
-
-    useEffect(() => {
-      if (!virtualizationEnabled || !visibleMovements || visibleMovements.length === 0) {
-        return
-      }
-      const firstIndex = windowStart
-      const firstButton = movementButtonRefs.current[firstIndex]
-      const nextButton =
-        windowEnd - windowStart > 1 ? movementButtonRefs.current[firstIndex + 1] : null
-
-      let measurement: number | null = null
-      if (firstButton && nextButton) {
-        const firstRect = firstButton.getBoundingClientRect()
-        const nextRect = nextButton.getBoundingClientRect()
-        measurement = Math.abs(nextRect.top - firstRect.top)
-      } else if (firstButton) {
-        const rect = firstButton.getBoundingClientRect()
-        measurement = rect.height
-      }
-
-      if (
-        measurement &&
-        measurement > 0 &&
-        (estimatedItemHeight === null || Math.abs(estimatedItemHeight - measurement) > 0.5)
-      ) {
-        setEstimatedItemHeight(measurement)
-      }
-    }, [virtualizationEnabled, visibleMovements, windowStart, windowEnd, estimatedItemHeight])
-
-    const ensureMovementVisible = useCallback(
-      (targetIndex: number) => {
-        if (!virtualizationEnabled) {
-          return
-        }
-        const effectiveWindowSize = Math.min(MOVEMENT_VIRTUAL_WINDOW, totalMovements)
-        if (effectiveWindowSize <= 0) {
-          return
-        }
-        const windowEndIndex = Math.min(windowStart + effectiveWindowSize, totalMovements)
-
-        if (targetIndex < windowStart) {
-          updateVirtualWindowStart(targetIndex)
-          return
-        }
-
-        if (targetIndex >= windowEndIndex) {
-          updateVirtualWindowStart(targetIndex - effectiveWindowSize + 1)
-          return
-        }
-
-        if (targetIndex <= windowStart + MOVEMENT_VIRTUAL_SHIFT && windowStart > 0) {
-          updateVirtualWindowStart(windowStart - MOVEMENT_VIRTUAL_SHIFT)
-        } else if (
-          targetIndex >= windowEndIndex - MOVEMENT_VIRTUAL_SHIFT &&
-          windowEndIndex < totalMovements
-        ) {
-          updateVirtualWindowStart(windowStart + MOVEMENT_VIRTUAL_SHIFT)
-        }
-      },
-      [virtualizationEnabled, totalMovements, windowStart, updateVirtualWindowStart]
-    )
-
-    const syncWindowToViewport = useCallback(() => {
-      if (
-        typeof window === "undefined" ||
-        !virtualizationEnabled ||
-        !movementGridRef.current ||
-        !estimatedItemHeight ||
-        estimatedItemHeight <= 0
-      ) {
-        return
-      }
-
-      const container = movementGridRef.current
-      const containerRect = container.getBoundingClientRect()
-      const viewportTop =
-        window.scrollY ??
-        window.pageYOffset ??
-        (typeof document !== "undefined" ? document.documentElement?.scrollTop ?? 0 : 0)
-      const containerTop = viewportTop + containerRect.top
-      const visibleTopWithin = Math.max(0, viewportTop - containerTop)
-      const viewportBottom = viewportTop + window.innerHeight
-      const visibleBottomWithin = Math.min(
-        Math.max(0, viewportBottom - containerTop),
-        containerRect.height
-      )
-      const visibleRange =
-        visibleBottomWithin > visibleTopWithin
-          ? visibleBottomWithin - visibleTopWithin
-          : 0
-      const anchorPosition =
-        visibleRange > 0 ? visibleTopWithin + visibleRange / 2 : visibleTopWithin
-      const targetStart =
-        Math.floor(anchorPosition / estimatedItemHeight) - MOVEMENT_VIRTUAL_SHIFT
-
-      updateVirtualWindowStart(targetStart)
-    }, [
-      virtualizationEnabled,
-      movementGridRef,
-      estimatedItemHeight,
-      updateVirtualWindowStart
-    ])
-
-    useEffect(() => {
-      if (!virtualizationEnabled || !displayMovements || !selectedMovementId) {
-        return
-      }
-      const selectedIndex = displayMovements.findIndex(
-        movement => movement.id === selectedMovementId
-      )
-      if (selectedIndex >= 0) {
-        ensureMovementVisible(selectedIndex)
-      }
-    }, [virtualizationEnabled, displayMovements, selectedMovementId, ensureMovementVisible])
-
-    useEffect(() => {
-      if (
-        typeof window === "undefined" ||
-        !isExpanded ||
-        !virtualizationEnabled ||
-        !estimatedItemHeight ||
-        estimatedItemHeight <= 0
-      ) {
-        return
-      }
-
-      let rafId: number | null = null
-      const handle = () => {
-        if (rafId !== null) {
-          cancelAnimationFrame(rafId)
-        }
-        rafId = requestAnimationFrame(() => {
-          syncWindowToViewport()
-        })
-      }
-
-      handle()
-      window.addEventListener("scroll", handle, { passive: true })
-      window.addEventListener("resize", handle)
-
-      return () => {
-        if (rafId !== null) {
-          cancelAnimationFrame(rafId)
-        }
-        window.removeEventListener("scroll", handle)
-        window.removeEventListener("resize", handle)
-      }
-    }, [isExpanded, virtualizationEnabled, estimatedItemHeight, syncWindowToViewport])
-
-    useEffect(() => {
-      movementButtonRefs.current.length = totalMovements
-    }, [totalMovements])
+      movementButtonRefs.current.length = displayMovements?.length ?? 0
+    }, [displayMovements])
 
     const handleMovementKeyDown = (
       event: React.KeyboardEvent<HTMLButtonElement>,
@@ -425,7 +218,6 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
       }
 
       if (targetIndex !== null && targetIndex !== index) {
-        ensureMovementVisible(targetIndex)
         lastNavigationTimeRef.current = now
         const targetMovement = displayMovements[targetIndex]
         onSelectMovement(targetMovement.id)
@@ -435,7 +227,6 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
           targetButton?.scrollIntoView({ block: "nearest" })
         })
       } else if (isDirectionalKey && !event.repeat) {
-        ensureMovementVisible(index)
         lastNavigationTimeRef.current = now
       }
     }
@@ -458,7 +249,6 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
         autoSelectPendingRef.current = true
         const firstMovement = displayMovements[0]
         onSelectMovement(firstMovement.id)
-        ensureMovementVisible(0)
         requestAnimationFrame(() => {
           movementButtonRefs.current[0]?.focus()
         })
@@ -470,7 +260,6 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
           movement => movement.id === selectedMovementId
         )
         if (selectedIndex >= 0) {
-          ensureMovementVisible(selectedIndex)
           requestAnimationFrame(() => {
             movementButtonRefs.current[selectedIndex]?.focus()
           })
@@ -483,8 +272,7 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
       movementError,
       displayMovements,
       onSelectMovement,
-      selectedMovementId,
-      ensureMovementVisible
+      selectedMovementId
     ])
 
     return (
@@ -526,7 +314,7 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
               {!isLoadingMovements && !movementError && (
                 <>
                   {displayMovements && displayMovements.length > 0 ? (
-                    <div className="movement-card-grid" ref={movementGridRef}>
+                    <div className="movement-card-grid">
                       <div className="movement-card movement-card--header" aria-hidden="true">
                         <div className="movement-card-content">
                           <div className="movement-card-group">
@@ -549,35 +337,18 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
                           <span className="movement-card-label">Estado</span>
                         </div>
                       </div>
-                      {virtualizationEnabled && topSpacerHeight > 0 && (
-                        <div
-                          className="movement-card-spacer"
-                          aria-hidden="true"
-                          style={{ height: `${topSpacerHeight}px`, gridColumn: "1 / -1" }}
+                      {displayMovements.map((movement, index) => (
+                        <LoanMovementCard
+                          key={movement.id}
+                          movement={movement}
+                          isSelected={selectedMovementId === movement.id}
+                          onSelect={() => onSelectMovement(movement.id)}
+                          onKeyDown={event => handleMovementKeyDown(event, index)}
+                          ref={element => {
+                            movementButtonRefs.current[index] = element
+                          }}
                         />
-                      )}
-                      {(visibleMovements ?? []).map((movement, index) => {
-                        const globalIndex = windowStart + index
-                        return (
-                          <LoanMovementCard
-                            key={movement.id}
-                            movement={movement}
-                            isSelected={selectedMovementId === movement.id}
-                            onSelect={() => onSelectMovement(movement.id)}
-                            onKeyDown={event => handleMovementKeyDown(event, globalIndex)}
-                            ref={element => {
-                              movementButtonRefs.current[globalIndex] = element
-                            }}
-                          />
-                        )
-                      })}
-                      {virtualizationEnabled && bottomSpacerHeight > 0 && (
-                        <div
-                          className="movement-card-spacer"
-                          aria-hidden="true"
-                          style={{ height: `${bottomSpacerHeight}px`, gridColumn: "1 / -1" }}
-                        />
-                      )}
+                      ))}
                     </div>
                   ) : (
                     <div className="loan-movements-status">Sin movimientos recientes.</div>
