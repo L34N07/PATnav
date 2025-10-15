@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import AdminSidebar from "../AdminSidebar"
 import DataTable from "../DataTable"
 import {
@@ -13,7 +13,7 @@ import {
 } from "../dataModel"
 import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
 import { usePagination } from "../../../hooks/usePagination"
-import NotificationToast from "../../NotificationToast"
+import StatusToasts from "../../StatusToasts"
 
 const ITEMS_PER_PAGE = 25
 const SUCCESS_MESSAGE_DURATION_MS = 2000
@@ -46,6 +46,11 @@ export default function TestView() {
   useAutoDismissMessage(statusMessage, setStatusMessage, SUCCESS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, ERROR_MESSAGE_DURATION_MS)
 
+  const clearMessages = useCallback(() => {
+    setErrorMessage(null)
+    setStatusMessage(null)
+  }, [setErrorMessage, setStatusMessage])
+
   const { currentPage, pageCount, pageItems, goToPage, resetPage, itemCount } = usePagination(
     visibleRows,
     ITEMS_PER_PAGE
@@ -70,10 +75,15 @@ export default function TestView() {
     setSelectedRow(null)
   }
 
+  const resetDataset = () => {
+    setColumns([])
+    setDatasetRows([])
+    setVisibleRows([])
+  }
+
   const handleFetchClients = async () => {
     setIsLoading(true)
-    setErrorMessage(null)
-    setStatusMessage(null)
+    clearMessages()
     setActiveDataset("clients")
     resetSelection()
 
@@ -101,9 +111,7 @@ export default function TestView() {
       setStatusMessage("Clientes cargados correctamente.")
     } catch (error) {
       console.error("No se pudieron traer los clientes:", error)
-      setColumns([])
-      setDatasetRows([])
-      setVisibleRows([])
+      resetDataset()
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -116,8 +124,7 @@ export default function TestView() {
 
   const handleFetchIrregularidades = async () => {
     setIsLoading(true)
-    setErrorMessage(null)
-    setStatusMessage(null)
+    clearMessages()
     setActiveDataset("irregularidades")
     resetSelection()
 
@@ -151,9 +158,7 @@ export default function TestView() {
       setStatusMessage("Cobros impagos actualizados e irregularidades cargadas correctamente.")
     } catch (error) {
       console.error("No se pudieron traer las irregularidades:", error)
-      setColumns([])
-      setDatasetRows([])
-      setVisibleRows([])
+      resetDataset()
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -176,8 +181,7 @@ export default function TestView() {
     }
 
     setIsLoading(true)
-    setErrorMessage(null)
-    setStatusMessage(null)
+    clearMessages()
 
     try {
       const response = await electronAPI.updateCliente({
@@ -278,16 +282,7 @@ export default function TestView() {
 
   return (
     <>
-      {(statusMessage || errorMessage) && (
-        <div className="notification-toast-wrapper">
-          {errorMessage ? (
-            <NotificationToast tone="error">{errorMessage}</NotificationToast>
-          ) : null}
-          {!errorMessage && statusMessage ? (
-            <NotificationToast tone="success">{statusMessage}</NotificationToast>
-          ) : null}
-        </div>
-      )}
+      <StatusToasts statusMessage={statusMessage} errorMessage={errorMessage} />
       <div className="content">
         <AdminSidebar
           searchQuery={searchQuery}

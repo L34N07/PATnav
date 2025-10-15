@@ -205,19 +205,25 @@ class PythonBridge {
 let pythonBridge = null
 
 const resolveScriptPath = () => {
-  const scriptName = process.platform === 'win32' ? 'script.exe' : 'script.exe'
+  const scriptNames = process.platform === 'win32' ? ['script.exe'] : ['script', 'script.exe']
   const candidates = []
 
-  if (app.isPackaged) {
-    candidates.push(path.join(process.resourcesPath, scriptName))
+  const addCandidates = basePath => {
+    scriptNames.forEach(name => {
+      candidates.push(path.join(basePath, name))
+    })
   }
 
-  candidates.push(path.join(__dirname, 'release', scriptName))
-  candidates.push(path.join(__dirname, scriptName))
+  if (app.isPackaged) {
+    addCandidates(process.resourcesPath)
+  }
+
+  addCandidates(path.join(__dirname, 'release'))
+  addCandidates(__dirname)
 
   const match = candidates.find(candidate => fs.existsSync(candidate))
   if (!match) {
-    throw new Error(`Unable to locate ${scriptName}`)
+    throw new Error(`Unable to locate bridge executable (${scriptNames.join(', ')})`)
   }
 
   return match
@@ -231,6 +237,30 @@ const getPythonBridge = () => {
   const scriptPath = resolveScriptPath()
   pythonBridge = new PythonBridge(scriptPath)
   return pythonBridge
+}
+
+const registerPythonHandler = (channel, command, options = {}) => {
+  const { mapPayload, validate } = options
+
+  ipcMain.handle(channel, async (_event, payload) => {
+    const safePayload = payload ?? {}
+
+    if (validate) {
+      const validationError = validate(safePayload)
+      if (validationError) {
+        return validationError
+      }
+    }
+
+    const rawParams = mapPayload ? mapPayload(safePayload) : []
+    const params = Array.isArray(rawParams)
+      ? rawParams
+      : rawParams === undefined || rawParams === null
+        ? []
+        : [rawParams]
+
+    return getPythonBridge().call(command, params)
+  })
 }
 
 const createWindow = async () => {
@@ -268,84 +298,62 @@ const createWindow = async () => {
   return win
 }
 
-ipcMain.handle('python:get_app_user', async (_event, payload) => {
-  const bridge = getPythonBridge()
-  const { username } = payload || {}
-  return bridge.call('get_app_user', [username])
+registerPythonHandler('python:get_app_user', 'get_app_user', {
+  mapPayload: payload => [payload.username]
 })
 
-ipcMain.handle('python:get_app_users', async (_event, payload) => {
-  const bridge = getPythonBridge()
-  const { userType } = payload || {}
-  const params = userType ? [userType] : []
-  return bridge.call('get_app_users', params)
+registerPythonHandler('python:get_app_users', 'get_app_users', {
+  mapPayload: payload => (payload.userType ? [payload.userType] : [])
 })
 
-ipcMain.handle('python:get_clientes', async () => {
-  const bridge = getPythonBridge()
-  return bridge.call('get_clientes')
+registerPythonHandler('python:get_clientes', 'get_clientes')
+
+registerPythonHandler('python:traer_incongruencias', 'traer_incongruencias')
+
+registerPythonHandler('python:update_cliente', 'update_cliente', {
+  mapPayload: payload => [
+    payload.codCliente,
+    payload.razonSocial,
+    payload.domFiscal,
+    payload.cuit
+  ]
 })
 
-ipcMain.handle('python:traer_incongruencias', async () => {
-  const bridge = getPythonBridge()
-  return bridge.call('traer_incongruencias')
-})
+registerPythonHandler('python:modificar_cobros_impagos', 'modificar_cobros_impagos')
 
-ipcMain.handle('python:update_cliente', async (_event, payload) => {
-  const bridge = getPythonBridge()
-  const { codCliente, razonSocial, domFiscal, cuit } = payload || {}
-  return bridge.call('update_cliente', [codCliente, razonSocial, domFiscal, cuit])
-})
+registerPythonHandler('python:resumen_remitos', 'resumen_remitos')
 
-ipcMain.handle('python:modificar_cobros_impagos', async () => {
-  const bridge = getPythonBridge()
-  return bridge.call('modificar_cobros_impagos')
-})
+registerPythonHandler('python:traer_resumen_prestamos', 'traer_resumen_prestamos')
 
-ipcMain.handle('python:resumen_remitos', async () => {
-  const bridge = getPythonBridge()
-  return bridge.call('resumen_remitos')
-})
-
-ipcMain.handle('python:traer_resumen_prestamos', async () => {
-  const bridge = getPythonBridge()
-  return bridge.call('traer_resumen_prestamos')
-})
-
-ipcMain.handle('python:traer_movimientos_cliente', async (_event, payload) => {
-  const bridge = getPythonBridge()
-  const { codCliente, subcodigo = "" } = payload || {}
-  if (codCliente === undefined || codCliente === null) {
-    return {
-      error: 'invalid_params',
-      details: 'codCliente is required to traer_movimientos_cliente'
+registerPythonHandler('python:traer_movimientos_cliente', 'traer_movimientos_cliente', {
+  validate: payload => {
+    if (payload.codCliente === undefined || payload.codCliente === null) {
+      return {
+        error: 'invalid_params',
+        details: 'codCliente is required to traer_movimientos_cliente'
+      }
     }
+    return undefined
+  },
+  mapPayload: payload => [payload.codCliente, payload.subcodigo ?? '']
+})
+
+registerPythonHandler(
+  'python:actualizar_infoextra_por_registro',
+  'actualizar_infoextra_por_registro',
+  {
+    mapPayload: payload => [
+      payload.numeroRemito,
+      payload.prefijoRemito,
+      payload.tipoComprobante,
+      payload.nroOrden,
+      payload.infoExtra
+    ]
   }
-  return bridge.call('traer_movimientos_cliente', [codCliente, subcodigo ?? ""])
-})
+)
 
-ipcMain.handle('python:actualizar_infoextra_por_registro', async (_event, payload) => {
-  const bridge = getPythonBridge()
-  const {
-    numeroRemito,
-    prefijoRemito,
-    tipoComprobante,
-    nroOrden,
-    infoExtra
-  } = payload || {}
-  return bridge.call('actualizar_infoextra_por_registro', [
-    numeroRemito,
-    prefijoRemito,
-    tipoComprobante,
-    nroOrden,
-    infoExtra
-  ])
-})
-
-ipcMain.handle('python:update_user_permissions', async (_event, payload) => {
-  const bridge = getPythonBridge()
-  const { userId, permissions } = payload || {}
-  return bridge.call('update_user_permissions', [userId, permissions])
+registerPythonHandler('python:update_user_permissions', 'update_user_permissions', {
+  mapPayload: payload => [payload.userId, payload.permissions]
 })
 
 app.whenReady().then(async () => {

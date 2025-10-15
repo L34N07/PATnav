@@ -1,6 +1,6 @@
-import React, { useMemo, useRef, useState } from "react"
+import React, { useCallback, useMemo, useRef, useState } from "react"
 import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
-import NotificationToast from "../../NotificationToast"
+import StatusToasts from "../../StatusToasts"
 import LoanSummaryCard from "./TestView2/components/LoanSummaryCard"
 import { LoanMovementRow, LoanSummaryRow } from "./TestView2/types"
 
@@ -40,6 +40,11 @@ export default function TestView2() {
   useAutoDismissMessage(statusMessage, setStatusMessage, STATUS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, STATUS_MESSAGE_DURATION_MS)
 
+  const clearMessages = useCallback(() => {
+    setErrorMessage(null)
+    setStatusMessage(null)
+  }, [setErrorMessage, setStatusMessage])
+
   const expandedRow =
     expandedCardIndex !== null && rows[expandedCardIndex] ? rows[expandedCardIndex] : null
   const expandedClientKey = expandedRow
@@ -68,8 +73,7 @@ export default function TestView2() {
     }
 
     setIsResumenRunning(true)
-    setErrorMessage(null)
-    setStatusMessage(null)
+    clearMessages()
 
     try {
       const result = await electronAPI.resumen_remitos()
@@ -97,8 +101,7 @@ export default function TestView2() {
     }
 
     setIsSummaryLoading(true)
-    setErrorMessage(null)
-    setStatusMessage(null)
+    clearMessages()
 
     try {
       const result = await electronAPI.traer_resumen_prestamos()
@@ -225,8 +228,7 @@ export default function TestView2() {
     }
 
     setIsInfoExtraUpdating(true)
-    setErrorMessage(null)
-    setStatusMessage(null)
+    clearMessages()
 
     try {
       const numeroRemitoParam =
@@ -274,16 +276,7 @@ export default function TestView2() {
 
   return (
     <>
-      {(errorMessage || statusMessage) && (
-        <div className="notification-toast-wrapper">
-          {errorMessage ? (
-            <NotificationToast tone="error">{errorMessage}</NotificationToast>
-          ) : null}
-          {!errorMessage && statusMessage ? (
-            <NotificationToast tone="success">{statusMessage}</NotificationToast>
-          ) : null}
-        </div>
-      )}
+      <StatusToasts statusMessage={statusMessage} errorMessage={errorMessage} />
       <div className="content">
         <div className="table-container loan-summary-panel">
           <div className="loan-cards">

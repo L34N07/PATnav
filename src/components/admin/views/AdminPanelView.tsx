@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAutoDismissMessage } from '../../../hooks/useAutoDismissMessage'
-import NotificationToast from '../../NotificationToast'
+import StatusToasts from '../../StatusToasts'
 import { ADMIN_PAGES } from '../../../adminPages'
 import {
   buildRowMap,
@@ -64,6 +64,11 @@ export default function AdminPanelView() {
   useAutoDismissMessage(statusMessage, setStatusMessage, SUCCESS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, ERROR_MESSAGE_DURATION_MS)
 
+  const clearMessages = useCallback(() => {
+    setErrorMessage(null)
+    setStatusMessage(null)
+  }, [setErrorMessage, setStatusMessage])
+
   const selectedUser = useMemo(
     () => (selectedUserId != null ? users.find(user => user.userId === selectedUserId) ?? null : null),
     [users, selectedUserId]
@@ -86,8 +91,7 @@ export default function AdminPanelView() {
     }
 
     setIsLoading(true)
-    setErrorMessage(null)
-    setStatusMessage(null)
+    clearMessages()
 
     try {
       const result = await electronAPI.getAppUsers('user')
@@ -186,8 +190,7 @@ export default function AdminPanelView() {
     }
 
     setIsUpdating(true)
-    setErrorMessage(null)
-    setStatusMessage(null)
+    clearMessages()
 
     try {
       const result = await electronAPI.updateUserPermissions({
@@ -222,16 +225,7 @@ export default function AdminPanelView() {
 
   return (
     <>
-      {(statusMessage || errorMessage) && (
-        <div className="notification-toast-wrapper">
-          {errorMessage ? (
-            <NotificationToast tone="error">{errorMessage}</NotificationToast>
-          ) : null}
-          {!errorMessage && statusMessage ? (
-            <NotificationToast tone="success">{statusMessage}</NotificationToast>
-          ) : null}
-        </div>
-      )}
+      <StatusToasts statusMessage={statusMessage} errorMessage={errorMessage} />
       <div className="admin-panel">
         <div className="admin-panel-header">
           <div>
