@@ -891,6 +891,7 @@ tr.selected {
   gap: 10px;
   max-height: 600px;
   overflow-y: auto;
+  position: relative;
   padding-right: 6px;
 }
 
@@ -935,6 +936,24 @@ tr.selected {
     box-shadow 0.2s ease,
     border-color 0.2s ease,
     background 0.2s ease;
+}
+
+.movement-card--header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+  border: 1px solid transparent;
+  border-bottom: 1px solid var(--movement-card-border);
+  border-radius: 0;
+  box-shadow: none;
+  cursor: default;
+  transform: none;
+}
+
+.movement-card--header:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .movement-card:hover {

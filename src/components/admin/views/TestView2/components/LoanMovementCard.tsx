@@ -22,6 +22,7 @@ const LoanMovementCard = forwardRef<HTMLButtonElement, LoanMovementCardProps>(
     ]
       .filter(Boolean)
       .join(" ")
+    const cantidadValue = movement.cantidadDisplay ?? movement.cantidad
 
     return (
       <button
@@ -33,24 +34,19 @@ const LoanMovementCard = forwardRef<HTMLButtonElement, LoanMovementCardProps>(
       >
         <div className="movement-card-content">
           <div className="movement-card-group">
-            <span className="movement-card-label">Fecha</span>
             <span className="movement-card-value">{movement.fechaRemito}</span>
           </div>
           <div className="movement-card-group">
-            <span className="movement-card-label">Remito</span>
             <span className="movement-card-value">{movement.numeroRemito}</span>
           </div>
           <div className="movement-card-group">
-            <span className="movement-card-label">Item</span>
             <span className="movement-card-value">{movement.itemLabel}</span>
           </div>
           <div className="movement-card-group">
-            <span className="movement-card-label">Cantidad</span>
-            <span className="movement-card-value">{movement.cantidad}</span>
+            <span className="movement-card-value">{cantidadValue}</span>
           </div>
         </div>
         <div className="movement-card-estado">
-          <span className="movement-card-label">Estado</span>
           <span className="movement-card-estado-value">{estadoValue}</span>
         </div>
       </button>
