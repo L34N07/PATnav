@@ -33,7 +33,13 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
     },
     ref
   ) => {
-    const summaryLabel = `Cliente ${row.CLIENTE} - Comprobante ${row.COMPROBANTE} - Estado ${row.ESTADO}`
+    const clientIdentifier = row.SUBCODIGO
+      ? `${row.CLIENTE}/${row.SUBCODIGO}`
+      : `${row.CLIENTE}`
+    const domicilioDisplay = row.DOMICILIO || "-"
+    const summaryLabel = `Cliente ${clientIdentifier} - Domicilio ${
+      row.DOMICILIO || "Sin domicilio"
+    } - Comprobante ${row.COMPROBANTE} - Estado ${row.ESTADO}`
     const movementButtonRefs = useRef<Array<HTMLButtonElement | null>>([])
     const autoSelectPendingRef = useRef(false)
     const lastNavigationTimeRef = useRef(0)
@@ -492,7 +498,10 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
         >
           <div className="loan-card-header-info">
             <span className="loan-card-header-item">
-              <strong>Cliente:</strong> {row.CLIENTE}
+              <strong>Cliente:</strong> {clientIdentifier}
+            </span>
+            <span className="loan-card-header-item loan-card-header-item--domicilio">
+              <strong>Domicilio:</strong> {domicilioDisplay}
             </span>
             <span className="loan-card-header-item">
               <strong>Comprobante:</strong> {row.COMPROBANTE}

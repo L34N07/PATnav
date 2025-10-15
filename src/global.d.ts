@@ -28,6 +28,11 @@ export interface ActualizarInfoextraPayload {
   infoExtra: string
 }
 
+export interface TraerMovimientosClientePayload {
+  codCliente: number | string
+  subcodigo: string | number
+}
+
 export interface ElectronAPI {
   getClientes: () => Promise<PythonResult>
   getAppUser: (username: string) => Promise<AppUserResult>
@@ -37,7 +42,10 @@ export interface ElectronAPI {
   modificarCobrosImpagos: () => Promise<PythonResult>
   resumen_remitos: () => Promise<PythonResult>
   traer_resumen_prestamos: () => Promise<PythonResult>
-  traer_movimientos_cliente: (codCliente: number | string) => Promise<PythonResult>
+  traer_movimientos_cliente: (
+    codCliente: number | string,
+    subcodigo?: string | number
+  ) => Promise<PythonResult>
   actualizar_infoextra_por_registro: (
     payload: ActualizarInfoextraPayload
   ) => Promise<PythonResult>

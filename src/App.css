@@ -798,7 +798,7 @@ tr.selected {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
   background: transparent;
   border: none;
@@ -812,14 +812,18 @@ tr.selected {
 .loan-card-header-info {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  column-gap: 24px;
-  row-gap: 6px;
+  grid-template-columns:
+    minmax(110px, 0.85fr)
+    minmax(240px, 1.8fr)
+    minmax(110px, 0.75fr)
+    minmax(110px, 0.75fr);
+  column-gap: 12px;
+  row-gap: 0;
   align-items: center;
 }
 
 .loan-card-header-item {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
   color: #1f2937;
 }
@@ -829,13 +833,18 @@ tr.selected {
   color: #0f172a;
 }
 
+.loan-card-header-item--domicilio {
+  grid-column: 2;
+  min-width: 240px;
+}
+
 .loan-card-header:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
 }
 
 .loan-card-indicator {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   line-height: 1;
   transition: transform 0.25s ease;
 }
@@ -850,7 +859,7 @@ tr.selected {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #333;
   max-height: 0;
   overflow: hidden;
@@ -896,7 +905,7 @@ tr.selected {
 }
 
 .loan-movements-status {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #555;
 }
 
@@ -981,14 +990,14 @@ tr.selected {
 }
 
 .movement-card-label {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #6b7280;
 }
 
 .movement-card-value {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: #1f2937;
 }
@@ -1007,7 +1016,7 @@ tr.selected {
 }
 
 .movement-card-estado-value {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: var(--movement-card-estado-text);
 }

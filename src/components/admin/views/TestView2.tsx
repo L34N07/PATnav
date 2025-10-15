@@ -14,9 +14,12 @@ const ITEM_LABELS: Record<number, string> = {
 
 const INFO_EXTRA_OPTIONS: ReadonlyArray<"A" | "P" | "D"> = ["A", "P", "D"]
 
-type MovementsByClient = Record<number, LoanMovementRow[]>
-type MovementErrorsByClient = Record<number, string | null>
-type MovementSelectionMap = Record<number, string | null>
+type MovementsByClient = Record<string, LoanMovementRow[]>
+type MovementErrorsByClient = Record<string, string | null>
+type MovementSelectionMap = Record<string, string | null>
+
+const buildClientKey = (codCliente: number, subcodigo: string): string =>
+  `${codCliente}::${subcodigo || ""}`
 
 export default function TestView2() {
   const electronAPI = window.electronAPI
@@ -29,7 +32,7 @@ export default function TestView2() {
   const [expandedCardIndex, setExpandedCardIndex] = useState<number | null>(null)
   const [movementsByClient, setMovementsByClient] = useState<MovementsByClient>({})
   const [movementErrors, setMovementErrors] = useState<MovementErrorsByClient>({})
-  const [movementLoadingClient, setMovementLoadingClient] = useState<number | null>(null)
+  const [movementLoadingClient, setMovementLoadingClient] = useState<string | null>(null)
   const [selectedMovementByClient, setSelectedMovementByClient] = useState<MovementSelectionMap>({})
   const [isInfoExtraUpdating, setIsInfoExtraUpdating] = useState(false)
   const summaryCardRefs = useRef<Array<HTMLDivElement | null>>([])
@@ -37,21 +40,23 @@ export default function TestView2() {
   useAutoDismissMessage(statusMessage, setStatusMessage, STATUS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, STATUS_MESSAGE_DURATION_MS)
 
-  const expandedClientId =
-    expandedCardIndex !== null && rows[expandedCardIndex]
-      ? rows[expandedCardIndex].CLIENTE
-      : null
+  const expandedRow =
+    expandedCardIndex !== null && rows[expandedCardIndex] ? rows[expandedCardIndex] : null
+  const expandedClientKey = expandedRow
+    ? buildClientKey(expandedRow.CLIENTE, expandedRow.SUBCODIGO)
+    : null
+  const expandedClientId = expandedRow ? expandedRow.CLIENTE : null
   const selectedMovementId =
-    expandedClientId !== null
-      ? selectedMovementByClient[expandedClientId] ?? null
+    expandedClientKey !== null
+      ? selectedMovementByClient[expandedClientKey] ?? null
       : null
   const selectedMovement = useMemo(() => {
-    if (expandedClientId === null || !selectedMovementId) {
+    if (!expandedClientKey || !selectedMovementId) {
       return null
     }
-    const clientMovements = movementsByClient[expandedClientId] ?? []
+    const clientMovements = movementsByClient[expandedClientKey] ?? []
     return clientMovements.find(movement => movement.id === selectedMovementId) ?? null
-  }, [expandedClientId, selectedMovementId, movementsByClient])
+  }, [expandedClientKey, selectedMovementId, movementsByClient])
 
   const isAnyActionRunning = isResumenRunning || isSummaryLoading || isInfoExtraUpdating
   const isInfoExtraActionDisabled = isAnyActionRunning || !selectedMovement
@@ -109,6 +114,7 @@ export default function TestView2() {
       setMovementsByClient({})
       setMovementErrors({})
       setSelectedMovementByClient({})
+      setMovementLoadingClient(null)
 
       if (fetchedRows.length > 0) {
         setStatusMessage("Resumen de prestamos cargado correctamente.")
@@ -150,34 +156,37 @@ export default function TestView2() {
       }
 
       const clientId = targetRow.CLIENTE
-      setSelectedMovementByClient(prev => ({ ...prev, [clientId]: null }))
-      if (!movementsByClient[clientId] && movementLoadingClient !== clientId) {
-        void loadMovements(clientId)
+      const subcodigo = targetRow.SUBCODIGO
+      const clientKey = buildClientKey(clientId, subcodigo)
+      setSelectedMovementByClient(prev => ({ ...prev, [clientKey]: null }))
+      if (!movementsByClient[clientKey] && movementLoadingClient !== clientKey) {
+        void loadMovements(clientKey, clientId, subcodigo)
       }
     }
   }
 
-  const handleSelectMovement = (clientId: number, movementId: string) => {
+  const handleSelectMovement = (clientKey: string, movementId: string) => {
     setSelectedMovementByClient(prev => ({
       ...prev,
-      [clientId]: prev[clientId] === movementId ? null : movementId
+      [clientKey]: prev[clientKey] === movementId ? null : movementId
     }))
   }
 
-  const loadMovements = async (codCliente: number) => {
+  const loadMovements = async (clientKey: string, codCliente: number, subcodigo: string) => {
     if (!electronAPI?.traer_movimientos_cliente) {
       setMovementErrors(prev => ({
         ...prev,
-        [codCliente]: "No se encuentra disponible la accion de movimientos."
+        [clientKey]: "No se encuentra disponible la accion de movimientos."
       }))
       return
     }
 
-    setMovementLoadingClient(codCliente)
-    setMovementErrors(prev => ({ ...prev, [codCliente]: null }))
+    setMovementLoadingClient(clientKey)
+    setMovementErrors(prev => ({ ...prev, [clientKey]: null }))
 
     try {
-      const result = await electronAPI.traer_movimientos_cliente(codCliente)
+      const sanitizedSubcodigo = subcodigo ?? ""
+      const result = await electronAPI.traer_movimientos_cliente(codCliente, sanitizedSubcodigo)
       if (result?.error) {
         throw new Error(result.details || result.error)
       }
@@ -188,19 +197,19 @@ export default function TestView2() {
         )
       )
 
-      setMovementsByClient(prev => ({ ...prev, [codCliente]: fetchedMovements }))
+      setMovementsByClient(prev => ({ ...prev, [clientKey]: fetchedMovements }))
     } catch (error) {
       console.error("No se pudieron cargar movimientos del cliente:", error)
-      setMovementsByClient(prev => ({ ...prev, [codCliente]: [] }))
+      setMovementsByClient(prev => ({ ...prev, [clientKey]: [] }))
       setMovementErrors(prev => ({
         ...prev,
-        [codCliente]:
+        [clientKey]:
           error instanceof Error
             ? error.message
             : "Error desconocido al cargar los movimientos."
       }))
     } finally {
-      setMovementLoadingClient(prev => (prev === codCliente ? null : prev))
+      setMovementLoadingClient(prev => (prev === clientKey ? null : prev))
     }
   }
 
@@ -210,7 +219,7 @@ export default function TestView2() {
       return
     }
 
-    if (!selectedMovement || expandedClientId === null) {
+    if (!selectedMovement || !expandedClientKey || expandedClientId === null) {
       setErrorMessage("Seleccione un movimiento para actualizar.")
       return
     }
@@ -235,14 +244,14 @@ export default function TestView2() {
       }
 
       setMovementsByClient(prev => {
-        const existing = prev[expandedClientId]
+        const existing = prev[expandedClientKey]
         if (!existing) {
           return prev
         }
 
         return {
           ...prev,
-          [expandedClientId]: existing.map(movement =>
+          [expandedClientKey]: existing.map(movement =>
             movement.id === selectedMovement.id
               ? { ...movement, infoExtra: infoExtraValue }
               : movement
@@ -279,22 +288,25 @@ export default function TestView2() {
         <div className="table-container loan-summary-panel">
           <div className="loan-cards">
             {rows.length > 0 ? (
-              rows.map((row, index) => (
-                <LoanSummaryCard
-                  key={`${row.CLIENTE}-${row.COMPROBANTE}-${row.fechaSortKey}-${index}`}
-                  row={row}
-                  isExpanded={expandedCardIndex === index}
-                  isLoadingMovements={movementLoadingClient === row.CLIENTE}
-                  movementError={movementErrors[row.CLIENTE] ?? null}
-                  movements={movementsByClient[row.CLIENTE]}
-                  selectedMovementId={selectedMovementByClient[row.CLIENTE] ?? null}
-                  onToggle={() => handleToggleCard(index)}
-                  onSelectMovement={movementId => handleSelectMovement(row.CLIENTE, movementId)}
-                  ref={element => {
-                    summaryCardRefs.current[index] = element
-                  }}
-                />
-              ))
+              rows.map((row, index) => {
+                const clientKey = buildClientKey(row.CLIENTE, row.SUBCODIGO)
+                return (
+                  <LoanSummaryCard
+                    key={`${row.CLIENTE}-${row.SUBCODIGO}-${row.COMPROBANTE}-${row.fechaSortKey}-${index}`}
+                    row={row}
+                    isExpanded={expandedCardIndex === index}
+                    isLoadingMovements={movementLoadingClient === clientKey}
+                    movementError={movementErrors[clientKey] ?? null}
+                    movements={movementsByClient[clientKey]}
+                    selectedMovementId={selectedMovementByClient[clientKey] ?? null}
+                    onToggle={() => handleToggleCard(index)}
+                    onSelectMovement={movementId => handleSelectMovement(clientKey, movementId)}
+                    ref={element => {
+                      summaryCardRefs.current[index] = element
+                    }}
+                  />
+                )
+              })
             ) : (
               <div className="loan-empty-state">
                 No hay datos para mostrar. Utilice el panel derecho para cargar el resumen.
@@ -350,8 +362,20 @@ export default function TestView2() {
 
 const toLoanSummaryRow = (row: Record<string, unknown>): LoanSummaryRow => {
   const { display, sortKey } = parseDateValue(row.FECHA)
+  const rawSubcodigo = row.SUBCODIGO
+  const subcodigo =
+    rawSubcodigo === null || rawSubcodigo === undefined
+      ? ""
+      : String(rawSubcodigo).trim()
+  const rawDomicilio = row.DOMICILIO
+  const domicilio =
+    rawDomicilio === null || rawDomicilio === undefined
+      ? ""
+      : normalizeWhitespace(String(rawDomicilio))
   return {
     CLIENTE: Number(row.CLIENTE ?? 0),
+    SUBCODIGO: subcodigo,
+    DOMICILIO: domicilio,
     COMPROBANTE: Number(row.COMPROBANTE ?? 0),
     ESTADO: String(row.ESTADO ?? ""),
     CANTIDAD: Number(row.CANTIDAD ?? 0),
@@ -427,6 +451,9 @@ const parseDateValue = (
 
   return { display: String(value), sortKey: Number.POSITIVE_INFINITY }
 }
+
+const normalizeWhitespace = (value: string): string =>
+  value.replace(/\s+/g, " ").trim()
 
 const sortMovements = (rows: LoanMovementRow[]): LoanMovementRow[] =>
   [...rows].sort((a, b) => {

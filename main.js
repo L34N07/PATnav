@@ -314,8 +314,14 @@ ipcMain.handle('python:traer_resumen_prestamos', async () => {
 
 ipcMain.handle('python:traer_movimientos_cliente', async (_event, payload) => {
   const bridge = getPythonBridge()
-  const { codCliente } = payload || {}
-  return bridge.call('traer_movimientos_cliente', [codCliente])
+  const { codCliente, subcodigo = "" } = payload || {}
+  if (codCliente === undefined || codCliente === null) {
+    return {
+      error: 'invalid_params',
+      details: 'codCliente is required to traer_movimientos_cliente'
+    }
+  }
+  return bridge.call('traer_movimientos_cliente', [codCliente, subcodigo ?? ""])
 })
 
 ipcMain.handle('python:actualizar_infoextra_por_registro', async (_event, payload) => {

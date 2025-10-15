@@ -199,11 +199,14 @@ def traer_resumen_prestamos(pool: ConnectionPool) -> Dict[str, Any]:
     return execute_procedure(pool, "{CALL traer_resumen_prestamos}")
 
 
-def traer_movimientos_cliente(pool: ConnectionPool, cod_cliente: Any) -> Dict[str, Any]:
+def traer_movimientos_cliente(
+    pool: ConnectionPool, cod_cliente: Any, subcodigo: Any = ""
+) -> Dict[str, Any]:
+    normalized_subcodigo = "" if subcodigo is None else str(subcodigo).strip()
     return execute_procedure(
         pool,
-        "{CALL traer_movimientos_cliente (?)}",
-        (cod_cliente,),
+        "{CALL traer_movimientos_cliente (?, ?)}",
+        (cod_cliente, normalized_subcodigo),
     )
 
 
@@ -339,12 +342,19 @@ def _handle_traer_movimientos_cliente(
     params: Sequence[Any],
 
 ) -> Dict[str, Any]:
-    if len(params) != 1:
+    if not params:
         return {
             "error": "invalid_params",
-            "details": "traer_movimientos_cliente expects cod_cliente",
+            "details": "traer_movimientos_cliente expects at least cod_cliente",
         }
-    return traer_movimientos_cliente(pool, params[0])
+    if len(params) == 1:
+        return traer_movimientos_cliente(pool, params[0])
+    if len(params) == 2:
+        return traer_movimientos_cliente(pool, params[0], params[1])
+    return {
+        "error": "invalid_params",
+        "details": "traer_movimientos_cliente accepts at most cod_cliente and subcodigo",
+    }
 
 
 def _handle_actualizar_infoextra_por_registro(

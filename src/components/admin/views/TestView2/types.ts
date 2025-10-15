@@ -1,5 +1,7 @@
 export type LoanSummaryRow = {
   CLIENTE: number
+  SUBCODIGO: string
+  DOMICILIO: string
   COMPROBANTE: number
   ESTADO: string
   CANTIDAD: number
