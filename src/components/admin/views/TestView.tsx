@@ -319,6 +319,7 @@ export default function TestView() {
           totalPages={pageCount}
           rowCount={itemCount}
           onPageChange={goToPage}
+          emptyMessage={activeDataset === "irregularidades" ? "No hay errores para mostrar" : undefined}
         />
       </div>
     </>

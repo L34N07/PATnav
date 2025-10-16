@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { DataRow, toDisplayValue } from './dataModel'
 
 type DataTableProps = {
@@ -16,6 +16,7 @@ type DataTableProps = {
   rowCount: number
   onPageChange: (page: number) => void
   valueFormatter?: (value: unknown) => string
+  emptyMessage?: string
 }
 
 const MIN_COLUMN_WIDTH = 50
@@ -34,8 +35,14 @@ export default function DataTable({
   totalPages,
   rowCount,
   onPageChange,
-  valueFormatter = toDisplayValue
+  valueFormatter = toDisplayValue,
+  emptyMessage = "No hay resultados para mostrar."
 }: DataTableProps) {
+  const columnCount = Math.max(columns.length, 1)
+  const hasRows = rows.length > 0
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const rowRefs = useRef<Array<HTMLTableRowElement | null>>([])
+
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>, index: number) => {
     event.preventDefault()
     const startX = event.clientX
@@ -61,7 +68,7 @@ export default function DataTable({
   const showPagination = rowCount > 0
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (rows.length === 0) {
+    if (!hasRows) {
       return
     }
 
@@ -90,54 +97,110 @@ export default function DataTable({
     }
   }
 
+  useEffect(() => {
+    if (!hasRows) {
+      return
+    }
+
+    if (selectedRowIndex === null || selectedRowIndex === undefined) {
+      return
+    }
+
+    if (selectedRowIndex < 0 || selectedRowIndex >= rows.length) {
+      return
+    }
+
+    const rowElement = rowRefs.current[selectedRowIndex]
+    if (!rowElement) {
+      return
+    }
+
+    rowElement.scrollIntoView({
+      block: 'nearest',
+      inline: 'nearest',
+      behavior: 'smooth'
+    })
+  }, [hasRows, rows.length, selectedRowIndex])
+
   return (
-    <div
-      className="table-container"
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-    >
-      {errorMessage && <div className="table-status error">{errorMessage}</div>}
-      {!errorMessage && statusMessage && !isLoading && (
-        <div className="table-status info">{statusMessage}</div>
+    <div className="table-container client-table-container" tabIndex={0} onKeyDown={handleKeyDown}>
+      {errorMessage && (
+        <div className="table-status error" role="alert">
+          {errorMessage}
+        </div>
       )}
-      {isLoading && <div className="table-status loading">Procesando...</div>}
-      <table>
-        <thead>
-          <tr>
-            {columns.map((column, index) => (
-              <th key={column} style={{ width: columnWidths[index] }}>
-                {column}
-                <div className="resizer" onMouseDown={event => handleMouseDown(event, index)} />
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr
-              key={`${currentPage}-${index}`}
-              className={selectedRowIndex === index ? 'selected' : ''}
-              onClick={() => onRowSelect(row, index)}
-            >
-              {columns.map((column, colIndex) => (
-                <td key={column} style={{ width: columnWidths[colIndex] }}>
-                  {valueFormatter(row[column])}
-                </td>
+      {!errorMessage && statusMessage && !isLoading && (
+        <div className="table-status info" role="status">
+          {statusMessage}
+        </div>
+      )}
+      <div className="client-table-scroll" ref={scrollContainerRef}>
+        {isLoading && <div className="table-status loading">Procesando...</div>}
+        <table className="client-table">
+          <thead className="client-table__head">
+            <tr>
+              {columns.map((column, index) => (
+                <th key={column} className="client-table__header-cell" style={{ width: columnWidths[index] }}>
+                  <span className="client-table__header-text">{column}</span>
+                  <div
+                    className="resizer client-table__resizer"
+                    onMouseDown={event => handleMouseDown(event, index)}
+                  />
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="client-table__body">
+            {hasRows ? (
+              rows.map((row, index) => {
+                const isSelected = selectedRowIndex === index
+                return (
+                  <tr
+                    key={`${currentPage}-${index}`}
+                    className={`client-table__row${isSelected ? ' client-table__row--selected' : ''}`}
+                    onClick={() => onRowSelect(row, index)}
+                    ref={element => {
+                      rowRefs.current[index] = element
+                    }}
+                  >
+                    {columns.map((column, colIndex) => (
+                      <td
+                        key={column}
+                        className="client-table__cell"
+                        style={{ width: columnWidths[colIndex] }}
+                      >
+                        {valueFormatter(row[column])}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })
+            ) : (
+              !isLoading && (
+                <tr className="client-table__empty">
+                  <td className="client-table__empty-cell" colSpan={columnCount}>
+                    {emptyMessage}
+                  </td>
+                </tr>
+              )
+            )}
+          </tbody>
+        </table>
+      </div>
       {showPagination && (
-        <div className="pagination">
+        <div className="pagination client-table__pagination">
           <button
+            className="pagination__button"
             onClick={() => onPageChange(currentPage - 1)}
             disabled={!canGoPrev}
           >
             {'<'}
           </button>
-          <span>{currentPage + 1} / {totalPages || 1}</span>
+          <span className="pagination__info">
+            {currentPage + 1} / {totalPages || 1}
+          </span>
           <button
+            className="pagination__button"
             onClick={() => onPageChange(currentPage + 1)}
             disabled={!canGoNext}
           >

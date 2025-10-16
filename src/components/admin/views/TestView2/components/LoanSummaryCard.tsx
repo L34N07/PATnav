@@ -40,6 +40,7 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
     } - Comprobante ${row.COMPROBANTE} - Estado ${row.ESTADO}`
     const movementButtonRefs = useRef<Array<HTMLButtonElement | null>>([])
     const autoSelectPendingRef = useRef(false)
+    const hasUserInteractedRef = useRef(false)
     const lastNavigationTimeRef = useRef(0)
     const displayMovements = useMemo(() => {
       if (!movements) {
@@ -220,6 +221,7 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
       if (targetIndex !== null && targetIndex !== index) {
         lastNavigationTimeRef.current = now
         const targetMovement = displayMovements[targetIndex]
+        hasUserInteractedRef.current = true
         onSelectMovement(targetMovement.id)
         requestAnimationFrame(() => {
           const targetButton = movementButtonRefs.current[targetIndex]
@@ -234,6 +236,7 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
     useEffect(() => {
       if (!isExpanded) {
         autoSelectPendingRef.current = false
+        hasUserInteractedRef.current = false
         return
       }
 
@@ -246,6 +249,9 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
       }
 
       if (!selectedMovementId) {
+        if (hasUserInteractedRef.current) {
+          return
+        }
         autoSelectPendingRef.current = true
         const firstMovement = displayMovements[0]
         onSelectMovement(firstMovement.id)
@@ -337,18 +343,25 @@ const LoanSummaryCard = forwardRef<HTMLDivElement, LoanSummaryCardProps>(
                           <span className="movement-card-label">Estado</span>
                         </div>
                       </div>
-                      {displayMovements.map((movement, index) => (
+                      {displayMovements.map((movement, index) => {
+                        const handleMovementSelect = () => {
+                          hasUserInteractedRef.current = true
+                          onSelectMovement(movement.id)
+                        }
+
+                        return (
                         <LoanMovementCard
                           key={movement.id}
                           movement={movement}
                           isSelected={selectedMovementId === movement.id}
-                          onSelect={() => onSelectMovement(movement.id)}
+                          onSelect={handleMovementSelect}
                           onKeyDown={event => handleMovementKeyDown(event, index)}
                           ref={element => {
                             movementButtonRefs.current[index] = element
                           }}
                         />
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : (
                     <div className="loan-movements-status">Sin movimientos recientes.</div>

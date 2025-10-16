@@ -13,6 +13,7 @@ const ITEM_LABELS: Record<number, string> = {
 }
 
 const INFO_EXTRA_OPTIONS: ReadonlyArray<"A" | "P" | "D"> = ["A", "P", "D"]
+const INFO_EXTRA_ALLOWED_ESTADOS: ReadonlySet<string> = new Set(["VD", "VP", "A", "P", "D"])
 
 type MovementsByClient = Record<string, LoanMovementRow[]>
 type MovementErrorsByClient = Record<string, string | null>
@@ -64,7 +65,13 @@ export default function TestView2() {
   }, [expandedClientKey, selectedMovementId, movementsByClient])
 
   const isAnyActionRunning = isResumenRunning || isSummaryLoading || isInfoExtraUpdating
-  const isInfoExtraActionDisabled = isAnyActionRunning || !selectedMovement
+  const selectedMovementEstado = selectedMovement
+    ? selectedMovement.infoExtra.trim().toUpperCase()
+    : ""
+  const isInfoExtraActionDisabled =
+    isAnyActionRunning ||
+    !selectedMovement ||
+    !INFO_EXTRA_ALLOWED_ESTADOS.has(selectedMovementEstado)
 
   const handleExecuteResumen = async () => {
     if (!electronAPI?.resumen_remitos) {
