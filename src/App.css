@@ -40,7 +40,7 @@ body {
 }
 
 .top-bar {
-  background: #d3d1d169;
+  background: #f8f9fb;
   color: #000;
   padding: 10px 20px;
   font-size: 1.5rem;
@@ -49,7 +49,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 1px solid #d1d5db;
   border-radius: 10px;
 }
 
@@ -124,15 +124,40 @@ body {
 
 .logout-button {
   padding: 6px 12px;
-  border: 1px solid #949494;
+  border: 1px solid rgba(0, 0, 0, 0.35);
   border-radius: 6px;
   background: #f7f7f7;
+  color: #000;
   cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease;
 }
 
 .logout-button:hover {
   background: #df3232;
+  border-color: #df3232;
   color: #fff;
+}
+
+.logout-button:active {
+  background: #c72525;
+  border-color: #c72525;
+  color: #fff;
+}
+
+.logout-button:focus-visible {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+}
+
+.logout-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  border-color: rgba(0, 0, 0, 0.2);
+  color: #9ca3af;
 }
 
 .admin-panel-wrapper {
@@ -305,10 +330,10 @@ body {
   display: flex;
   margin: 0px 12px;
   padding: 3px 5px 0px 5px;
-  border-bottom: 1px solid #ccc;
-  border-left: 1px solid #ccc;
-  border-right: 1px solid #ccc;
-  background: #f7f7f7;
+  border-bottom: 1px solid #c5cad5;
+  border-left: 1px solid #c5cad5;
+  border-right: 1px solid #c5cad5;
+  background: #fbfcfe;
   align-items: stretch;
   border-bottom-left-radius: 10px;
   border-bottom-right-radius: 10px;
@@ -924,6 +949,134 @@ body {
 .test-view-layout__sidebar .loan-actions__button-group .fetch-button,
 .test-view-layout__sidebar .loan-actions__button-group .irregularidades-button {
   width: 100%;
+}
+
+.content.test-view-layout .sidebar {
+  width: 210px;
+  padding-left: 12px;
+  padding-right: 12px;
+  gap: 8px;
+}
+
+.content.test-view2-layout .sidebar.loan-actions {
+  width: 210px;
+  margin-left: 20px;
+  padding: 16px 12px 18px;
+  border-left: 1px solid #e5e7eb;
+  border-right: none;
+  border-radius: 0;
+  background: #fff;
+  align-items: stretch;
+  gap: 12px;
+  box-shadow: none;
+  position: sticky;
+  top: 20px;
+}
+
+.content.test-view2-layout .sidebar.loan-actions .loan-actions__button-group {
+  align-items: stretch;
+  gap: 10px;
+  padding-top: 20px;
+  margin-bottom: 18px;
+}
+
+.content.test-view2-layout .sidebar.loan-actions .loan-actions__infoextra {
+  gap: 16px;
+  margin-top: 16px;
+  margin-bottom: 24px;
+}
+
+.content.test-view2-layout .sidebar.loan-actions .loan-actions__infoextra-buttons {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.content.test-view2-layout
+  .sidebar.loan-actions
+  .loan-actions__infoextra-buttons
+  .fetch-button {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 48px;
+  padding: 7px 10px;
+}
+
+.content.test-view-layout .sidebar .fetch-button,
+.content.test-view-layout .sidebar .edit-button,
+.content.test-view-layout .sidebar .irregularidades-button,
+.content.test-view2-layout .sidebar.loan-actions .fetch-button,
+.content.test-view2-layout .sidebar.loan-actions .edit-button,
+.content.test-view2-layout .sidebar.loan-actions .irregularidades-button {
+  width: 100%;
+  align-self: stretch;
+  margin: 6px 0;
+  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: #fff;
+  color: #000;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 5px;
+  box-shadow: none;
+  font-family: "Inter", "Roboto", "Segoe UI", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  line-height: 1.35;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
+}
+
+.content.test-view-layout .sidebar .fetch-button:hover:not(:disabled),
+.content.test-view-layout .sidebar .edit-button:hover:not(:disabled),
+.content.test-view-layout .sidebar .irregularidades-button:hover:not(:disabled),
+.content.test-view2-layout .sidebar.loan-actions .fetch-button:hover:not(:disabled),
+.content.test-view2-layout .sidebar.loan-actions .edit-button:hover:not(:disabled),
+.content.test-view2-layout .sidebar.loan-actions .irregularidades-button:hover:not(:disabled) {
+  background: #f4f4f5;
+  border-color: rgba(0, 0, 0, 0.45);
+  color: #000;
+}
+
+.content.test-view-layout .sidebar .fetch-button:active:not(:disabled),
+.content.test-view-layout .sidebar .edit-button:active:not(:disabled),
+.content.test-view-layout .sidebar .irregularidades-button:active:not(:disabled),
+.content.test-view2-layout .sidebar.loan-actions .fetch-button:active:not(:disabled),
+.content.test-view2-layout .sidebar.loan-actions .edit-button:active:not(:disabled),
+.content.test-view2-layout .sidebar.loan-actions .irregularidades-button:active:not(:disabled) {
+  background: #ebebed;
+  border-color: rgba(0, 0, 0, 0.5);
+  color: #000;
+}
+
+.content.test-view-layout .sidebar .fetch-button:focus-visible,
+.content.test-view-layout .sidebar .edit-button:focus-visible,
+.content.test-view-layout .sidebar .irregularidades-button:focus-visible,
+.content.test-view2-layout .sidebar.loan-actions .fetch-button:focus-visible,
+.content.test-view2-layout .sidebar.loan-actions .edit-button:focus-visible,
+.content.test-view2-layout .sidebar.loan-actions .irregularidades-button:focus-visible {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+}
+
+.content.test-view-layout .sidebar .fetch-button:disabled,
+.content.test-view-layout .sidebar .edit-button:disabled,
+.content.test-view-layout .sidebar .irregularidades-button:disabled,
+.content.test-view2-layout .sidebar.loan-actions .fetch-button:disabled,
+.content.test-view2-layout .sidebar.loan-actions .edit-button:disabled,
+.content.test-view2-layout .sidebar.loan-actions .irregularidades-button:disabled {
+  background: #fff;
+  border-color: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .loan-actions__section-title {

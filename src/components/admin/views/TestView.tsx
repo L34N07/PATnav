@@ -283,7 +283,7 @@ export default function TestView() {
   return (
     <>
       <StatusToasts statusMessage={statusMessage} errorMessage={errorMessage} />
-      <div className="content">
+      <div className="content test-view-layout">
         <AdminSidebar
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}

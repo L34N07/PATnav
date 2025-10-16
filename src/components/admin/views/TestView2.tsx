@@ -284,7 +284,7 @@ export default function TestView2() {
   return (
     <>
       <StatusToasts statusMessage={statusMessage} errorMessage={errorMessage} />
-      <div className="content">
+      <div className="content test-view2-layout">
         <div className="table-container loan-summary-panel">
           <div className="loan-cards">
             {rows.length > 0 ? (

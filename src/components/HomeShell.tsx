@@ -58,7 +58,7 @@ export default function HomeShell<PageId extends string>({
         rightContent={
           onLogout ? (
             <button className="logout-button" type="button" onClick={onLogout}>
-              Cerrar sesion
+              Salir
             </button>
           ) : null
         }
