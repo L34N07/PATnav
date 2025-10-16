@@ -55,7 +55,8 @@ body {
 
 .top-bar img {
   height: 24px;
-  margin-right: 10px;
+  margin-right: 0px;
+  margin-left: 5px;
 }
 
 
@@ -67,6 +68,12 @@ body {
 
 .top-bar-title {
   line-height: 1;
+  color: #000;
+  text-shadow:
+    1px 0   #fff, -1px 0  #fff,
+    0   1px #fff,  0  -1px #fff,
+    1px 1px #fff, -1px -1px #fff,
+    1px -1px #fff, -1px 1px #fff;  
 }
 
 .top-bar-right {
