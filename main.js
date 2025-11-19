@@ -400,6 +400,16 @@ registerPythonHandler('python:update_user_permissions', 'update_user_permissions
   mapPayload: payload => [payload.userId, payload.permissions]
 })
 
+registerPythonHandler('python:analyze_upload_image', 'analyze_upload_image', {
+  validate: payload => {
+    if (!payload?.filePath) {
+      return { error: 'invalid_params', details: 'filePath is required to analyze an image' }
+    }
+    return undefined
+  },
+  mapPayload: payload => [payload.filePath]
+})
+
 app.whenReady().then(async () => {
   try {
     getPythonBridge()

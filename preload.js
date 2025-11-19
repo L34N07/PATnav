@@ -14,7 +14,8 @@ const electronAPI = Object.freeze({
   actualizar_infoextra_por_registro: payload =>
     ipcRenderer.invoke('python:actualizar_infoextra_por_registro', payload),
   updateUserPermissions: payload => ipcRenderer.invoke('python:update_user_permissions', payload),
-  listUploadImages: () => ipcRenderer.invoke('uploads:list_images')
+  listUploadImages: () => ipcRenderer.invoke('uploads:list_images'),
+  analyzeUploadImage: filePath => ipcRenderer.invoke('python:analyze_upload_image', { filePath })
 })
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

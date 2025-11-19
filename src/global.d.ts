@@ -48,6 +48,19 @@ export interface UploadImagesResult {
   details?: string
 }
 
+export type OcrAccountMatch = {
+  type: "CVU" | "CBU"
+  number: string
+  holder?: string | null
+}
+
+export interface AnalyzeUploadImageResult {
+  match?: OcrAccountMatch | null
+  text?: string
+  error?: string
+  details?: string
+}
+
 export interface ElectronAPI {
   getClientes: () => Promise<PythonResult>
   getAppUser: (username: string) => Promise<AppUserResult>
@@ -68,6 +81,7 @@ export interface ElectronAPI {
     payload: UpdateUserPermissionsPayload
   ) => Promise<PythonResult>
   listUploadImages: () => Promise<UploadImagesResult>
+  analyzeUploadImage: (filePath: string) => Promise<AnalyzeUploadImageResult>
 }
 
 declare global {

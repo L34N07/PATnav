@@ -11,6 +11,17 @@ type UploadImage = {
   size: number
 }
 
+type AnalysisMatch = {
+  type: "CVU" | "CBU"
+  number: string
+  holder?: string | null
+}
+
+type AnalysisResult = {
+  match: AnalysisMatch | null
+  text?: string
+}
+
 const STATUS_DURATION_MS = 2000
 
 export default function CobrosTransferenciaView() {
@@ -22,6 +33,8 @@ export default function CobrosTransferenciaView() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<UploadImage | null>(null)
   const [analysisImage, setAnalysisImage] = useState<UploadImage | null>(null)
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
 
   useAutoDismissMessage(statusMessage, setStatusMessage, STATUS_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, STATUS_DURATION_MS)
@@ -73,6 +86,42 @@ export default function CobrosTransferenciaView() {
     void refreshImages()
   }, [refreshImages])
 
+  const performImageAnalysis = useCallback(
+    async (image: UploadImage) => {
+      if (!electronAPI?.analyzeUploadImage) {
+        setErrorMessage("El analisis de imagen no se encuentra disponible.")
+        return
+      }
+
+      setIsAnalyzing(true)
+      setAnalysisResult(null)
+
+      try {
+        const response = await electronAPI.analyzeUploadImage(image.filePath)
+        if (response?.error) {
+          throw new Error(response.details || response.error)
+        }
+
+        setAnalysisResult({
+          match: response?.match ?? null,
+          text: response?.text
+        })
+
+        if (!response?.match) {
+          setStatusMessage("No se detectaron CVU o CBU en la imagen seleccionada.")
+        }
+      } catch (error) {
+        console.error("No se pudo analizar la imagen:", error)
+        setErrorMessage(
+          error instanceof Error ? error.message : "Error desconocido durante el analisis."
+        )
+      } finally {
+        setIsAnalyzing(false)
+      }
+    },
+    [electronAPI, setErrorMessage, setStatusMessage]
+  )
+
   const handleSelectImage = (image: UploadImage) => {
     setSelectedImage(image)
   }
@@ -83,10 +132,12 @@ export default function CobrosTransferenciaView() {
       return
     }
     setAnalysisImage(selectedImage)
+    void performImageAnalysis(selectedImage)
   }
 
   const handleCloseAnalysis = () => {
     setAnalysisImage(null)
+    setAnalysisResult(null)
   }
 
   return (
@@ -141,8 +192,13 @@ export default function CobrosTransferenciaView() {
             <button className="fetch-button" type="button">
               Procesar Imagenes
             </button>
-            <button className="fetch-button" type="button" onClick={handleAnalyzeImage}>
-              Analizar Imagen
+            <button
+              className="fetch-button"
+              type="button"
+              onClick={handleAnalyzeImage}
+              disabled={!selectedImage || isAnalyzing}
+            >
+              {isAnalyzing ? "Analizando..." : "Analizar Imagen"}
             </button>
           </div>
           <div className="loan-actions__divider" aria-hidden="true" />
@@ -174,7 +230,31 @@ export default function CobrosTransferenciaView() {
                   alt={analysisImage.fileName}
                 />
               </div>
-              <div className="image-modal__sidebar" aria-hidden="true" />
+              <div className="image-modal__sidebar">
+                {isAnalyzing ? (
+                  <div className="ocr-status">Analizando imagen...</div>
+                ) : analysisResult ? (
+                  analysisResult.match ? (
+                    <div className="ocr-result">
+                      {analysisResult.match.holder ? (
+                        <span className="ocr-result__holder">
+                          Titular: {analysisResult.match.holder}
+                        </span>
+                      ) : null}
+                      <span className="ocr-result__label">{analysisResult.match.type}</span>
+                      <span className="ocr-result__value">{analysisResult.match.number}</span>
+                    </div>
+                  ) : (
+                    <div className="ocr-status">
+                      No se identificaron CVU o CBU en la imagen analizada.
+                    </div>
+                  )
+                ) : (
+                  <div className="ocr-status">
+                    Presione &quot;Analizar Imagen&quot; para extraer CVU o CBU.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

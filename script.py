@@ -1,9 +1,22 @@
 ﻿import json
+import os
+import re
 import signal
 import sys
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import pyodbc
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None  # type: ignore
+
+try:
+    import pytesseract
+    pytesseract.pytesseract.tesseract_cmd = r"C:\Users\LeanZ\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
+except ImportError:
+    pytesseract = None  # type: ignore
 
 SERVER = '192.168.100.2,1433'
 
@@ -18,6 +31,8 @@ SQL_USER = 'navexe'
 SQL_PASS = 'navexe1433'
 
 CONNECT_TIMEOUT = 10
+
+ACCOUNT_PATTERN = re.compile(r'(C[VB]U)\s*[:=\-]?\s*([0-9O\s]{6,})', re.IGNORECASE)
 
 def _build_conn_str() -> str:
     parts = [
@@ -255,6 +270,64 @@ def update_user_permissions(
         (parsed_user_id, test_view, test_view2, View3),
     )
 
+
+def _extract_account_match(text: str) -> Optional[Dict[str, str]]:
+    if not text:
+        return None
+
+    previous_line = ""
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        match = ACCOUNT_PATTERN.search(line)
+        if match:
+            account_type = match.group(1).upper().replace(" ", "")
+            raw_digits = match.group(2).upper().replace("O", "0")
+            digits = re.sub(r"\D", "", raw_digits)
+            if len(digits) >= 10:
+                if len(digits) > 22:
+                    digits = digits[:22]
+                normalized_type = "CVU" if account_type.startswith("CV") else "CBU"
+                holder = previous_line or None
+                return {"type": normalized_type, "number": digits, "holder": holder}
+
+        previous_line = line
+
+    return None
+
+
+def analyze_upload_image(
+    pool: ConnectionPool,
+    image_path: Any,
+
+) -> Dict[str, Any]:
+    del pool
+    if not image_path:
+        return {"error": "invalid_params", "details": "image_path is required"}
+
+    file_path = str(image_path)
+
+    if not os.path.isfile(file_path):
+        return {"error": "not_found", "details": f"No file found at {file_path}"}
+
+    if pytesseract is None or Image is None:
+        return {
+            "error": "ocr_unavailable",
+            "details": "pytesseract and Pillow must be installed to analyze images",
+        }
+
+    try:
+        with Image.open(file_path) as pil_image:
+            gray = pil_image.convert("L")
+            text = pytesseract.image_to_string(gray)
+    except Exception as exc:
+        return {"error": "ocr_failed", "details": repr(exc)}
+
+    match = _extract_account_match(text)
+    return {"match": match, "text": text}
+
 def _handle_get_app_user(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
     if len(params) != 1:
         return {"error": "invalid_params", "details": "get_app_user expects exactly 1 parameter"}
@@ -402,6 +475,19 @@ def _handle_update_user_permissions(
 
     return update_user_permissions(pool, user_id, permissions)
 
+
+def _handle_analyze_upload_image(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+
+) -> Dict[str, Any]:
+    if len(params) != 1:
+        return {
+            "error": "invalid_params",
+            "details": "analyze_upload_image expects the image path as its only parameter",
+        }
+    return analyze_upload_image(pool, params[0])
+
 COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, Any]]] = {
     "get_app_user": _handle_get_app_user,
     "get_app_users": _handle_get_app_users,
@@ -414,6 +500,7 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "traer_movimientos_cliente": _handle_traer_movimientos_cliente,
     "actualizar_infoextra_por_registro": _handle_actualizar_infoextra_por_registro,
     "update_user_permissions": _handle_update_user_permissions,
+    "analyze_upload_image": _handle_analyze_upload_image,
 
 }
 
