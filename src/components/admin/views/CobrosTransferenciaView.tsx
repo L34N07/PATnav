@@ -21,6 +21,7 @@ type AnalysisResult = {
   match: AnalysisMatch | null
   text?: string
   amount?: string | null
+  created?: string | null
 }
 
 const STATUS_DURATION_MS = 2000
@@ -106,7 +107,8 @@ export default function CobrosTransferenciaView() {
         setAnalysisResult({
           match: response?.match ?? null,
           text: response?.text,
-          amount: response?.amount ?? null
+          amount: response?.amount ?? null,
+          created: response?.created ?? null
         })
 
         if (!response?.match) {
@@ -239,16 +241,30 @@ export default function CobrosTransferenciaView() {
                   analysisResult.match ? (
                     <div className="ocr-result">
                       {analysisResult.match.holder ? (
-                        <span className="ocr-result__holder">
-                          Titular: {analysisResult.match.holder}
-                        </span>
+                        <div className="ocr-result__pair">
+                          <span className="ocr-result__label">Titular</span>
+                          <span className="ocr-result__value ocr-result__value--holder">
+                            {analysisResult.match.holder}
+                          </span>
+                        </div>
                       ) : null}
-                      <span className="ocr-result__label">{analysisResult.match.type}</span>
-                      <span className="ocr-result__value">{analysisResult.match.number}</span>
-                      {analysisResult.amount ? (
-                        <span className="ocr-result__amount">
-                          Monto detectado: ${analysisResult.amount}
+                      <div className="ocr-result__pair">
+                        <span className="ocr-result__label">{analysisResult.match.type}</span>
+                        <span className="ocr-result__value ocr-result__value--account">
+                          {analysisResult.match.number}
                         </span>
+                      </div>
+                      {analysisResult.created ? (
+                        <div className="ocr-result__pair">
+                          <span className="ocr-result__label">Fecha</span>
+                          <span className="ocr-result__value">{analysisResult.created}</span>
+                        </div>
+                      ) : null}
+                      {analysisResult.amount ? (
+                        <div className="ocr-result__pair">
+                          <span className="ocr-result__label">Monto</span>
+                          <span className="ocr-result__amount">${analysisResult.amount}</span>
+                        </div>
                       ) : null}
                     </div>
                   ) : (

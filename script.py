@@ -3,6 +3,7 @@ import os
 import re
 import signal
 import sys
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import pyodbc
@@ -34,6 +35,26 @@ CONNECT_TIMEOUT = 10
 
 CURRENCY_PATTERN = re.compile(r'\$\s*([0-9][0-9.\s,]*)')
 ACCOUNT_PATTERN = re.compile(r'(C[VB]U)\s*[:=\-]?\s*([0-9O\s]{6,})', re.IGNORECASE)
+CREATED_PATTERN = re.compile(
+    r"creada\s+el\s+(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s*[-–]\s*([0-9]{1,2}:[0-9]{2})",
+    re.IGNORECASE
+)
+MONTH_MAP = {
+    "enero": 1,
+    "febrero": 2,
+    "marzo": 3,
+    "abril": 4,
+    "mayo": 5,
+    "junio": 6,
+    "julio": 7,
+    "agosto": 8,
+    "septiembre": 9,
+    "setiembre": 9,
+    "octubre": 10,
+    "noviembre": 11,
+    "november": 11,
+    "diciembre": 12,
+}
 
 def _build_conn_str() -> str:
     parts = [
@@ -320,6 +341,26 @@ def _extract_account_match(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _extract_created_timestamp(text: str) -> Optional[str]:
+    if not text:
+        return None
+
+    current_year = datetime.now().year
+
+    for match in CREATED_PATTERN.finditer(text):
+        day = match.group(1)
+        month_name = match.group(2).strip().lower()
+        time_value = match.group(3)
+        month = MONTH_MAP.get(month_name)
+        if not month:
+            continue
+        day_number = int(day)
+        formatted_date = f"{day_number:02d}/{month:02d}/{current_year}"
+        return f"{formatted_date} - {time_value}"
+
+    return None
+
+
 def analyze_upload_image(
     pool: ConnectionPool,
     image_path: Any,
@@ -349,9 +390,12 @@ def analyze_upload_image(
 
     match = _extract_account_match(text)
     amount = _extract_currency_amount(text)
+    created = _extract_created_timestamp(text)
     result = {"match": match, "text": text}
     if amount:
         result["amount"] = amount
+    if created:
+        result["created"] = created
     return result
 
 def _handle_get_app_user(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:

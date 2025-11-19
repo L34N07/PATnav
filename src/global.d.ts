@@ -58,6 +58,7 @@ export interface AnalyzeUploadImageResult {
   match?: OcrAccountMatch | null
   text?: string
   amount?: string
+  created?: string
   error?: string
   details?: string
 }

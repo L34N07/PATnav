@@ -603,10 +603,11 @@ body {
   grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
   gap: 20px;
   min-height: 320px;
+  align-items: stretch;
 }
 
 .image-modal__preview {
-  background: #f8fafc;
+  background: #fafafa;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   display: flex;
@@ -623,59 +624,75 @@ body {
 }
 
 .image-modal__sidebar {
-  border: 2px dashed #d1d5db;
+  border: 1px solid #e5e7eb;
   border-radius: 12px;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(229, 231, 235, 0.5),
-    rgba(229, 231, 235, 0.5) 12px,
-    transparent 12px,
-    transparent 20px
-  );
+  background: #fafafa;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   justify-content: center;
-  padding: 16px;
-  text-align: center;
+  padding: 24px;
+  text-align: left;
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
 .ocr-status {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #4b5563;
   line-height: 1.4;
+  text-align: left;
 }
 
 .ocr-result {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
+  width: 100%;
 }
 
-.ocr-result__holder {
-  font-size: 0.95rem;
-  color: #374151;
-  font-weight: 500;
+.ocr-result__pair {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding-bottom: 15px;
+}
+
+.ocr-result__pair:last-child {
+  padding-bottom: 0;
 }
 
 .ocr-result__label {
-  font-size: 1rem;
+  font-size: 0.85rem;
   color: #6b7280;
   letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .ocr-result__value {
-  font-size: 1.4rem;
+  font-size: 1rem;
   font-weight: 700;
   color: #111827;
   letter-spacing: 0.1em;
 }
 
-.ocr-result__amount {
-  font-size: 1.05rem;
-  color: #2563eb;
-  font-weight: 600;
+.ocr-result__value--holder {
+  font-size: 1rem;
+  font-weight: 700;
 }
+
+.ocr-result__value--account {
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+}
+
+.ocr-result__amount {
+  font-size: 0.95rem;
+  color: #065f46;
+  font-weight: 600;
 }
 
 .test-view-layout__sidebar {
@@ -1265,7 +1282,7 @@ body {
   border-left: 1px solid #e5e7eb;
   border-right: none;
   border-radius: 0;
-  background: #fff;
+  background: #fafafa;
   align-items: stretch;
   gap: 12px;
   box-shadow: none;
