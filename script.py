@@ -273,7 +273,12 @@ def update_user_permissions(
 
 
 def _clean_holder_value(value: str) -> str:
-    return re.sub(r"^[^\w]+", "", value).strip()
+    cleaned = re.sub(r"^[^\w]+", "", value).strip()
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    tokens = cleaned.split()
+    if len(tokens) >= 2 and len(tokens[0]) == 1:
+        cleaned = " ".join(tokens[1:])
+    return cleaned
 
 
 def _extract_currency_amount(text: str) -> Optional[str]:
