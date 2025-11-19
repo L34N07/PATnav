@@ -57,6 +57,7 @@ export type OcrAccountMatch = {
 export interface AnalyzeUploadImageResult {
   match?: OcrAccountMatch | null
   text?: string
+  amount?: string
   error?: string
   details?: string
 }

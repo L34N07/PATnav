@@ -32,6 +32,7 @@ SQL_PASS = 'navexe1433'
 
 CONNECT_TIMEOUT = 10
 
+CURRENCY_PATTERN = re.compile(r'\$\s*([0-9][0-9.\s,]*)')
 ACCOUNT_PATTERN = re.compile(r'(C[VB]U)\s*[:=\-]?\s*([0-9O\s]{6,})', re.IGNORECASE)
 
 def _build_conn_str() -> str:
@@ -271,7 +272,22 @@ def update_user_permissions(
     )
 
 
-def _extract_account_match(text: str) -> Optional[Dict[str, str]]:
+def _clean_holder_value(value: str) -> str:
+    return re.sub(r"^[^\w]+", "", value).strip()
+
+
+def _extract_currency_amount(text: str) -> Optional[str]:
+    if not text:
+        return None
+    for match in CURRENCY_PATTERN.finditer(text):
+        raw = match.group(1)
+        cleaned = raw.replace(" ", "")
+        if cleaned:
+            return cleaned
+    return None
+
+
+def _extract_account_match(text: str) -> Optional[Dict[str, Any]]:
     if not text:
         return None
 
@@ -290,8 +306,9 @@ def _extract_account_match(text: str) -> Optional[Dict[str, str]]:
                 if len(digits) > 22:
                     digits = digits[:22]
                 normalized_type = "CVU" if account_type.startswith("CV") else "CBU"
-                holder = previous_line or None
-                return {"type": normalized_type, "number": digits, "holder": holder}
+                holder = _clean_holder_value(previous_line)
+                holder_value = holder or None
+                return {"type": normalized_type, "number": digits, "holder": holder_value}
 
         previous_line = line
 
@@ -326,7 +343,11 @@ def analyze_upload_image(
         return {"error": "ocr_failed", "details": repr(exc)}
 
     match = _extract_account_match(text)
-    return {"match": match, "text": text}
+    amount = _extract_currency_amount(text)
+    result = {"match": match, "text": text}
+    if amount:
+        result["amount"] = amount
+    return result
 
 def _handle_get_app_user(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
     if len(params) != 1:

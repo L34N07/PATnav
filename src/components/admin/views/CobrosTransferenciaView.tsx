@@ -20,6 +20,7 @@ type AnalysisMatch = {
 type AnalysisResult = {
   match: AnalysisMatch | null
   text?: string
+  amount?: string | null
 }
 
 const STATUS_DURATION_MS = 2000
@@ -104,7 +105,8 @@ export default function CobrosTransferenciaView() {
 
         setAnalysisResult({
           match: response?.match ?? null,
-          text: response?.text
+          text: response?.text,
+          amount: response?.amount ?? null
         })
 
         if (!response?.match) {
@@ -243,6 +245,11 @@ export default function CobrosTransferenciaView() {
                       ) : null}
                       <span className="ocr-result__label">{analysisResult.match.type}</span>
                       <span className="ocr-result__value">{analysisResult.match.number}</span>
+                      {analysisResult.amount ? (
+                        <span className="ocr-result__amount">
+                          Monto detectado: ${analysisResult.amount}
+                        </span>
+                      ) : null}
                     </div>
                   ) : (
                     <div className="ocr-status">

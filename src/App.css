@@ -670,6 +670,12 @@ body {
   color: #111827;
   letter-spacing: 0.1em;
 }
+
+.ocr-result__amount {
+  font-size: 1.05rem;
+  color: #2563eb;
+  font-weight: 600;
+}
 }
 
 .test-view-layout__sidebar {
