@@ -4,13 +4,21 @@ const fs = require('fs')
 const http = require('http')
 const https = require('https')
 const path = require('path')
+const { pathToFileURL } = require('url')
 
 const isDev = process.env.NODE_ENV === 'development'
 const DEV_URL = 'http://localhost:5173'
 const PROD_URL = `file://${path.join(__dirname, 'dist/index.html')}`
 const DEFAULT_URL = isDev ? DEV_URL : PROD_URL
+const UPLOADS_DIR = path.join(__dirname, 'uploads')
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+const ensureUploadsDir = () => {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true })
+  }
+}
 
 // Polls the renderer dev server until it responds so Electron can load it without failing.
 const waitForRenderer = async (targetUrl, { timeout = 30000, interval = 250 } = {}) => {
@@ -297,6 +305,42 @@ const createWindow = async () => {
 
   return win
 }
+
+ipcMain.handle('uploads:list_images', async () => {
+  try {
+    ensureUploadsDir()
+    const entries = await fs.promises.readdir(UPLOADS_DIR, { withFileTypes: true })
+    const files = await Promise.all(
+      entries
+        .filter(entry => entry.isFile())
+        .filter(entry => /\.jpe?g$/i.test(entry.name))
+        .map(async entry => {
+          const filePath = path.join(UPLOADS_DIR, entry.name)
+          const [stats, buffer] = await Promise.all([
+            fs.promises.stat(filePath),
+            fs.promises.readFile(filePath)
+          ])
+          return {
+            fileName: entry.name,
+            filePath,
+            fileUrl: pathToFileURL(filePath).href,
+            dataUrl: `data:image/jpeg;base64,${buffer.toString('base64')}`,
+            modifiedTime: stats.mtimeMs,
+            size: stats.size
+          }
+        })
+    )
+
+    files.sort((a, b) => b.modifiedTime - a.modifiedTime)
+    return { files }
+  } catch (error) {
+    console.error('Failed to list upload images:', error)
+    return {
+      error: 'read_failed',
+      details: error instanceof Error ? error.message : 'No se pudieron leer las imagenes.'
+    }
+  }
+})
 
 registerPythonHandler('python:get_app_user', 'get_app_user', {
   mapPayload: payload => [payload.username]

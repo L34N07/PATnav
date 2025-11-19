@@ -247,11 +247,12 @@ def update_user_permissions(
 
     test_view = 1 if bool(permissions.get("testView")) else 0
     test_view2 = 1 if bool(permissions.get("testView2")) else 0
+    View3 = 1 if bool(permissions.get("View3")) else 0
 
     return run_procedure(
         pool,
-        "{CALL update_user_permission (?, ?, ?)}",
-        (parsed_user_id, test_view, test_view2),
+        "{CALL update_user_permission (?, ?, ?, ?)}",
+        (parsed_user_id, test_view, test_view2, View3),
     )
 
 def _handle_get_app_user(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:

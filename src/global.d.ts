@@ -33,6 +33,21 @@ export interface TraerMovimientosClientePayload {
   subcodigo: string | number
 }
 
+export interface UploadImageEntry {
+  fileName: string
+  filePath: string
+  fileUrl: string
+  dataUrl: string
+  modifiedTime: number
+  size: number
+}
+
+export interface UploadImagesResult {
+  files?: UploadImageEntry[]
+  error?: string
+  details?: string
+}
+
 export interface ElectronAPI {
   getClientes: () => Promise<PythonResult>
   getAppUser: (username: string) => Promise<AppUserResult>
@@ -52,6 +67,7 @@ export interface ElectronAPI {
   updateUserPermissions: (
     payload: UpdateUserPermissionsPayload
   ) => Promise<PythonResult>
+  listUploadImages: () => Promise<UploadImagesResult>
 }
 
 declare global {
