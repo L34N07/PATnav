@@ -15,17 +15,38 @@ except ImportError:
 
 try:
     import pytesseract
-    
-    BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-    TESS_PATH = os.path.join(BASE_DIR, "Tesseract", "tesseract.exe")
 
-    if not os.path.exists(TESS_PATH):
-        TESS_PATH = r"C:\Users\LeanZ\Documents\Proyectos\PATNAV\PATNav\Tesseract\tesseract.exe"
-        print("Trying absolute TESS_PATH =", TESS_PATH, "exists:", os.path.exists(TESS_PATH))
+    _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    _MEIPASS_DIR = getattr(sys, "_MEIPASS", None)
+    _RESOURCE_HINT = os.environ.get("ELECTRON_RESOURCES_PATH")
 
+    def _gather_resource_roots() -> List[str]:
+        roots: List[str] = []
+        for value in (_RESOURCE_HINT, _SCRIPT_DIR, _MEIPASS_DIR):
+            if value and value not in roots:
+                roots.append(value)
+        if not roots:
+            roots.append(os.getcwd())
+        return roots
+
+    _RESOURCE_ROOTS = _gather_resource_roots()
+
+    def _resolve_tesseract_path() -> str:
+        for base_dir in _RESOURCE_ROOTS:
+            candidate = os.path.join(base_dir, "Tesseract", "tesseract.exe")
+            if os.path.isfile(candidate):
+                return candidate
+        return os.path.join(_RESOURCE_ROOTS[0], "Tesseract", "tesseract.exe")
+
+    TESS_PATH = _resolve_tesseract_path()
     pytesseract.pytesseract.tesseract_cmd = TESS_PATH
+    tess_dir = os.path.dirname(TESS_PATH)
+    current_path = os.environ.get("PATH", "")
+    if tess_dir not in current_path.split(os.pathsep):
+        os.environ["PATH"] = tess_dir + (os.pathsep + current_path if current_path else "")
+    os.environ.setdefault("TESSDATA_PREFIX", os.path.join(tess_dir, "tessdata"))
 except ImportError:
-    pytesseract = None  
+    pytesseract = None  # type: ignore
 
 SERVER = '192.168.100.2,1433'
 

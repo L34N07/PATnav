@@ -6,11 +6,14 @@ const https = require('https')
 const path = require('path')
 const { pathToFileURL } = require('url')
 
+const getResourcesRoot = () => (app.isPackaged ? process.resourcesPath : path.resolve(__dirname))
+const resolveResourcePath = (...segments) => path.join(getResourcesRoot(), ...segments)
+
 const isDev = process.env.NODE_ENV === 'development'
 const DEV_URL = 'http://localhost:5173'
 const PROD_URL = `file://${path.join(__dirname, 'dist/index.html')}`
 const DEFAULT_URL = isDev ? DEV_URL : PROD_URL
-const UPLOADS_DIR = path.join(__dirname, 'uploads')
+const UPLOADS_DIR = resolveResourcePath('uploads')
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -63,9 +66,15 @@ const waitForRenderer = async (targetUrl, { timeout = 30000, interval = 250 } = 
 class PythonBridge {
   constructor(executablePath) {
     this.executablePath = executablePath
+    const resourcesRoot = getResourcesRoot()
     this.process = spawn(executablePath, [], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true
+      windowsHide: true,
+      cwd: resourcesRoot,
+      env: {
+        ...process.env,
+        ELECTRON_RESOURCES_PATH: resourcesRoot
+      }
     })
     this.buffer = ''
     this.queue = []

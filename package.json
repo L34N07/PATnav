@@ -14,6 +14,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development concurrently -k \"vite\" \"electron .\"",
     "build": "vite build",
+    "postbuild": "node scripts/prepare-static-assets.js",
     "start": "cross-env NODE_ENV=production electron .",
     "dist": "npm run build && electron-builder --x64",
     "build:python": "python -m PyInstaller --onefile --clean --target-arch 64bit --distpath release --workpath build --specpath build script.py"
@@ -43,6 +44,20 @@
       {
         "from": "release/script.exe",
         "to": "script.exe"
+      },
+      {
+        "from": "uploads",
+        "to": "uploads",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "Tesseract",
+        "to": "Tesseract",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
