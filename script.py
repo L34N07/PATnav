@@ -15,9 +15,17 @@ except ImportError:
 
 try:
     import pytesseract
-    pytesseract.pytesseract.tesseract_cmd = r"C:\Users\LeanZ\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
+    
+    BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    TESS_PATH = os.path.join(BASE_DIR, "Tesseract", "tesseract.exe")
+
+    if not os.path.exists(TESS_PATH):
+        TESS_PATH = r"C:\Users\LeanZ\Documents\Proyectos\PATNAV\PATNav\Tesseract\tesseract.exe"
+        print("Trying absolute TESS_PATH =", TESS_PATH, "exists:", os.path.exists(TESS_PATH))
+
+    pytesseract.pytesseract.tesseract_cmd = TESS_PATH
 except ImportError:
-    pytesseract = None  # type: ignore
+    pytesseract = None  
 
 SERVER = '192.168.100.2,1433'
 
