@@ -41,10 +41,66 @@ export default function TestView2() {
   useAutoDismissMessage(statusMessage, setStatusMessage, STATUS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, STATUS_MESSAGE_DURATION_MS)
 
-  const clearMessages = useCallback(() => {
-    setErrorMessage(null)
-    setStatusMessage(null)
-  }, [setErrorMessage, setStatusMessage])
+const clearMessages = useCallback(() => {
+  setErrorMessage(null)
+  setStatusMessage(null)
+}, [setErrorMessage, setStatusMessage])
+
+const normalizeEstado = (estado: string): string => estado.trim().toUpperCase()
+
+const deriveCombinedEstado = (estados: string[]): string => {
+  const normalized = estados.map(normalizeEstado).filter(value => value.length > 0)
+  const unique = new Set(normalized)
+  const orderedPreferred = ["VP", "VD", "P"]
+  const presentPreferred = orderedPreferred.filter(code => unique.has(code))
+
+  if (presentPreferred.length > 0) {
+    return presentPreferred.join("/")
+  }
+
+  return estados[0]?.trim() ?? ""
+}
+
+const groupSummaryRows = (rows: LoanSummaryRow[]): LoanSummaryRow[] => {
+  const groups = new Map<string, LoanSummaryRow[]>()
+
+  rows.forEach(row => {
+    const key = buildClientKey(row.CLIENTE, row.SUBCODIGO)
+    const existing = groups.get(key)
+    if (existing) {
+      existing.push(row)
+    } else {
+      groups.set(key, [row])
+    }
+  })
+
+  const aggregated: LoanSummaryRow[] = []
+
+  groups.forEach(groupRows => {
+    const baseRow = groupRows[0]
+    const latestRow = groupRows.reduce(
+      (current, candidate) =>
+        candidate.fechaSortKey > current.fechaSortKey ? candidate : current,
+      groupRows[0]
+    )
+    const estados = groupRows
+      .map(row => normalizeEstado(row.ESTADO))
+      .filter(value => value.length > 0)
+    const combinedEstado = deriveCombinedEstado(estados)
+    const totalCantidad = groupRows.reduce((sum, row) => sum + row.CANTIDAD, 0)
+
+    aggregated.push({
+      ...baseRow,
+      ESTADO: combinedEstado,
+      CANTIDAD: totalCantidad,
+      FECHA: latestRow.FECHA,
+      fechaSortKey: latestRow.fechaSortKey,
+      COMPROBANTE: latestRow.COMPROBANTE
+    })
+  })
+
+  return aggregated.sort((a, b) => a.fechaSortKey - b.fechaSortKey)
+}
 
   const expandedRow =
     expandedCardIndex !== null && rows[expandedCardIndex] ? rows[expandedCardIndex] : null
@@ -116,9 +172,8 @@ export default function TestView2() {
         throw new Error(result.details || result.error)
       }
 
-      const fetchedRows = (result?.rows ?? [])
-        .map(toLoanSummaryRow)
-        .sort((a, b) => a.fechaSortKey - b.fechaSortKey)
+      const mappedRows = (result?.rows ?? []).map(toLoanSummaryRow)
+      const fetchedRows = groupSummaryRows(mappedRows)
       setRows(fetchedRows)
       setExpandedCardIndex(null)
       setMovementsByClient({})
@@ -290,9 +345,10 @@ export default function TestView2() {
             {rows.length > 0 ? (
               rows.map((row, index) => {
                 const clientKey = buildClientKey(row.CLIENTE, row.SUBCODIGO)
+                const cardKey = `${clientKey}-${row.fechaSortKey}`
                 return (
                   <LoanSummaryCard
-                    key={`${row.CLIENTE}-${row.SUBCODIGO}-${row.COMPROBANTE}-${row.fechaSortKey}-${index}`}
+                    key={cardKey}
                     row={row}
                     isExpanded={expandedCardIndex === index}
                     isLoadingMovements={movementLoadingClient === clientKey}
