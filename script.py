@@ -52,7 +52,7 @@ SERVER = '192.168.100.2,1433'
 
 DATABASE = 'NAVIERA'
 
-DRIVER = 'ODBC Driver 17 for SQL Server'
+DRIVER = 'ODBC Driver 18 for SQL Server'
 
 USE_WINDOWS_AUTH = False
 

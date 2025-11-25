@@ -1,9 +1,7 @@
 <resources>
-    <string name="app_name">Mobile Name List</string>
-    <string name="screen_title">Sample Guest List</string>
-    <string name="screen_description">Tap the blue button to load six example first and last name pairs.</string>
-    <string name="load_names">Load sample names</string>
-    <string name="names_loaded">Names loaded</string>
-    <string name="first_name_header">First name</string>
-    <string name="last_name_header">Last name</string>
+    <string name="app_name">Mobile Clients</string>
+    <string name="screen_title">Clients</string>
+    <string name="screen_description">Tap a client to adjust item counts and save them.</string>
+    <string name="confirm">Confirmar</string>
+    <string name="cancel">Cancelar</string>
 </resources>
