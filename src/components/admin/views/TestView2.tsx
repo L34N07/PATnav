@@ -1,7 +1,8 @@
-import React, { useCallback, useMemo, useRef, useState } from "react"
+import React, { useCallback, useMemo, useState } from "react"
 import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
 import StatusToasts from "../../StatusToasts"
 import LoanSummaryCard from "./TestView2/components/LoanSummaryCard"
+import LoanSummaryModal from "./TestView2/components/LoanSummaryModal"
 import { LoanMovementRow, LoanSummaryRow } from "./TestView2/types"
 
 const STATUS_MESSAGE_DURATION_MS = 2000
@@ -36,7 +37,7 @@ export default function TestView2() {
   const [movementLoadingClient, setMovementLoadingClient] = useState<string | null>(null)
   const [selectedMovementByClient, setSelectedMovementByClient] = useState<MovementSelectionMap>({})
   const [isInfoExtraUpdating, setIsInfoExtraUpdating] = useState(false)
-  const summaryCardRefs = useRef<Array<HTMLDivElement | null>>([])
+  const [isNuevoStockUpdating, setIsNuevoStockUpdating] = useState(false)
 
   useAutoDismissMessage(statusMessage, setStatusMessage, STATUS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, STATUS_MESSAGE_DURATION_MS)
@@ -120,7 +121,8 @@ const groupSummaryRows = (rows: LoanSummaryRow[]): LoanSummaryRow[] => {
     return clientMovements.find(movement => movement.id === selectedMovementId) ?? null
   }, [expandedClientKey, selectedMovementId, movementsByClient])
 
-  const isAnyActionRunning = isResumenRunning || isSummaryLoading || isInfoExtraUpdating
+  const isAnyActionRunning =
+    isResumenRunning || isSummaryLoading || isInfoExtraUpdating || isNuevoStockUpdating
   const selectedMovementEstado = selectedMovement
     ? selectedMovement.infoExtra.trim().toUpperCase()
     : ""
@@ -198,36 +200,26 @@ const groupSummaryRows = (rows: LoanSummaryRow[]): LoanSummaryRow[] => {
     }
   }
 
-  const handleToggleCard = (index: number) => {
-    const isSameCard = expandedCardIndex === index
-    const nextIndex = isSameCard ? null : index
-    setExpandedCardIndex(nextIndex)
-
-    if (!isSameCard && nextIndex !== null) {
-      requestAnimationFrame(() => {
-        const targetCard = summaryCardRefs.current[nextIndex]
-        targetCard?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-          inline: "nearest"
-        })
-      })
+  const handleOpenCard = (index: number) => {
+    const targetRow = rows[index]
+    if (!targetRow) {
+      return
     }
 
-    if (!isSameCard) {
-      const targetRow = rows[index]
-      if (!targetRow) {
-        return
-      }
+    const clientId = targetRow.CLIENTE
+    const subcodigo = targetRow.SUBCODIGO
+    const clientKey = buildClientKey(clientId, subcodigo)
 
-      const clientId = targetRow.CLIENTE
-      const subcodigo = targetRow.SUBCODIGO
-      const clientKey = buildClientKey(clientId, subcodigo)
-      setSelectedMovementByClient(prev => ({ ...prev, [clientKey]: null }))
-      if (!movementsByClient[clientKey] && movementLoadingClient !== clientKey) {
-        void loadMovements(clientKey, clientId, subcodigo)
-      }
+    setExpandedCardIndex(index)
+    setSelectedMovementByClient(prev => ({ ...prev, [clientKey]: null }))
+
+    if (!movementsByClient[clientKey] && movementLoadingClient !== clientKey) {
+      void loadMovements(clientKey, clientId, subcodigo)
     }
+  }
+
+  const handleCloseModal = () => {
+    setExpandedCardIndex(null)
   }
 
   const handleSelectMovement = (clientKey: string, movementId: string) => {
@@ -336,6 +328,63 @@ const groupSummaryRows = (rows: LoanSummaryRow[]): LoanSummaryRow[] => {
     }
   }
 
+  const handleSaveNuevoStock = async (nuevoStockValue: number) => {
+    if (!electronAPI?.actualizar_nuevo_stock) {
+      setErrorMessage("No se encuentra disponible la accion de actualizar stock.")
+      return
+    }
+
+    if (!selectedMovement || !expandedClientKey || expandedClientId === null) {
+      setErrorMessage("Seleccione un movimiento para actualizar.")
+      return
+    }
+
+    setIsNuevoStockUpdating(true)
+    clearMessages()
+
+    try {
+      const numeroRemitoParam =
+        selectedMovement.numeroRemito === "-" ? 0 : Number(selectedMovement.numeroRemito) || 0
+      const prefijoRemitoParam = Number(selectedMovement.prefijoRemito) || 0
+      const nroOrdenParam = Number(selectedMovement.nroOrden) || 0
+      const result = await electronAPI.actualizar_nuevo_stock({
+        tipoComprobante: selectedMovement.tipoComprobante,
+        prefijoRemito: prefijoRemitoParam,
+        numeroRemito: numeroRemitoParam,
+        nroOrden: nroOrdenParam,
+        nuevoStock: nuevoStockValue
+      })
+
+      if (result?.error) {
+        throw new Error(result.details || result.error)
+      }
+
+      setMovementsByClient(prev => {
+        const existing = prev[expandedClientKey]
+        if (!existing) {
+          return prev
+        }
+        return {
+          ...prev,
+          [expandedClientKey]: existing.map(movement =>
+            movement.id === selectedMovement.id
+              ? { ...movement, nuevoStock: nuevoStockValue }
+              : movement
+          )
+        }
+      })
+
+      setStatusMessage("Nuevo stock actualizado correctamente.")
+    } catch (error) {
+      console.error("No se pudo actualizar nuevo_stock:", error)
+      setErrorMessage(
+        error instanceof Error ? error.message : "Error desconocido al actualizar nuevo stock."
+      )
+    } finally {
+      setIsNuevoStockUpdating(false)
+    }
+  }
+
   return (
     <>
       <StatusToasts statusMessage={statusMessage} errorMessage={errorMessage} />
@@ -350,16 +399,8 @@ const groupSummaryRows = (rows: LoanSummaryRow[]): LoanSummaryRow[] => {
                   <LoanSummaryCard
                     key={cardKey}
                     row={row}
-                    isExpanded={expandedCardIndex === index}
-                    isLoadingMovements={movementLoadingClient === clientKey}
-                    movementError={movementErrors[clientKey] ?? null}
-                    movements={movementsByClient[clientKey]}
-                    selectedMovementId={selectedMovementByClient[clientKey] ?? null}
-                    onToggle={() => handleToggleCard(index)}
-                    onSelectMovement={movementId => handleSelectMovement(clientKey, movementId)}
-                    ref={element => {
-                      summaryCardRefs.current[index] = element
-                    }}
+                    isActive={expandedCardIndex === index}
+                    onOpen={() => handleOpenCard(index)}
                   />
                 )
               })
@@ -394,24 +435,29 @@ const groupSummaryRows = (rows: LoanSummaryRow[]): LoanSummaryRow[] => {
             )}
           </div>
           <div className="loan-actions__divider" aria-hidden="true" />
-          <div className="loan-actions__infoextra">
-            <span className="loan-actions__section-title">Actualizar</span>
-            <div className="loan-actions__infoextra-buttons">
-              {INFO_EXTRA_OPTIONS.map(option => (
-                <button
-                  key={option}
-                  className="fetch-button infoextra-button"
-                  type="button"
-                  onClick={() => handleUpdateInfoExtra(option)}
-                  disabled={isInfoExtraActionDisabled}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
+      {expandedRow && expandedClientKey ? (
+        <LoanSummaryModal
+          row={expandedRow}
+          isOpen
+          isLoadingMovements={movementLoadingClient === expandedClientKey}
+          movementError={movementErrors[expandedClientKey] ?? null}
+          movements={movementsByClient[expandedClientKey]}
+          selectedMovementId={selectedMovementByClient[expandedClientKey] ?? null}
+          selectedMovement={selectedMovement}
+          statusMessage={statusMessage}
+          errorMessage={errorMessage}
+          onSelectMovement={movementId => handleSelectMovement(expandedClientKey, movementId)}
+          onUpdateInfoExtra={handleUpdateInfoExtra}
+          infoExtraOptions={INFO_EXTRA_OPTIONS}
+          isInfoExtraUpdating={isInfoExtraUpdating}
+          isInfoExtraDisabled={isInfoExtraActionDisabled}
+          isNuevoStockUpdating={isNuevoStockUpdating}
+          onSaveNuevoStock={handleSaveNuevoStock}
+          onClose={handleCloseModal}
+        />
+      ) : null}
     </>
   )
 }
@@ -470,7 +516,8 @@ const toLoanMovementRow = (
     itemCode: rawItemCode,
     itemLabel,
     cantidad,
-    infoExtra
+    infoExtra,
+    nuevoStock: 0
   }
 }
 

@@ -21,5 +21,6 @@ export type LoanMovementRow = {
   itemLabel: string
   cantidad: number
   infoExtra: string
+  nuevoStock: number
   cantidadDisplay?: string
 }

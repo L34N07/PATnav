@@ -28,6 +28,14 @@ export interface ActualizarInfoextraPayload {
   infoExtra: string
 }
 
+export interface ActualizarNuevoStockPayload {
+  tipoComprobante: string
+  prefijoRemito: string | number
+  numeroRemito: string | number
+  nroOrden: string | number
+  nuevoStock: number
+}
+
 export interface TraerMovimientosClientePayload {
   codCliente: number | string
   subcodigo: string | number
@@ -78,6 +86,9 @@ export interface ElectronAPI {
   ) => Promise<PythonResult>
   actualizar_infoextra_por_registro: (
     payload: ActualizarInfoextraPayload
+  ) => Promise<PythonResult>
+  actualizar_nuevo_stock: (
+    payload: ActualizarNuevoStockPayload
   ) => Promise<PythonResult>
   updateUserPermissions: (
     payload: UpdateUserPermissionsPayload

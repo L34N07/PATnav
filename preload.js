@@ -13,6 +13,8 @@ const electronAPI = Object.freeze({
     ipcRenderer.invoke('python:traer_movimientos_cliente', { codCliente, subcodigo }),
   actualizar_infoextra_por_registro: payload =>
     ipcRenderer.invoke('python:actualizar_infoextra_por_registro', payload),
+  actualizar_nuevo_stock: payload =>
+    ipcRenderer.invoke('python:actualizar_nuevo_stock', payload),
   updateUserPermissions: payload => ipcRenderer.invoke('python:update_user_permissions', payload),
   listUploadImages: () => ipcRenderer.invoke('uploads:list_images'),
   analyzeUploadImage: filePath => ipcRenderer.invoke('python:analyze_upload_image', { filePath })

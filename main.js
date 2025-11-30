@@ -405,6 +405,16 @@ registerPythonHandler(
   }
 )
 
+registerPythonHandler('python:actualizar_nuevo_stock', 'actualizar_nuevo_stock', {
+  mapPayload: payload => [
+    payload.tipoComprobante,
+    payload.prefijoRemito,
+    payload.numeroRemito,
+    payload.nroOrden,
+    payload.nuevoStock
+  ]
+})
+
 registerPythonHandler('python:update_user_permissions', 'update_user_permissions', {
   mapPayload: payload => [payload.userId, payload.permissions]
 })

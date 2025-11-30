@@ -290,6 +290,20 @@ def actualizar_infoextra_por_registro(
         (numero_remito, prefijo_remito, tipo_comprobante, nro_orden, infoextra),
     )
 
+def actualizar_nuevo_stock(
+    pool: ConnectionPool,
+    tipo_comprobante: Any,
+    prefijo_remito: Any,
+    numero_remito: Any,
+    nro_orden: Any,
+    nuevo_stock: Any,
+) -> Dict[str, Any]:
+    return run_procedure(
+        pool,
+        "{CALL actualizar_nuevo_stock (?, ?, ?, ?, ?)}",
+        (tipo_comprobante, prefijo_remito, numero_remito, nro_orden, nuevo_stock),
+    )
+
 
 def update_user_permissions(
     pool: ConnectionPool,
@@ -552,6 +566,28 @@ def _handle_actualizar_infoextra_por_registro(
         params[4],
     )
 
+def _handle_actualizar_nuevo_stock(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+
+) -> Dict[str, Any]:
+    if len(params) != 5:
+        return {
+            "error": "invalid_params",
+            "details": (
+                "actualizar_nuevo_stock expects tipo_comprobante, prefijo_remito, "
+                "numero_remito, nro_orden and nuevo_stock"
+            ),
+        }
+    return actualizar_nuevo_stock(
+        pool,
+        params[0],
+        params[1],
+        params[2],
+        params[3],
+        params[4],
+    )
+
 
 def _handle_update_user_permissions(
     pool: ConnectionPool,
@@ -598,6 +634,7 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "traer_resumen_prestamos": _handle_traer_resumen_prestamos,
     "traer_movimientos_cliente": _handle_traer_movimientos_cliente,
     "actualizar_infoextra_por_registro": _handle_actualizar_infoextra_por_registro,
+    "actualizar_nuevo_stock": _handle_actualizar_nuevo_stock,
     "update_user_permissions": _handle_update_user_permissions,
     "analyze_upload_image": _handle_analyze_upload_image,
 

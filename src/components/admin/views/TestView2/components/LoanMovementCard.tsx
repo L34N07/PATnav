@@ -49,6 +49,11 @@ const LoanMovementCard = forwardRef<HTMLButtonElement, LoanMovementCardProps>(
         <div className="movement-card-estado">
           <span className="movement-card-estado-value">{estadoValue}</span>
         </div>
+        <div className="movement-card-nuevo-stock">
+          <span className="movement-card-estado-value">
+            {movement.nuevoStock ?? 0}
+          </span>
+        </div>
       </button>
     )
   }
