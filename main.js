@@ -419,6 +419,28 @@ registerPythonHandler('python:update_user_permissions', 'update_user_permissions
   mapPayload: payload => [payload.userId, payload.permissions]
 })
 
+registerPythonHandler(
+  'python:ingresar_registro_hoja_de_ruta',
+  'ingresar_registro_hoja_de_ruta',
+  {
+    validate: payload => {
+      if (!payload?.motivo || !payload?.detalle || !payload?.recorrido || !payload?.fechaRecorrido) {
+        return {
+          error: 'invalid_params',
+          details: 'motivo, detalle, recorrido and fechaRecorrido are required'
+        }
+      }
+      return undefined
+    },
+    mapPayload: payload => [
+      payload.motivo,
+      payload.detalle,
+      payload.recorrido,
+      payload.fechaRecorrido
+    ]
+  }
+)
+
 registerPythonHandler('python:analyze_upload_image', 'analyze_upload_image', {
   validate: payload => {
     if (!payload?.filePath) {

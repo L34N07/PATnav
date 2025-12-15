@@ -3,7 +3,7 @@ import os
 import re
 import signal
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import pyodbc
@@ -328,11 +328,78 @@ def update_user_permissions(
     test_view = 1 if bool(permissions.get("testView")) else 0
     test_view2 = 1 if bool(permissions.get("testView2")) else 0
     View3 = 1 if bool(permissions.get("View3")) else 0
+    View4 = 1 if bool(permissions.get("View4")) else 0
 
+    result = run_procedure(
+        pool,
+        "{CALL update_user_permission (?, ?, ?, ?, ?)}",
+        (parsed_user_id, test_view, test_view2, View3, View4),
+    )
+
+    if result.get("error") == "db_execute_failed":
+        details = str(result.get("details", "")).lower()
+        if "too many" in details or "arguments" in details:
+            return run_procedure(
+                pool,
+                "{CALL update_user_permission (?, ?, ?, ?)}",
+                (parsed_user_id, test_view, test_view2, View3),
+            )
+
+    return result
+
+
+def ingresar_registro_hoja_de_ruta(
+    pool: ConnectionPool,
+    motivo: Any,
+    detalle: Any,
+    recorrido: Any,
+    fecha_recorrido: Any,
+) -> Dict[str, Any]:
+    if motivo is None or detalle is None or recorrido is None or fecha_recorrido is None:
+        return {"error": "invalid_params", "details": "All fields are required"}
+
+    motivo_value = str(motivo).strip()
+    detalle_value = str(detalle).strip()
+    recorrido_value = str(recorrido).strip()
+    fecha_raw = str(fecha_recorrido).strip()
+
+    if not motivo_value:
+        return {"error": "invalid_params", "details": "motivo is required"}
+    if len(motivo_value) > 15:
+        return {"error": "invalid_params", "details": "motivo must be 15 characters or fewer"}
+
+    if not detalle_value:
+        return {"error": "invalid_params", "details": "detalle is required"}
+    if len(detalle_value) > 100:
+        return {"error": "invalid_params", "details": "detalle must be 100 characters or fewer"}
+
+    if not recorrido_value:
+        return {"error": "invalid_params", "details": "recorrido is required"}
+    if len(recorrido_value) > 4:
+        return {"error": "invalid_params", "details": "recorrido must be 4 characters or fewer"}
+
+    try:
+        if isinstance(fecha_recorrido, datetime):
+            fecha_value: date = fecha_recorrido.date()
+        elif isinstance(fecha_recorrido, date):
+            fecha_value = fecha_recorrido
+        else:
+            fecha_value = datetime.strptime(fecha_raw, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return {
+            "error": "invalid_params",
+            "details": "fecha_recorrido must be a date in YYYY-MM-DD format",
+        }
+
+    fecha_recorrido_value = fecha_value.isoformat()
+    fecha_ingreso_value = datetime.now().date().isoformat()
     return run_procedure(
         pool,
-        "{CALL update_user_permission (?, ?, ?, ?)}",
-        (parsed_user_id, test_view, test_view2, View3),
+        (
+            "EXEC Ingresar_registro_hoja_de_ruta "
+            "@motivo=?, @detalle=?, @recorrido=?, @fecha_recorrido=?, @fecha_ingreso=?"
+        ),
+        (motivo_value, detalle_value, recorrido_value, fecha_recorrido_value, fecha_ingreso_value),
     )
 
 
@@ -611,6 +678,19 @@ def _handle_update_user_permissions(
     return update_user_permissions(pool, user_id, permissions)
 
 
+def _handle_ingresar_registro_hoja_de_ruta(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+) -> Dict[str, Any]:
+    if len(params) != 4:
+        return {
+            "error": "invalid_params",
+            "details": "ingresar_registro_hoja_de_ruta expects motivo, detalle, recorrido and fecha_recorrido",
+        }
+
+    return ingresar_registro_hoja_de_ruta(pool, params[0], params[1], params[2], params[3])
+
+
 def _handle_analyze_upload_image(
     pool: ConnectionPool,
     params: Sequence[Any],
@@ -637,6 +717,7 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "actualizar_nuevo_stock": _handle_actualizar_nuevo_stock,
     "update_user_permissions": _handle_update_user_permissions,
     "analyze_upload_image": _handle_analyze_upload_image,
+    "ingresar_registro_hoja_de_ruta": _handle_ingresar_registro_hoja_de_ruta,
 
 }
 

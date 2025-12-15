@@ -2,8 +2,9 @@ import type { ComponentType } from 'react'
 import TestView from './components/admin/views/TestView'
 import TestView2 from './components/admin/views/TestView2'
 import CobrosTransferenciaView from './components/admin/views/CobrosTransferenciaView'
+import HojaDeRutaView from './components/admin/views/HojaDeRutaView'
 
-export type AdminPageId = 'test' | 'test2' | 'transfer'
+export type AdminPageId = 'test' | 'test2' | 'transfer' | 'hojaRuta'
 
 export type AdminPageDefinition = {
   id: AdminPageId
@@ -20,5 +21,11 @@ export const ADMIN_PAGES: AdminPageDefinition[] = [
     label: 'Cobros por Transferencia',
     permissionKey: 'View3',
     component: CobrosTransferenciaView
+  },
+  {
+    id: 'hojaRuta',
+    label: 'Hoja de Ruta',
+    permissionKey: 'View4',
+    component: HojaDeRutaView
   }
 ]

@@ -1543,6 +1543,126 @@ body {
   font-size: 0.9rem;
 }
 
+.content.hoja-ruta-layout {
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.hoja-ruta-card {
+  flex: 1;
+  margin-top: 30px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px 26px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fafafa;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.hoja-ruta-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hoja-ruta-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.hoja-ruta-subtitle {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.hoja-ruta-form {
+  margin-top: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.hoja-ruta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.hoja-ruta-field input,
+.hoja-ruta-field select,
+.hoja-ruta-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #111827;
+  background: #fff;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.hoja-ruta-field input:focus-visible,
+.hoja-ruta-field select:focus-visible,
+.hoja-ruta-field textarea:focus-visible {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+}
+
+.hoja-ruta-field input:disabled,
+.hoja-ruta-field select:disabled,
+.hoja-ruta-field textarea:disabled {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.hoja-ruta-field--compact {
+  justify-self: start;
+  width: 100%;
+  min-width: 0;
+}
+
+.hoja-ruta-field--date {
+  width: 100%;
+  min-width: 0;
+}
+
+.hoja-ruta-recorrido {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.hoja-ruta-recorrido select {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.hoja-ruta-field textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.hoja-ruta-field--full {
+  grid-column: 1 / -1;
+}
+
 .loan-actions {
   margin-left: 20px;
   padding-left: 20px;
@@ -1609,7 +1729,8 @@ body {
 }
 
 .content.test-view2-layout .sidebar.loan-actions,
-.content.transfer-view-layout .sidebar.loan-actions {
+.content.transfer-view-layout .sidebar.loan-actions,
+.content.hoja-ruta-layout .sidebar.loan-actions {
   width: 210px;
   margin-left: 20px;
   padding: 16px 12px 18px;
@@ -1624,8 +1745,19 @@ body {
   top: 20px;
 }
 
+.content.transfer-view-layout .sidebar.loan-actions,
+.content.hoja-ruta-layout .sidebar.loan-actions {
+  margin-left: 0;
+  margin-top: 30px;
+}
+
+.content.test-view2-layout .sidebar.loan-actions {
+  margin-top: 20px;
+}
+
 .content.test-view2-layout .sidebar.loan-actions .loan-actions__button-group,
-.content.transfer-view-layout .sidebar.loan-actions .loan-actions__button-group {
+.content.transfer-view-layout .sidebar.loan-actions .loan-actions__button-group,
+.content.hoja-ruta-layout .sidebar.loan-actions .loan-actions__button-group {
   align-items: stretch;
   gap: 10px;
   padding-top: 20px;
@@ -1663,7 +1795,8 @@ body {
 .content.test-view2-layout .sidebar.loan-actions .irregularidades-button,
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button,
 .content.transfer-view-layout .sidebar.loan-actions .edit-button,
-.content.transfer-view-layout .sidebar.loan-actions .irregularidades-button {
+.content.transfer-view-layout .sidebar.loan-actions .irregularidades-button,
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button {
   width: 100%;
   align-self: stretch;
   margin: 6px 0;
@@ -1698,7 +1831,8 @@ body {
 .content.test-view2-layout .sidebar.loan-actions .irregularidades-button:hover:not(:disabled),
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button:hover:not(:disabled),
 .content.transfer-view-layout .sidebar.loan-actions .edit-button:hover:not(:disabled),
-.content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:hover:not(:disabled) {
+.content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:hover:not(:disabled),
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:hover:not(:disabled) {
   background: #f4f4f5;
   border-color: rgba(0, 0, 0, 0.45);
   color: #000;
@@ -1712,7 +1846,8 @@ body {
 .content.test-view2-layout .sidebar.loan-actions .irregularidades-button:active:not(:disabled),
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button:active:not(:disabled),
 .content.transfer-view-layout .sidebar.loan-actions .edit-button:active:not(:disabled),
-.content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:active:not(:disabled) {
+.content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:active:not(:disabled),
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:active:not(:disabled) {
   background: #ebebed;
   border-color: rgba(0, 0, 0, 0.5);
   color: #000;
@@ -1726,7 +1861,8 @@ body {
 .content.test-view2-layout .sidebar.loan-actions .irregularidades-button:focus-visible,
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button:focus-visible,
 .content.transfer-view-layout .sidebar.loan-actions .edit-button:focus-visible,
-.content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:focus-visible {
+.content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:focus-visible,
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:focus-visible {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
@@ -1740,7 +1876,8 @@ body {
 .content.test-view2-layout .sidebar.loan-actions .irregularidades-button:disabled,
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button:disabled,
 .content.transfer-view-layout .sidebar.loan-actions .edit-button:disabled,
-.content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:disabled {
+.content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:disabled,
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:disabled {
   background: #fff;
   border-color: #e5e7eb;
   color: #9ca3af;

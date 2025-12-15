@@ -20,6 +20,13 @@ export interface UpdateUserPermissionsPayload {
   permissions: Record<string, boolean>
 }
 
+export interface IngresarHojaDeRutaPayload {
+  motivo: string
+  detalle: string
+  recorrido: string
+  fechaRecorrido: string
+}
+
 export interface ActualizarInfoextraPayload {
   numeroRemito: string | number
   prefijoRemito: string | number
@@ -93,6 +100,7 @@ export interface ElectronAPI {
   updateUserPermissions: (
     payload: UpdateUserPermissionsPayload
   ) => Promise<PythonResult>
+  ingresarRegistroHojaDeRuta: (payload: IngresarHojaDeRutaPayload) => Promise<PythonResult>
   listUploadImages: () => Promise<UploadImagesResult>
   analyzeUploadImage: (filePath: string) => Promise<AnalyzeUploadImageResult>
 }
