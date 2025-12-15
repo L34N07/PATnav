@@ -27,6 +27,41 @@ export interface IngresarHojaDeRutaPayload {
   fechaRecorrido: string
 }
 
+export interface HojaDeRutaPdfPayload {
+  diaRecorrido: string
+}
+
+export interface PdfPreviewResult {
+  base64?: string
+  error?: string
+  details?: string
+}
+
+export interface PrintResult {
+  status?: string
+  error?: string
+  details?: string
+}
+
+export interface SavePdfPayload {
+  base64: string
+  suggestedFileName?: string
+}
+
+export interface SavePdfResult {
+  status?: string
+  filePath?: string
+  error?: string
+  details?: string
+}
+
+export interface OpenPdfResult {
+  status?: string
+  filePath?: string
+  error?: string
+  details?: string
+}
+
 export interface ActualizarInfoextraPayload {
   numeroRemito: string | number
   prefijoRemito: string | number
@@ -101,6 +136,11 @@ export interface ElectronAPI {
     payload: UpdateUserPermissionsPayload
   ) => Promise<PythonResult>
   ingresarRegistroHojaDeRuta: (payload: IngresarHojaDeRutaPayload) => Promise<PythonResult>
+  traer_hoja_de_ruta: () => Promise<PythonResult>
+  previewHojaDeRutaPdf: (payload: HojaDeRutaPdfPayload) => Promise<PdfPreviewResult>
+  printHojaDeRutaPdf: (payload: HojaDeRutaPdfPayload) => Promise<PrintResult>
+  savePdf: (payload: SavePdfPayload) => Promise<SavePdfResult>
+  openPdf: (payload: SavePdfPayload) => Promise<OpenPdfResult>
   listUploadImages: () => Promise<UploadImagesResult>
   analyzeUploadImage: (filePath: string) => Promise<AnalyzeUploadImageResult>
 }

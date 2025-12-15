@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
 const { spawn } = require('child_process')
 const fs = require('fs')
 const http = require('http')
@@ -21,6 +21,308 @@ const ensureUploadsDir = () => {
   if (!fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true })
   }
+}
+
+const RECORRIDO_DAY_ORDER = Object.freeze({ L: 0, M: 1, X: 2, J: 3, V: 4, S: 5 })
+
+const escapeHtml = value =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+
+const normalizeDiaRecorrido = value => String(value ?? '').trim().toUpperCase()
+
+const parseRecorrido = value => {
+  const raw = String(value ?? '').trim().toUpperCase()
+  const match = /^(\d+)\s*([A-Z])$/.exec(raw)
+  if (!match) {
+    return { key: raw, numero: Number.POSITIVE_INFINITY, dia: raw.slice(-1) }
+  }
+
+  return { key: `${match[1]}${match[2]}`, numero: Number(match[1]), dia: match[2] }
+}
+
+const chunkArray = (items, size) => {
+  if (!Array.isArray(items) || size <= 0) {
+    return []
+  }
+
+  const chunks = []
+  for (let idx = 0; idx < items.length; idx += size) {
+    chunks.push(items.slice(idx, idx + size))
+  }
+  return chunks
+}
+
+const pickRowValue = (row, key) => {
+  if (!row || typeof row !== 'object') {
+    return undefined
+  }
+  return row[key] ?? row[key?.toUpperCase?.()] ?? row[key?.toLowerCase?.()]
+}
+
+const sanitizePdfBaseName = value => {
+  const raw = String(value ?? '').replace(/\.pdf$/i, '').trim() || 'documento'
+  const sanitized = raw
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return sanitized.slice(0, 80) || 'documento'
+}
+
+const normalizeHojaDeRutaRow = row => ({
+  motivo: pickRowValue(row, 'Motivo') ?? '',
+  detalle: pickRowValue(row, 'DetallesRecorrido') ?? '',
+  recorrido: pickRowValue(row, 'Recorrido') ?? '',
+  fecha: pickRowValue(row, 'FechasRecorrido') ?? ''
+})
+
+const buildHojaDeRutaSlots = rows => {
+  const grouped = new Map()
+
+  for (const row of rows ?? []) {
+    const normalized = normalizeHojaDeRutaRow(row)
+    const parsed = parseRecorrido(normalized.recorrido)
+    if (!parsed.key) {
+      continue
+    }
+
+    const hasContent = [normalized.motivo, normalized.detalle, normalized.fecha].some(
+      value => String(value ?? '').trim().length > 0
+    )
+    if (!hasContent) {
+      continue
+    }
+
+    const existing = grouped.get(parsed.key) ?? []
+    existing.push({ ...normalized, recorrido: parsed.key })
+    grouped.set(parsed.key, existing)
+  }
+
+  const sortedKeys = [...grouped.keys()].sort((left, right) => {
+    const a = parseRecorrido(left)
+    const b = parseRecorrido(right)
+    if (a.numero !== b.numero) {
+      return a.numero - b.numero
+    }
+    const dayDiff = (RECORRIDO_DAY_ORDER[a.dia] ?? 99) - (RECORRIDO_DAY_ORDER[b.dia] ?? 99)
+    if (dayDiff !== 0) {
+      return dayDiff
+    }
+    return left.localeCompare(right)
+  })
+
+  const slots = []
+  for (const key of sortedKeys) {
+    const groupRows = grouped.get(key) ?? []
+    const chunks = chunkArray(groupRows, 15)
+    chunks.forEach((chunk, index) => {
+      const totalParts = chunks.length
+      const suffix = totalParts > 1 ? ` (${index + 1}/${totalParts})` : ''
+      slots.push({
+        recorrido: key,
+        title: `${key}${suffix}`,
+        rows: chunk
+      })
+    })
+  }
+
+  return slots
+}
+
+const paginateHojaDeRutaSlots = slots => {
+  const remaining = Array.isArray(slots) ? [...slots] : []
+  const pages = []
+
+  while (remaining.length > 0) {
+    const remainingCount = remaining.length
+    const shouldUseFour =
+      remainingCount === 4 || (remainingCount % 3 === 1 && remainingCount > 4)
+    const layout = shouldUseFour ? 4 : 3
+    const take = shouldUseFour ? 4 : 3
+    pages.push({ layout, slots: remaining.splice(0, take) })
+  }
+
+  if (pages.length === 0) {
+    pages.push({ layout: 3, slots: [] })
+  }
+
+  return pages
+}
+
+const buildHojaDeRutaHtml = ({ pages }) => {
+  const renderSlot = slot => {
+    const title = escapeHtml(slot?.title ?? '')
+    const rows = Array.isArray(slot?.rows)
+      ? slot.rows.filter(row =>
+          [row?.motivo, row?.detalle, row?.fecha].some(
+            value => String(value ?? '').trim().length > 0
+          )
+        )
+      : []
+
+    const rowMarkup = rows
+      .map(
+        row => `
+          <tr>
+            <td class="cell cell--motivo">${escapeHtml(row.motivo ?? '')}</td>
+            <td class="cell cell--detalle">${escapeHtml(row.detalle ?? '')}</td>
+            <td class="cell cell--fecha">${escapeHtml(row.fecha ?? '')}</td>
+          </tr>
+        `
+      )
+      .join('')
+
+    return `
+      <section class="slot">
+        <header class="slot__header">
+          <div class="slot__title">Recorrido ${title}</div>
+        </header>
+        <table class="slot__table" aria-label="Hoja de ruta ${title}">
+          <colgroup>
+            <col class="col-motivo" />
+            <col class="col-detalle" />
+            <col class="col-fecha" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Motivo</th>
+              <th>Detalles</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowMarkup}
+          </tbody>
+        </table>
+      </section>
+    `
+  }
+
+  const renderPage = (page, index) => {
+    const layout = page.layout === 4 ? 4 : 3
+    const slots = Array.isArray(page.slots) ? page.slots : []
+
+    const slotMarkup = slots.map(slot => renderSlot(slot)).join('')
+
+    return `
+      <section class="page page--${layout}">
+        <div class="page__grid page__grid--${layout}">
+          ${
+            slotMarkup
+              ? slotMarkup
+              : '<div class="page__empty">Sin registros para este día.</div>'
+          }
+        </div>
+      </section>
+    `
+  }
+
+  const pageMarkup = pages.map((page, index) => renderPage(page, index)).join('')
+
+  return `<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hoja de Ruta</title>
+    <style>
+      @page { size: A4; margin: 10mm; }
+      html, body { margin: 0; padding: 0; background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; }
+      * { box-sizing: border-box; }
+
+      .page {
+        break-after: page;
+        min-height: calc(297mm - 20mm);
+      }
+      .page:last-child { break-after: auto; }
+
+      .page__grid {
+        display: grid;
+        gap: 3mm;
+        min-height: 0;
+        height: 100%;
+      }
+      .page__grid--3 { grid-template-rows: repeat(3, minmax(0, 1fr)); }
+      .page__grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+
+      .page__empty {
+        font-size: 12pt;
+        color: #444;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px dashed #666;
+        border-radius: 2mm;
+        padding: 6mm;
+      }
+
+      .slot {
+        border: 1px solid #111;
+        border-radius: 2mm;
+        padding: 2.5mm;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5mm;
+        min-height: 0;
+      }
+      .slot__header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .slot__title {
+        font-size: 10pt;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .slot__table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 8pt;
+      }
+      .slot__table th, .slot__table td {
+        border: 1px solid #111;
+        padding: 0.8mm 1.2mm;
+        vertical-align: middle;
+      }
+      .slot__table th {
+        background: #f3f4f6;
+        font-weight: 700;
+        text-align: left;
+      }
+      .slot__table thead tr { height: 4.8mm; }
+      .slot__table tbody tr { height: 4.8mm; }
+
+      .cell {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .col-motivo { width: 22%; }
+      .col-detalle { width: 58%; }
+      .col-fecha { width: 20%; }
+
+      .page--4 .slot__table { font-size: 7.6pt; }
+      .page--4 .slot__title { font-size: 9.4pt; }
+      .page--4 .col-motivo { width: 26%; }
+      .page--4 .col-detalle { width: 54%; }
+      .page--4 .col-fecha { width: 20%; }
+    </style>
+  </head>
+  <body>
+    ${pageMarkup}
+  </body>
+</html>`
 }
 
 // Polls the renderer dev server until it responds so Electron can load it without failing.
@@ -315,6 +617,186 @@ const createWindow = async () => {
   return win
 }
 
+const loadHtmlInWindow = async (win, html) => {
+  const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
+  await win.loadURL(dataUrl)
+}
+
+const fetchHojaDeRutaRowsForDia = async diaRecorrido => {
+  const diaValue = normalizeDiaRecorrido(diaRecorrido)
+  const allowed = new Set(['L', 'M', 'X', 'J', 'V', 'S'])
+  if (!allowed.has(diaValue)) {
+    return {
+      error: 'invalid_params',
+      details: 'diaRecorrido must be one of L, M, X, J, V, S'
+    }
+  }
+
+  const result = await getPythonBridge().call('traer_hoja_de_ruta_por_dia', [diaValue])
+  if (result?.error) {
+    return result
+  }
+  return { rows: Array.isArray(result?.rows) ? result.rows : [] }
+}
+
+const buildHojaDeRutaHtmlForDia = async diaRecorrido => {
+  const fetchResult = await fetchHojaDeRutaRowsForDia(diaRecorrido)
+  if (fetchResult?.error) {
+    return fetchResult
+  }
+
+  const slots = buildHojaDeRutaSlots(fetchResult.rows ?? [])
+  const pages = paginateHojaDeRutaSlots(slots)
+  const html = buildHojaDeRutaHtml({ pages })
+  return { html }
+}
+
+ipcMain.handle('pdf:preview_hoja_de_ruta', async (_event, payload) => {
+  try {
+    const diaRecorrido = payload?.diaRecorrido
+    const htmlResult = await buildHojaDeRutaHtmlForDia(diaRecorrido)
+    if (htmlResult?.error) {
+      return htmlResult
+    }
+
+    const pdfWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    })
+
+    try {
+      await loadHtmlInWindow(pdfWindow, htmlResult.html)
+      const buffer = await pdfWindow.webContents.printToPDF({
+        printBackground: true,
+        pageSize: 'A4',
+        preferCSSPageSize: true
+      })
+      return { base64: buffer.toString('base64') }
+    } finally {
+      pdfWindow.destroy()
+    }
+  } catch (error) {
+    console.error('Failed to generate Hoja de Ruta PDF preview:', error)
+    return {
+      error: 'pdf_generation_failed',
+      details: error instanceof Error ? error.message : 'No se pudo generar el PDF.'
+    }
+  }
+})
+
+ipcMain.handle('pdf:print_hoja_de_ruta', async (_event, payload) => {
+  try {
+    const diaRecorrido = payload?.diaRecorrido
+    const htmlResult = await buildHojaDeRutaHtmlForDia(diaRecorrido)
+    if (htmlResult?.error) {
+      return htmlResult
+    }
+
+    const printWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    })
+
+    try {
+      await loadHtmlInWindow(printWindow, htmlResult.html)
+      const printResult = await new Promise(resolve => {
+        printWindow.webContents.print({ silent: false, printBackground: true }, (success, reason) => {
+          resolve({ success, reason })
+        })
+      })
+      if (!printResult.success) {
+        return {
+          error: 'print_failed',
+          details: printResult.reason || 'No se pudo imprimir el documento.'
+        }
+      }
+      return { status: 'ok' }
+    } finally {
+      printWindow.destroy()
+    }
+  } catch (error) {
+    console.error('Failed to print Hoja de Ruta:', error)
+    return {
+      error: 'print_failed',
+      details: error instanceof Error ? error.message : 'No se pudo imprimir el documento.'
+    }
+  }
+})
+
+ipcMain.handle('pdf:save_pdf', async (_event, payload) => {
+  try {
+    const base64 = typeof payload?.base64 === 'string' ? payload.base64 : ''
+    if (!base64) {
+      return { error: 'invalid_params', details: 'base64 is required' }
+    }
+
+    const suggestedFileName =
+      typeof payload?.suggestedFileName === 'string' && payload.suggestedFileName.trim()
+        ? payload.suggestedFileName.trim()
+        : 'documento.pdf'
+
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Guardar PDF',
+      defaultPath: suggestedFileName,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+
+    if (canceled || !filePath) {
+      return { status: 'canceled' }
+    }
+
+    const buffer = Buffer.from(base64, 'base64')
+    await fs.promises.writeFile(filePath, buffer)
+    return { status: 'ok', filePath }
+  } catch (error) {
+    console.error('Failed to save PDF:', error)
+    return {
+      error: 'save_failed',
+      details: error instanceof Error ? error.message : 'No se pudo guardar el PDF.'
+    }
+  }
+})
+
+ipcMain.handle('pdf:open_pdf', async (_event, payload) => {
+  try {
+    const base64 = typeof payload?.base64 === 'string' ? payload.base64 : ''
+    if (!base64) {
+      return { error: 'invalid_params', details: 'base64 is required' }
+    }
+
+    const suggestedFileName =
+      typeof payload?.suggestedFileName === 'string' && payload.suggestedFileName.trim()
+        ? payload.suggestedFileName.trim()
+        : 'documento.pdf'
+
+    const baseName = sanitizePdfBaseName(suggestedFileName)
+    const fileName = `${baseName}_${Date.now()}.pdf`
+    const filePath = path.join(app.getPath('temp'), fileName)
+
+    const buffer = Buffer.from(base64, 'base64')
+    await fs.promises.writeFile(filePath, buffer)
+
+    const openResult = await shell.openPath(filePath)
+    if (openResult) {
+      return { error: 'open_failed', details: openResult }
+    }
+
+    return { status: 'ok', filePath }
+  } catch (error) {
+    console.error('Failed to open PDF:', error)
+    return {
+      error: 'open_failed',
+      details: error instanceof Error ? error.message : 'No se pudo abrir el PDF.'
+    }
+  }
+})
+
 ipcMain.handle('uploads:list_images', async () => {
   try {
     ensureUploadsDir()
@@ -440,6 +922,8 @@ registerPythonHandler(
     ]
   }
 )
+
+registerPythonHandler('python:traer_hoja_de_ruta', 'traer_hoja_de_ruta')
 
 registerPythonHandler('python:analyze_upload_image', 'analyze_upload_image', {
   validate: payload => {

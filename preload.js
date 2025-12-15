@@ -18,6 +18,11 @@ const electronAPI = Object.freeze({
   updateUserPermissions: payload => ipcRenderer.invoke('python:update_user_permissions', payload),
   ingresarRegistroHojaDeRuta: payload =>
     ipcRenderer.invoke('python:ingresar_registro_hoja_de_ruta', payload),
+  traer_hoja_de_ruta: () => ipcRenderer.invoke('python:traer_hoja_de_ruta'),
+  previewHojaDeRutaPdf: payload => ipcRenderer.invoke('pdf:preview_hoja_de_ruta', payload),
+  printHojaDeRutaPdf: payload => ipcRenderer.invoke('pdf:print_hoja_de_ruta', payload),
+  savePdf: payload => ipcRenderer.invoke('pdf:save_pdf', payload),
+  openPdf: payload => ipcRenderer.invoke('pdf:open_pdf', payload),
   listUploadImages: () => ipcRenderer.invoke('uploads:list_images'),
   analyzeUploadImage: filePath => ipcRenderer.invoke('python:analyze_upload_image', { filePath })
 })
