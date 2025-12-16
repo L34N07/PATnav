@@ -1,6 +1,6 @@
 import React from "react"
 
-type NotificationTone = "success" | "error"
+type NotificationTone = "success" | "error" | "info"
 
 type NotificationToastProps = {
   children: React.ReactNode

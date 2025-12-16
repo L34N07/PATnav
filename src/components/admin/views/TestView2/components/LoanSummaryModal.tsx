@@ -116,16 +116,13 @@ const LoanSummaryModal: React.FC<LoanSummaryModalProps> = ({
           .reduce((sum, item) => sum + item.cantidad, 0)
 
         const baseMovement = group.find(item => item.cantidad > 0) ?? group[0]
-        const hasPositive = positiveTotal > 0
-        const hasNegative = negativeTotal < 0
-        const cantidadDisplay =
-          hasPositive && hasNegative
-            ? `${positiveTotal} x ${Math.abs(negativeTotal)} = ${totalCantidad}`
-            : undefined
+        const isSingleSided = positiveTotal === 0 || negativeTotal === 0
+        const displayTotal = isSingleSided ? -totalCantidad : totalCantidad
+        const cantidadDisplay = `${positiveTotal} x ${Math.abs(negativeTotal)} = ${displayTotal}`
 
         aggregatedMovements.push({
           ...baseMovement,
-          cantidad: totalCantidad,
+          cantidad: displayTotal,
           ...(cantidadDisplay ? { cantidadDisplay } : {})
         })
         return

@@ -3,7 +3,7 @@ import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
 import { usePagination } from "../../../hooks/usePagination"
 import StatusToasts from "../../StatusToasts"
 import DataTable from "../DataTable"
-import { type DataRow, pickRowValue } from "../dataModel"
+import { type DataRow, pickRowValue, toDisplayValue } from "../dataModel"
 
 const MAX_MOTIVO = 15
 const MAX_DETALLE = 100
@@ -13,6 +13,59 @@ const SUCCESS_MESSAGE_DURATION_MS = 2000
 const ERROR_MESSAGE_DURATION_MS = 2600
 
 const toTrimmed = (value: string) => value.trim()
+const normalizeText = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+
+const MONTH_ABBREVIATIONS_ES: Record<number, string> = {
+  1: "ENE",
+  2: "FEB",
+  3: "MAR",
+  4: "ABR",
+  5: "MAY",
+  6: "JUN",
+  7: "JUL",
+  8: "AGO",
+  9: "SEP",
+  10: "OCT",
+  11: "NOV",
+  12: "DIC"
+}
+
+const formatFechaForTable = (value: string) => {
+  const raw = value.trim()
+  if (!raw) {
+    return ""
+  }
+
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw)
+  if (isoMatch) {
+    const year = isoMatch[1]
+    const monthNumber = Number(isoMatch[2])
+    const day = isoMatch[3]
+    const monthLabel = MONTH_ABBREVIATIONS_ES[monthNumber] ?? isoMatch[2]
+    return `${day}/${monthLabel}/${year}`
+  }
+
+  const slashMatch = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(raw)
+  if (slashMatch) {
+    const part1 = Number(slashMatch[1])
+    const part2 = Number(slashMatch[2])
+    const year = slashMatch[3]
+
+    const treatAsMonthFirst = part1 <= 12 && part2 > 12
+    const dayNumber = treatAsMonthFirst ? part2 : part1
+    const monthNumber = treatAsMonthFirst ? part1 : part2
+
+    const day = String(dayNumber).padStart(2, "0")
+    const monthLabel = MONTH_ABBREVIATIONS_ES[monthNumber] ?? String(monthNumber).padStart(2, "0")
+    return `${day}/${monthLabel}/${year}`
+  }
+
+  return raw
+}
 
 const MOTIVO_OPTIONS = [
   "Agua",
@@ -31,9 +84,9 @@ const RECORRIDO_DIA_OPTIONS = ["L", "M", "X", "J", "V", "S"] as const
 
 const HOJA_RUTA_TABLE_COLUMNS = [
   "Motivo",
-  "DetallesRecorrido",
+  "Detalles",
   "Recorrido",
-  "FechasRecorrido"
+  "Fecha"
 ] as const
 
 const HOJA_RUTA_TABLE_DEFAULT_WIDTHS = [140, 560, 120, 160] as const
@@ -71,8 +124,8 @@ const compareHojaDeRutaRows = (left: DataRow, right: DataRow) => {
     return dayDiff
   }
 
-  const aFecha = String(left["FechasRecorrido"] ?? "")
-  const bFecha = String(right["FechasRecorrido"] ?? "")
+  const aFecha = String(left["Fecha"] ?? left["FechasRecorrido"] ?? "")
+  const bFecha = String(right["Fecha"] ?? right["FechasRecorrido"] ?? "")
   if (aFecha !== bFecha) {
     return aFecha.localeCompare(bFecha)
   }
@@ -103,6 +156,7 @@ export default function HojaDeRutaView() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [hojaRutaRows, setHojaRutaRows] = useState<DataRow[]>([])
+  const [hojaRutaSearch, setHojaRutaSearch] = useState("")
   const [hojaRutaColumnWidths, setHojaRutaColumnWidths] = useState<number[]>([
     ...HOJA_RUTA_TABLE_DEFAULT_WIDTHS
   ])
@@ -152,6 +206,19 @@ export default function HojaDeRutaView() {
     setPdfPreviewDia(null)
   }, [])
 
+  const filteredHojaRutaRows = useMemo(() => {
+    const query = normalizeText(hojaRutaSearch.trim())
+    if (!query) {
+      return hojaRutaRows
+    }
+
+    return hojaRutaRows.filter(row =>
+      HOJA_RUTA_TABLE_COLUMNS.some(column =>
+        normalizeText(toDisplayValue(row[column])).includes(query)
+      )
+    )
+  }, [hojaRutaRows, hojaRutaSearch])
+
   const {
     currentPage: hojaRutaCurrentPage,
     pageCount: hojaRutaPageCount,
@@ -159,7 +226,12 @@ export default function HojaDeRutaView() {
     goToPage: goToHojaRutaPage,
     resetPage: resetHojaRutaPage,
     itemCount: hojaRutaRowCount
-  } = usePagination(hojaRutaRows, HOJA_RUTA_ITEMS_PER_PAGE)
+  } = usePagination(filteredHojaRutaRows, HOJA_RUTA_ITEMS_PER_PAGE)
+
+  useEffect(() => {
+    resetHojaRutaPage()
+    setSelectedHojaRutaRowIndex(null)
+  }, [hojaRutaSearch, resetHojaRutaPage])
 
   const handleHojaRutaColumnResize = useCallback((index: number, width: number) => {
     setHojaRutaColumnWidths(prev => {
@@ -173,7 +245,7 @@ export default function HojaDeRutaView() {
     setSelectedHojaRutaRowIndex(index)
   }, [])
 
-  const reloadHojaRutaTable = useCallback(async () => {
+  const reloadHojaRutaTable = useCallback(async (options?: { showConfirmation?: boolean; ensureEnvases?: boolean }) => {
     if (!electronAPI?.traer_hoja_de_ruta) {
       setHojaRutaTableError("Servicio de Hoja de Ruta no disponible.")
       return
@@ -182,6 +254,16 @@ export default function HojaDeRutaView() {
     setIsLoadingHojaRuta(true)
     setHojaRutaTableError(null)
     try {
+      if (options?.ensureEnvases !== false) {
+        if (!electronAPI?.insertarEnvasesEnHojaDeRuta) {
+          throw new Error("Servicio de envases no disponible.")
+        }
+        const insertResult = await electronAPI.insertarEnvasesEnHojaDeRuta()
+        if (insertResult?.error) {
+          throw new Error(insertResult.details || insertResult.error)
+        }
+      }
+
       const result = await electronAPI.traer_hoja_de_ruta()
       if (result?.error) {
         throw new Error(result.details || result.error)
@@ -191,6 +273,17 @@ export default function HojaDeRutaView() {
         const record = row as DataRow
         const mapped: DataRow = {}
         HOJA_RUTA_TABLE_COLUMNS.forEach(column => {
+          if (column === "Detalles") {
+            const rawDetalles =
+              pickRowValue(record, column) || pickRowValue(record, "DetallesRecorrido")
+            mapped[column] = rawDetalles
+            return
+          }
+          if (column === "Fecha") {
+            const rawFecha = pickRowValue(record, column) || pickRowValue(record, "FechasRecorrido")
+            mapped[column] = formatFechaForTable(rawFecha)
+            return
+          }
           mapped[column] = pickRowValue(record, column)
         })
         return mapped
@@ -201,6 +294,9 @@ export default function HojaDeRutaView() {
       setHojaRutaRows(fetchedRows)
       setSelectedHojaRutaRowIndex(null)
       resetHojaRutaPage()
+      if (options?.showConfirmation) {
+        setStatusMessage("Registros actualizados.")
+      }
     } catch (error) {
       console.error("No se pudo cargar la Hoja de Ruta:", error)
       setHojaRutaRows([])
@@ -215,6 +311,20 @@ export default function HojaDeRutaView() {
 
   useEffect(() => {
     reloadHojaRutaTable()
+  }, [reloadHojaRutaTable])
+
+  useEffect(() => {
+    const handleActivePageChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ pageId: unknown }>
+      if (customEvent.detail?.pageId === "hojaRuta") {
+        reloadHojaRutaTable({ showConfirmation: true })
+      }
+    }
+
+    window.addEventListener("app:active-page-change", handleActivePageChange)
+    return () => {
+      window.removeEventListener("app:active-page-change", handleActivePageChange)
+    }
   }, [reloadHojaRutaTable])
 
   const handleSubmit = useCallback(
@@ -389,7 +499,11 @@ export default function HojaDeRutaView() {
 
   return (
     <>
-      <StatusToasts statusMessage={statusMessage} errorMessage={errorMessage} />
+      <StatusToasts
+        statusMessage={statusMessage}
+        infoMessage={isLoadingHojaRuta ? "Procesando..." : null}
+        errorMessage={errorMessage}
+      />
       <div className="content hoja-ruta-layout">
         <div className="hoja-ruta-main-column">
           <section className="hoja-ruta-card">
@@ -417,11 +531,10 @@ export default function HojaDeRutaView() {
                 </select>
               </label>
 
-              <div className="hoja-ruta-field hoja-ruta-field--compact">
-                Recorrido
-                <div className="hoja-ruta-recorrido">
+              <div className="hoja-ruta-field-group">
+                <label className="hoja-ruta-field hoja-ruta-field--compact">
+                  Zona
                   <select
-                    aria-label="Recorrido numero"
                     value={recorridoNumero}
                     onChange={event => setRecorridoNumero(event.target.value)}
                     required
@@ -436,8 +549,10 @@ export default function HojaDeRutaView() {
                       </option>
                     ))}
                   </select>
+                </label>
+                <label className="hoja-ruta-field hoja-ruta-field--compact">
+                  Recorrido
                   <select
-                    aria-label="Recorrido dia"
                     value={recorridoDia}
                     onChange={event => setRecorridoDia(event.target.value)}
                     required
@@ -452,7 +567,7 @@ export default function HojaDeRutaView() {
                       </option>
                     ))}
                   </select>
-                </div>
+                </label>
               </div>
 
               <label className="hoja-ruta-field hoja-ruta-field--compact hoja-ruta-field--date">
@@ -482,7 +597,40 @@ export default function HojaDeRutaView() {
           <section className="hoja-ruta-history-card">
             <header className="hoja-ruta-header">
               <h3 className="hoja-ruta-title">Registros</h3>
-              <p className="hoja-ruta-subtitle">Listado completo de Hoja de Ruta</p>
+              <div className="hoja-ruta-search" role="search">
+                <input
+                  className="hoja-ruta-search__input"
+                  type="search"
+                  value={hojaRutaSearch}
+                  onChange={event => setHojaRutaSearch(event.target.value)}
+                  placeholder="Buscar por motivo, detalle, recorrido o fecha..."
+                  aria-label="Buscar registros de hoja de ruta"
+                />
+                <svg
+                  className="hoja-ruta-search__icon"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M10.5 18.5C14.9183 18.5 18.5 14.9183 18.5 10.5C18.5 6.08172 14.9183 2.5 10.5 2.5C6.08172 2.5 2.5 6.08172 2.5 10.5C2.5 14.9183 6.08172 18.5 10.5 18.5Z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M21.5 21.5L16.85 16.85"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
             </header>
             <DataTable
               columns={[...HOJA_RUTA_TABLE_COLUMNS]}
@@ -498,7 +646,12 @@ export default function HojaDeRutaView() {
               totalPages={hojaRutaPageCount}
               rowCount={hojaRutaRowCount}
               onPageChange={goToHojaRutaPage}
-              emptyMessage="No hay registros de hoja de ruta para mostrar."
+              emptyMessage={
+                hojaRutaSearch.trim().length > 0
+                  ? "No hay registros que coincidan con la busqueda."
+                  : "No hay registros de hoja de ruta para mostrar."
+              }
+              fitColumnsToContainer
             />
           </section>
         </div>
@@ -512,7 +665,7 @@ export default function HojaDeRutaView() {
               form="hoja-ruta-form"
               disabled={!isFormValid || isSaving}
             >
-              {isSaving ? "Guardando..." : "Guardar"}
+              {isSaving ? "Agregando..." : "Agregar"}
             </button>
             <button
               className="fetch-button"

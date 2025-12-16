@@ -1,4 +1,4 @@
-import React, { ComponentType, ReactNode } from "react"
+import React, { ComponentType, ReactNode, useCallback, useEffect, useState } from "react"
 import TopBar from "./TopBar"
 
 export type HomeShellPage<PageId extends string = string> = {
@@ -26,10 +26,30 @@ export default function HomeShell<PageId extends string>({
   wrapContent,
   emptyState
 }: HomeShellProps<PageId>) {
+  const [activePageRevision, setActivePageRevision] = useState(0)
+
   const activePage = activePageId
     ? [...leftPages, ...rightPages].find(page => page.id === activePageId) ?? null
     : null
   const ActiveComponent = activePage?.component
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("app:active-page-change", {
+        detail: { pageId: activePageId }
+      })
+    )
+  }, [activePageId])
+
+  const handlePageSelect = useCallback(
+    (pageId: PageId) => {
+      if (pageId === activePageId) {
+        setActivePageRevision(prev => prev + 1)
+      }
+      onSelectPage(pageId)
+    },
+    [activePageId, onSelectPage]
+  )
 
   const renderMenuButtons = (pages: HomeShellPage<PageId>[]) =>
     pages.map(page => (
@@ -37,7 +57,7 @@ export default function HomeShell<PageId extends string>({
         key={page.id}
         type="button"
         className={`admin-menu-button${activePageId === page.id ? " active" : ""}`}
-        onClick={() => onSelectPage(page.id)}
+        onClick={() => handlePageSelect(page.id)}
       >
         {page.label}
       </button>
@@ -46,8 +66,8 @@ export default function HomeShell<PageId extends string>({
   const content =
     ActiveComponent && activePage
       ? wrapContent
-        ? wrapContent(<ActiveComponent />, activePage)
-        : <ActiveComponent />
+        ? wrapContent(<ActiveComponent key={`${activePage.id}-${activePageRevision}`} />, activePage)
+        : <ActiveComponent key={`${activePage.id}-${activePageRevision}`} />
       : null
 
   const body = content ?? emptyState ?? null

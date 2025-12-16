@@ -48,7 +48,7 @@ try:
 except ImportError:
     pytesseract = None  # type: ignore
 
-SERVER = '192.168.100.2,1433'
+SERVER = '192.168.100.138,1433'
 
 DATABASE = 'NAVIERA'
 
@@ -428,6 +428,9 @@ def traer_hoja_de_ruta_por_dia(
 def traer_hoja_de_ruta(pool: ConnectionPool) -> Dict[str, Any]:
     return execute_procedure(pool, "EXEC traer_hoja_de_ruta")
 
+def insertar_envases_en_hoja_de_ruta(pool: ConnectionPool) -> Dict[str, Any]:
+    return run_procedure(pool, "EXEC InsertarEnvasesEnHojaDeRuta")
+
 
 def _clean_holder_value(value: str) -> str:
     cleaned = re.sub(r"^[^\w]+", "", value).strip()
@@ -742,6 +745,17 @@ def _handle_traer_hoja_de_ruta(
 
     return traer_hoja_de_ruta(pool)
 
+def _handle_insertar_envases_en_hoja_de_ruta(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+) -> Dict[str, Any]:
+    if len(params) != 0:
+        return {
+            "error": "invalid_params",
+            "details": "insertar_envases_en_hoja_de_ruta does not accept parameters",
+        }
+    return insertar_envases_en_hoja_de_ruta(pool)
+
 
 def _handle_analyze_upload_image(
     pool: ConnectionPool,
@@ -772,6 +786,7 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "ingresar_registro_hoja_de_ruta": _handle_ingresar_registro_hoja_de_ruta,
     "traer_hoja_de_ruta_por_dia": _handle_traer_hoja_de_ruta_por_dia,
     "traer_hoja_de_ruta": _handle_traer_hoja_de_ruta,
+    "insertar_envases_en_hoja_de_ruta": _handle_insertar_envases_en_hoja_de_ruta,
 
 }
 

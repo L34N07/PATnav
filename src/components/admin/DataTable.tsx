@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { DataRow, toDisplayValue } from './dataModel'
 
 type DataTableProps = {
@@ -17,6 +17,7 @@ type DataTableProps = {
   onPageChange: (page: number) => void
   valueFormatter?: (value: unknown) => string
   emptyMessage?: string
+  fitColumnsToContainer?: boolean
 }
 
 const MIN_COLUMN_WIDTH = 50
@@ -36,17 +37,94 @@ export default function DataTable({
   rowCount,
   onPageChange,
   valueFormatter = toDisplayValue,
-  emptyMessage = "No hay resultados para mostrar."
+  emptyMessage = "No hay resultados para mostrar.",
+  fitColumnsToContainer = false
 }: DataTableProps) {
   const columnCount = Math.max(columns.length, 1)
   const hasRows = rows.length > 0
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const rowRefs = useRef<Array<HTMLTableRowElement | null>>([])
+  const [availableWidth, setAvailableWidth] = useState<number | null>(null)
+
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) {
+      return
+    }
+
+    const updateWidth = () => {
+      const computed = window.getComputedStyle(container)
+      const paddingLeft = Number.parseFloat(computed.paddingLeft || '0') || 0
+      const paddingRight = Number.parseFloat(computed.paddingRight || '0') || 0
+      const inner = Math.max(0, container.clientWidth - paddingLeft - paddingRight)
+      setAvailableWidth(inner)
+    }
+
+    updateWidth()
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => updateWidth())
+      observer.observe(container)
+      return () => observer.disconnect()
+    }
+
+    window.addEventListener('resize', updateWidth)
+    return () => window.removeEventListener('resize', updateWidth)
+  }, [])
+
+  const effectiveColumnWidths = useMemo(() => {
+    const rawWidths = columns.map((_, index) => columnWidths[index] ?? MIN_COLUMN_WIDTH)
+
+    if (!fitColumnsToContainer || !availableWidth || availableWidth <= 0) {
+      return rawWidths
+    }
+
+    const available = Math.max(0, Math.floor(availableWidth))
+    const minTotal = MIN_COLUMN_WIDTH * rawWidths.length
+    if (available <= minTotal) {
+      return rawWidths.map(() => MIN_COLUMN_WIDTH)
+    }
+
+    const total = rawWidths.reduce((sum, width) => sum + width, 0)
+    if (total <= available) {
+      return rawWidths
+    }
+
+    const ratio = available / total
+    const scaled = rawWidths.map(width => Math.max(MIN_COLUMN_WIDTH, Math.floor(width * ratio)))
+
+    let scaledTotal = scaled.reduce((sum, width) => sum + width, 0)
+    let overflow = scaledTotal - available
+    if (overflow <= 0) {
+      return scaled
+    }
+
+    const adjustableIndexes = scaled
+      .map((width, index) => ({ width, index }))
+      .sort((a, b) => b.width - a.width)
+      .map(item => item.index)
+
+    for (const index of adjustableIndexes) {
+      if (overflow <= 0) {
+        break
+      }
+      const currentWidth = scaled[index]
+      const maxReduction = currentWidth - MIN_COLUMN_WIDTH
+      if (maxReduction <= 0) {
+        continue
+      }
+      const reduction = Math.min(overflow, maxReduction)
+      scaled[index] = currentWidth - reduction
+      overflow -= reduction
+    }
+
+    return scaled
+  }, [columns, columnWidths, availableWidth, fitColumnsToContainer])
 
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>, index: number) => {
     event.preventDefault()
     const startX = event.clientX
-    const startWidth = columnWidths[index] ?? MIN_COLUMN_WIDTH
+    const startWidth = effectiveColumnWidths[index] ?? MIN_COLUMN_WIDTH
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const delta = moveEvent.clientX - startX
@@ -135,12 +213,15 @@ export default function DataTable({
         </div>
       )}
       <div className="client-table-scroll" ref={scrollContainerRef}>
-        {isLoading && <div className="table-status loading">Procesando...</div>}
         <table className="client-table">
           <thead className="client-table__head">
             <tr>
               {columns.map((column, index) => (
-                <th key={column} className="client-table__header-cell" style={{ width: columnWidths[index] }}>
+                <th
+                  key={column}
+                  className="client-table__header-cell"
+                  style={{ width: effectiveColumnWidths[index] ?? MIN_COLUMN_WIDTH }}
+                >
                   <span className="client-table__header-text">{column}</span>
                   <div
                     className="resizer client-table__resizer"
@@ -167,7 +248,7 @@ export default function DataTable({
                       <td
                         key={column}
                         className="client-table__cell"
-                        style={{ width: columnWidths[colIndex] }}
+                        style={{ width: effectiveColumnWidths[colIndex] ?? MIN_COLUMN_WIDTH }}
                       >
                         {valueFormatter(row[column])}
                       </td>

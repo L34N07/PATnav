@@ -282,7 +282,11 @@ export default function TestView() {
 
   return (
     <>
-      <StatusToasts statusMessage={statusMessage} errorMessage={errorMessage} />
+      <StatusToasts
+        statusMessage={statusMessage}
+        infoMessage={isLoading ? "Procesando..." : null}
+        errorMessage={errorMessage}
+      />
       <div className="content test-view-layout">
         <AdminSidebar
           searchQuery={searchQuery}

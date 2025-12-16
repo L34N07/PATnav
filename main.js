@@ -179,7 +179,7 @@ const buildHojaDeRutaHtml = ({ pages }) => {
     return `
       <section class="slot">
         <header class="slot__header">
-          <div class="slot__title">Recorrido ${title}</div>
+          <div class="slot__title">ZONA ${title}</div>
         </header>
         <table class="slot__table" aria-label="Hoja de ruta ${title}">
           <colgroup>
@@ -230,13 +230,24 @@ const buildHojaDeRutaHtml = ({ pages }) => {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Hoja de Ruta</title>
     <style>
-      @page { size: A4; margin: 10mm; }
+      :root {
+        --page-width: 210mm;
+        --page-height: 297mm;
+        --page-margin: 10mm;
+        --content-width: calc(var(--page-width) - (var(--page-margin) * 2));
+        --content-height: calc(var(--page-height) - (var(--page-margin) * 2));
+      }
+
+      @page { size: A4; margin: var(--page-margin); }
       html, body { margin: 0; padding: 0; background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; }
       * { box-sizing: border-box; }
 
+      body { width: var(--content-width); }
+
       .page {
         break-after: page;
-        min-height: calc(297mm - 20mm);
+        width: var(--content-width);
+        min-height: var(--content-height);
       }
       .page:last-child { break-after: auto; }
 
@@ -245,6 +256,7 @@ const buildHojaDeRutaHtml = ({ pages }) => {
         gap: 3mm;
         min-height: 0;
         height: 100%;
+        width: 100%;
       }
       .page__grid--3 { grid-template-rows: repeat(3, minmax(0, 1fr)); }
       .page__grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
@@ -261,30 +273,36 @@ const buildHojaDeRutaHtml = ({ pages }) => {
       }
 
       .slot {
-        border: 1px solid #111;
-        border-radius: 2mm;
-        padding: 2.5mm;
+        border: none;
+        border-radius: 0;
+        padding: 0;
         display: flex;
         flex-direction: column;
         gap: 1.5mm;
+        min-width: 0;
         min-height: 0;
+        overflow: hidden;
       }
       .slot__header {
         display: flex;
         align-items: baseline;
         justify-content: space-between;
         gap: 8px;
+        min-width: 0;
       }
       .slot__title {
         font-size: 10pt;
         font-weight: 700;
         white-space: nowrap;
+        min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
       }
 
       .slot__table {
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
         border-collapse: collapse;
         table-layout: fixed;
         font-size: 8pt;
@@ -295,10 +313,11 @@ const buildHojaDeRutaHtml = ({ pages }) => {
         vertical-align: middle;
       }
       .slot__table th {
-        background: #f3f4f6;
+        background: #f5f5f5;
         font-weight: 700;
         text-align: left;
       }
+      .slot__table th, .slot__table td { max-width: 0; }
       .slot__table thead tr { height: 4.8mm; }
       .slot__table tbody tr { height: 4.8mm; }
 
@@ -900,6 +919,11 @@ registerPythonHandler('python:actualizar_nuevo_stock', 'actualizar_nuevo_stock',
 registerPythonHandler('python:update_user_permissions', 'update_user_permissions', {
   mapPayload: payload => [payload.userId, payload.permissions]
 })
+
+registerPythonHandler(
+  'python:insertar_envases_en_hoja_de_ruta',
+  'insertar_envases_en_hoja_de_ruta'
+)
 
 registerPythonHandler(
   'python:ingresar_registro_hoja_de_ruta',

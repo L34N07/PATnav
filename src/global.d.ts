@@ -135,6 +135,7 @@ export interface ElectronAPI {
   updateUserPermissions: (
     payload: UpdateUserPermissionsPayload
   ) => Promise<PythonResult>
+  insertarEnvasesEnHojaDeRuta: () => Promise<PythonResult>
   ingresarRegistroHojaDeRuta: (payload: IngresarHojaDeRutaPayload) => Promise<PythonResult>
   traer_hoja_de_ruta: () => Promise<PythonResult>
   previewHojaDeRutaPdf: (payload: HojaDeRutaPdfPayload) => Promise<PdfPreviewResult>
