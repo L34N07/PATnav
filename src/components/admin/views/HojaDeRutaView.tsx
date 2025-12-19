@@ -11,6 +11,11 @@ const MAX_RECORRIDO = 4
 const HOJA_RUTA_ITEMS_PER_PAGE = 25
 const SUCCESS_MESSAGE_DURATION_MS = 2000
 const ERROR_MESSAGE_DURATION_MS = 2600
+const HDR_ROW_KEY_FIELD = "__hdrRowKey"
+const HDR_ORIGINAL_MOTIVO_FIELD = "__hdrOriginalMotivo"
+const HDR_ORIGINAL_DETALLE_FIELD = "__hdrOriginalDetalle"
+const HDR_ORIGINAL_RECORRIDO_FIELD = "__hdrOriginalRecorrido"
+const HDR_ORIGINAL_FECHA_FIELD = "__hdrOriginalFechasRecorrido"
 
 const toTrimmed = (value: string) => value.trim()
 const normalizeText = (value: string) =>
@@ -18,6 +23,35 @@ const normalizeText = (value: string) =>
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+
+const toIsoDateString = (value: string) => {
+  const raw = value.trim()
+  if (!raw) {
+    return ""
+  }
+
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw)
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`
+  }
+
+  const slashMatch = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(raw)
+  if (slashMatch) {
+    const part1 = Number(slashMatch[1])
+    const part2 = Number(slashMatch[2])
+    const year = slashMatch[3]
+
+    const treatAsMonthFirst = part1 <= 12 && part2 > 12
+    const dayNumber = treatAsMonthFirst ? part2 : part1
+    const monthNumber = treatAsMonthFirst ? part1 : part2
+
+    const day = String(dayNumber).padStart(2, "0")
+    const month = String(monthNumber).padStart(2, "0")
+    return `${year}-${month}-${day}`
+  }
+
+  return raw
+}
 
 const MONTH_ABBREVIATIONS_ES: Record<number, string> = {
   1: "ENE",
@@ -108,15 +142,28 @@ const parseRecorrido = (value: string) => {
   return { numero: Number(match[1]), dia: match[2].toUpperCase() }
 }
 
-const compareHojaDeRutaRows = (left: DataRow, right: DataRow) => {
+const getFechaSortValue = (row: DataRow) =>
+  toIsoDateString(
+    String(row[HDR_ORIGINAL_FECHA_FIELD] ?? row["Fecha"] ?? row["FechasRecorrido"] ?? "")
+  )
+
+const compareHojaDeRutaRowsByFecha = (left: DataRow, right: DataRow) => {
+  const aFecha = getFechaSortValue(left)
+  const bFecha = getFechaSortValue(right)
+  if (aFecha !== bFecha) {
+    return aFecha.localeCompare(bFecha)
+  }
+
+  const aRecorrido = String(left["Recorrido"] ?? "")
+  const bRecorrido = String(right["Recorrido"] ?? "")
+  return aRecorrido.localeCompare(bRecorrido)
+}
+
+const compareHojaDeRutaRowsByRecorrido = (left: DataRow, right: DataRow) => {
   const aRecorrido = String(left["Recorrido"] ?? "")
   const bRecorrido = String(right["Recorrido"] ?? "")
   const aParsed = parseRecorrido(aRecorrido)
   const bParsed = parseRecorrido(bRecorrido)
-
-  if (aParsed.numero !== bParsed.numero) {
-    return aParsed.numero - bParsed.numero
-  }
 
   const dayDiff =
     (RECORRIDO_DAY_ORDER[aParsed.dia] ?? 99) - (RECORRIDO_DAY_ORDER[bParsed.dia] ?? 99)
@@ -124,8 +171,12 @@ const compareHojaDeRutaRows = (left: DataRow, right: DataRow) => {
     return dayDiff
   }
 
-  const aFecha = String(left["Fecha"] ?? left["FechasRecorrido"] ?? "")
-  const bFecha = String(right["Fecha"] ?? right["FechasRecorrido"] ?? "")
+  if (aParsed.numero !== bParsed.numero) {
+    return aParsed.numero - bParsed.numero
+  }
+
+  const aFecha = getFechaSortValue(left)
+  const bFecha = getFechaSortValue(right)
   if (aFecha !== bFecha) {
     return aFecha.localeCompare(bFecha)
   }
@@ -160,9 +211,12 @@ export default function HojaDeRutaView() {
   const [hojaRutaColumnWidths, setHojaRutaColumnWidths] = useState<number[]>([
     ...HOJA_RUTA_TABLE_DEFAULT_WIDTHS
   ])
+  const [hojaRutaSortKey, setHojaRutaSortKey] = useState<"Fecha" | "Recorrido">("Fecha")
   const [selectedHojaRutaRowIndex, setSelectedHojaRutaRowIndex] = useState<number | null>(null)
   const [isLoadingHojaRuta, setIsLoadingHojaRuta] = useState(false)
   const [hojaRutaTableError, setHojaRutaTableError] = useState<string | null>(null)
+  const [detalleEditsByRowKey, setDetalleEditsByRowKey] = useState<Record<string, string>>({})
+  const [isSavingRegistros, setIsSavingRegistros] = useState(false)
 
   useAutoDismissMessage(statusMessage, setStatusMessage, SUCCESS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, ERROR_MESSAGE_DURATION_MS)
@@ -219,6 +273,14 @@ export default function HojaDeRutaView() {
     )
   }, [hojaRutaRows, hojaRutaSearch])
 
+  const sortedHojaRutaRows = useMemo(() => {
+    const comparator =
+      hojaRutaSortKey === "Recorrido"
+        ? compareHojaDeRutaRowsByRecorrido
+        : compareHojaDeRutaRowsByFecha
+    return [...filteredHojaRutaRows].sort(comparator)
+  }, [filteredHojaRutaRows, hojaRutaSortKey])
+
   const {
     currentPage: hojaRutaCurrentPage,
     pageCount: hojaRutaPageCount,
@@ -226,12 +288,38 @@ export default function HojaDeRutaView() {
     goToPage: goToHojaRutaPage,
     resetPage: resetHojaRutaPage,
     itemCount: hojaRutaRowCount
-  } = usePagination(filteredHojaRutaRows, HOJA_RUTA_ITEMS_PER_PAGE)
+  } = usePagination(sortedHojaRutaRows, HOJA_RUTA_ITEMS_PER_PAGE)
 
   useEffect(() => {
     resetHojaRutaPage()
     setSelectedHojaRutaRowIndex(null)
   }, [hojaRutaSearch, resetHojaRutaPage])
+
+  const hasPendingDetalleChanges = useMemo(() => {
+    const entries = Object.entries(detalleEditsByRowKey)
+    if (entries.length === 0) {
+      return false
+    }
+
+    for (const [rowKey, draftValue] of entries) {
+      const row = hojaRutaRows.find(candidate => String(candidate[HDR_ROW_KEY_FIELD] ?? "") === rowKey)
+      if (!row) {
+        continue
+      }
+      const originalDetalle = toTrimmed(
+        String(row[HDR_ORIGINAL_DETALLE_FIELD] ?? row["Detalles"] ?? "")
+      )
+      const nextDetalle = toTrimmed(String(draftValue ?? ""))
+      if (!nextDetalle) {
+        continue
+      }
+      if (nextDetalle !== originalDetalle) {
+        return true
+      }
+    }
+
+    return false
+  }, [detalleEditsByRowKey, hojaRutaRows])
 
   const handleHojaRutaColumnResize = useCallback((index: number, width: number) => {
     setHojaRutaColumnWidths(prev => {
@@ -241,11 +329,17 @@ export default function HojaDeRutaView() {
     })
   }, [])
 
+  const handleHojaRutaHeaderClick = useCallback((column: string) => {
+    if (column === "Fecha" || column === "Recorrido") {
+      setHojaRutaSortKey(column)
+    }
+  }, [])
+
   const handleHojaRutaRowSelect = useCallback((_row: DataRow, index: number) => {
     setSelectedHojaRutaRowIndex(index)
   }, [])
 
-  const reloadHojaRutaTable = useCallback(async (options?: { showConfirmation?: boolean; ensureEnvases?: boolean }) => {
+  const reloadHojaRutaTable = useCallback(async (options?: { showConfirmation?: boolean }) => {
     if (!electronAPI?.traer_hoja_de_ruta) {
       setHojaRutaTableError("Servicio de Hoja de Ruta no disponible.")
       return
@@ -254,16 +348,6 @@ export default function HojaDeRutaView() {
     setIsLoadingHojaRuta(true)
     setHojaRutaTableError(null)
     try {
-      if (options?.ensureEnvases !== false) {
-        if (!electronAPI?.insertarEnvasesEnHojaDeRuta) {
-          throw new Error("Servicio de envases no disponible.")
-        }
-        const insertResult = await electronAPI.insertarEnvasesEnHojaDeRuta()
-        if (insertResult?.error) {
-          throw new Error(insertResult.details || insertResult.error)
-        }
-      }
-
       const result = await electronAPI.traer_hoja_de_ruta()
       if (result?.error) {
         throw new Error(result.details || result.error)
@@ -272,24 +356,38 @@ export default function HojaDeRutaView() {
       const fetchedRows = (result.rows ?? []).map(row => {
         const record = row as DataRow
         const mapped: DataRow = {}
+        const rawMotivo = pickRowValue(record, "Motivo")
+        const rawRecorrido = pickRowValue(record, "Recorrido")
+        const rawDetalles = pickRowValue(record, "Detalles") || pickRowValue(record, "DetallesRecorrido")
+        const rawFecha = pickRowValue(record, "Fecha") || pickRowValue(record, "FechasRecorrido")
+        const fechaIso = toIsoDateString(rawFecha)
+
+        mapped[HDR_ORIGINAL_MOTIVO_FIELD] = rawMotivo
+        mapped[HDR_ORIGINAL_RECORRIDO_FIELD] = rawRecorrido
+        mapped[HDR_ORIGINAL_DETALLE_FIELD] = rawDetalles
+        mapped[HDR_ORIGINAL_FECHA_FIELD] = fechaIso
+        mapped[HDR_ROW_KEY_FIELD] = [
+          normalizeText(toTrimmed(rawMotivo)),
+          normalizeText(toTrimmed(rawDetalles)),
+          normalizeText(toTrimmed(rawRecorrido)),
+          fechaIso
+        ].join("|")
+
         HOJA_RUTA_TABLE_COLUMNS.forEach(column => {
           if (column === "Detalles") {
-            const rawDetalles =
-              pickRowValue(record, column) || pickRowValue(record, "DetallesRecorrido")
             mapped[column] = rawDetalles
             return
           }
           if (column === "Fecha") {
-            const rawFecha = pickRowValue(record, column) || pickRowValue(record, "FechasRecorrido")
             mapped[column] = formatFechaForTable(rawFecha)
             return
           }
           mapped[column] = pickRowValue(record, column)
         })
         return mapped
-      }).filter(row => !isEmptyHojaRutaRow(row))
-
-      fetchedRows.sort(compareHojaDeRutaRows)
+      })
+      .filter(row => !isEmptyHojaRutaRow(row))
+      .filter(row => normalizeText(toTrimmed(String(row["Motivo"] ?? ""))) !== "envase")
 
       setHojaRutaRows(fetchedRows)
       setSelectedHojaRutaRowIndex(null)
@@ -396,8 +494,18 @@ export default function HojaDeRutaView() {
       return
     }
 
+    if (!electronAPI?.insertarEnvasesEnHojaDeRuta) {
+      setErrorMessage("Servicio de envases no disponible.")
+      return
+    }
+
     setIsGeneratingPdf(true)
     try {
+      const insertResult = await electronAPI.insertarEnvasesEnHojaDeRuta()
+      if (insertResult?.error) {
+        throw new Error(insertResult.details || insertResult.error)
+      }
+
       const result = await electronAPI.previewHojaDeRutaPdf({ diaRecorrido })
       if (result?.error) {
         throw new Error(result.details || result.error)
@@ -497,6 +605,137 @@ export default function HojaDeRutaView() {
     }
   }, [clearMessages, electronAPI, pdfDiaRecorrido, pdfPreviewBase64, pdfPreviewDia])
 
+  const handleSaveRegistros = useCallback(async () => {
+    clearMessages()
+    if (!electronAPI?.editarRegistroHojaDeRuta) {
+      setErrorMessage("Servicio de guardado no disponible.")
+      return
+    }
+
+    const updates = hojaRutaRows
+      .map(row => {
+        const rowKey = String(row[HDR_ROW_KEY_FIELD] ?? "")
+        if (!rowKey) {
+          return null
+        }
+
+        const newDetalleRaw = detalleEditsByRowKey[rowKey]
+        if (newDetalleRaw === undefined) {
+          return null
+        }
+
+        const originalMotivo = toTrimmed(String(row[HDR_ORIGINAL_MOTIVO_FIELD] ?? row["Motivo"] ?? ""))
+        const originalDetalle = String(row[HDR_ORIGINAL_DETALLE_FIELD] ?? row["Detalles"] ?? "")
+        const originalRecorrido = toTrimmed(String(row[HDR_ORIGINAL_RECORRIDO_FIELD] ?? row["Recorrido"] ?? ""))
+        const originalFechaRecorrido = toIsoDateString(
+          String(row[HDR_ORIGINAL_FECHA_FIELD] ?? "")
+        )
+
+        const originalDetalleTrimmed = toTrimmed(originalDetalle)
+        const newDetalle = toTrimmed(String(newDetalleRaw))
+        if (!newDetalle || newDetalle === originalDetalleTrimmed) {
+          return null
+        }
+
+        return {
+          rowKey,
+          motivo: originalMotivo,
+          detalle: originalDetalleTrimmed,
+          nuevoDetalle: newDetalle,
+          recorrido: originalRecorrido,
+          fechasRecorrido: originalFechaRecorrido
+        }
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+
+    if (updates.length === 0) {
+      setStatusMessage("No hay cambios para guardar.")
+      return
+    }
+
+    setIsSavingRegistros(true)
+    try {
+      for (const update of updates) {
+        const result = await electronAPI.editarRegistroHojaDeRuta({
+          motivo: update.motivo,
+          detalle: update.detalle,
+          nuevoDetalle: update.nuevoDetalle,
+          recorrido: update.recorrido,
+          fechasRecorrido: update.fechasRecorrido
+        })
+        if (result?.error) {
+          throw new Error(
+            `No se pudo guardar (${update.recorrido} ${update.fechasRecorrido}): ${result.details || result.error}`
+          )
+        }
+      }
+
+      setStatusMessage("Cambios guardados correctamente.")
+      setDetalleEditsByRowKey({})
+      await reloadHojaRutaTable()
+    } catch (error) {
+      console.error("No se pudieron guardar los cambios:", error)
+      setErrorMessage(
+        error instanceof Error ? error.message : "Error desconocido al guardar los cambios."
+      )
+    } finally {
+      setIsSavingRegistros(false)
+    }
+  }, [clearMessages, detalleEditsByRowKey, electronAPI, hojaRutaRows, reloadHojaRutaTable])
+
+  const renderHojaRutaCell = useCallback(
+    ({
+      row,
+      column
+    }: {
+      row: DataRow
+      column: string
+      value: unknown
+      rowIndex: number
+      columnIndex: number
+    }) => {
+      if (column !== "Detalles") {
+        return undefined
+      }
+
+      const rowKey = String(row[HDR_ROW_KEY_FIELD] ?? "")
+      if (!rowKey) {
+        return undefined
+      }
+
+      const originalDetalle = String(row[HDR_ORIGINAL_DETALLE_FIELD] ?? row["Detalles"] ?? "")
+      const value = detalleEditsByRowKey[rowKey] ?? toTrimmed(originalDetalle)
+
+      const autosize = (element: HTMLTextAreaElement | null) => {
+        if (!element) {
+          return
+        }
+        element.style.height = "0px"
+        element.style.height = `${element.scrollHeight}px`
+      }
+
+      return (
+        <textarea
+          className="hoja-ruta-detalle-inline"
+          rows={1}
+          value={value}
+          maxLength={MAX_DETALLE}
+          disabled={isSavingRegistros}
+          ref={autosize}
+          onClick={event => event.stopPropagation()}
+          onKeyDown={event => event.stopPropagation()}
+          onFocus={event => autosize(event.currentTarget)}
+          onChange={event => {
+            autosize(event.currentTarget)
+            const nextValue = event.target.value
+            setDetalleEditsByRowKey(prev => ({ ...prev, [rowKey]: nextValue }))
+          }}
+        />
+      )
+    },
+    [detalleEditsByRowKey, isSavingRegistros]
+  )
+
   return (
     <>
       <StatusToasts
@@ -584,6 +823,7 @@ export default function HojaDeRutaView() {
               <label className="hoja-ruta-field hoja-ruta-field--full">
                 Detalles del recorrido
                 <textarea
+                  rows={1}
                   value={detalle}
                   onChange={event => setDetalle(event.target.value)}
                   maxLength={MAX_DETALLE}
@@ -637,6 +877,8 @@ export default function HojaDeRutaView() {
               rows={hojaRutaPageItems}
               columnWidths={hojaRutaColumnWidths}
               onColumnResize={handleHojaRutaColumnResize}
+              onHeaderClick={handleHojaRutaHeaderClick}
+              sortColumn={hojaRutaSortKey}
               selectedRowIndex={selectedHojaRutaRowIndex}
               onRowSelect={handleHojaRutaRowSelect}
               isLoading={isLoadingHojaRuta}
@@ -646,6 +888,7 @@ export default function HojaDeRutaView() {
               totalPages={hojaRutaPageCount}
               rowCount={hojaRutaRowCount}
               onPageChange={goToHojaRutaPage}
+              renderCell={renderHojaRutaCell}
               emptyMessage={
                 hojaRutaSearch.trim().length > 0
                   ? "No hay registros que coincidan con la busqueda."
@@ -677,6 +920,18 @@ export default function HojaDeRutaView() {
               disabled={isSaving}
             >
               Limpiar
+            </button>
+          </div>
+          <div className="loan-actions__divider" aria-hidden="true" />
+          <div className="loan-actions__button-group">
+            <span className="loan-actions__section-title">Registros</span>
+            <button
+              className="fetch-button fetch-button--success"
+              type="button"
+              onClick={handleSaveRegistros}
+              disabled={!hasPendingDetalleChanges || isLoadingHojaRuta || isSavingRegistros}
+            >
+              {isSavingRegistros ? "Guardando..." : "GUARDAR CAMBIOS"}
             </button>
           </div>
           <div className="loan-actions__divider" aria-hidden="true" />

@@ -603,8 +603,8 @@ const registerPythonHandler = (channel, command, options = {}) => {
 
 const createWindow = async () => {
   const win = new BrowserWindow({
-    width: 1200,
-    height: 700,
+    width: 1680,
+    height: 1050,
     title: 'Naviera App',
     icon: path.join(__dirname, 'public', 'logo.ico'),
     webPreferences: {
@@ -615,6 +615,7 @@ const createWindow = async () => {
   })
 
   win.removeMenu()
+  win.center()
 
   let targetUrl = DEFAULT_URL
 
@@ -946,6 +947,31 @@ registerPythonHandler(
     ]
   }
 )
+
+registerPythonHandler('python:editar_registro_hdr', 'editar_registro_hdr', {
+  validate: payload => {
+    if (
+      !payload?.motivo ||
+      payload?.detalle === undefined ||
+      payload?.nuevoDetalle === undefined ||
+      !payload?.recorrido ||
+      !payload?.fechasRecorrido
+    ) {
+      return {
+        error: 'invalid_params',
+        details: 'motivo, detalle, nuevoDetalle, recorrido and fechasRecorrido are required'
+      }
+    }
+    return undefined
+  },
+  mapPayload: payload => [
+    payload.motivo,
+    payload.detalle,
+    payload.nuevoDetalle,
+    payload.recorrido,
+    payload.fechasRecorrido
+  ]
+})
 
 registerPythonHandler('python:traer_hoja_de_ruta', 'traer_hoja_de_ruta')
 

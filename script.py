@@ -431,6 +431,64 @@ def traer_hoja_de_ruta(pool: ConnectionPool) -> Dict[str, Any]:
 def insertar_envases_en_hoja_de_ruta(pool: ConnectionPool) -> Dict[str, Any]:
     return run_procedure(pool, "EXEC InsertarEnvasesEnHojaDeRuta")
 
+def editar_registro_hdr(
+    pool: ConnectionPool,
+    motivo: Any,
+    detalle: Any,
+    nuevo_detalle: Any,
+    recorrido: Any,
+    fechas_recorrido: Any,
+) -> Dict[str, Any]:
+    motivo_value = str(motivo).strip()
+    detalle_value = str(detalle).strip()
+    nuevo_detalle_value = str(nuevo_detalle).strip()
+    recorrido_value = str(recorrido).strip()
+    fecha_raw = str(fechas_recorrido).strip()
+
+    if not motivo_value:
+        return {"error": "invalid_params", "details": "motivo is required"}
+    if len(motivo_value) > 15:
+        return {"error": "invalid_params", "details": "motivo must be 15 characters or fewer"}
+
+    if detalle is None:
+        return {"error": "invalid_params", "details": "detalle is required"}
+    if len(detalle_value) > 100:
+        return {"error": "invalid_params", "details": "detalle must be 100 characters or fewer"}
+
+    if nuevo_detalle is None:
+        return {"error": "invalid_params", "details": "nuevo_detalle is required"}
+    if not nuevo_detalle_value:
+        return {"error": "invalid_params", "details": "nuevo_detalle cannot be empty"}
+    if len(nuevo_detalle_value) > 100:
+        return {
+            "error": "invalid_params",
+            "details": "nuevo_detalle must be 100 characters or fewer",
+        }
+
+    if not recorrido_value:
+        return {"error": "invalid_params", "details": "recorrido is required"}
+    if len(recorrido_value) > 4:
+        return {"error": "invalid_params", "details": "recorrido must be 4 characters or fewer"}
+
+    try:
+        if isinstance(fechas_recorrido, datetime):
+            fecha_value: date = fechas_recorrido.date()
+        elif isinstance(fechas_recorrido, date):
+            fecha_value = fechas_recorrido
+        else:
+            fecha_value = datetime.strptime(fecha_raw, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return {
+            "error": "invalid_params",
+            "details": "fechas_recorrido must be a date in YYYY-MM-DD format",
+        }
+
+    return run_procedure(
+        pool,
+        "{CALL editar_registro_hdr (?, ?, ?, ?, ?)}",
+        (motivo_value, detalle_value, nuevo_detalle_value, recorrido_value, fecha_value),
+    )
+
 
 def _clean_holder_value(value: str) -> str:
     cleaned = re.sub(r"^[^\w]+", "", value).strip()
@@ -756,6 +814,17 @@ def _handle_insertar_envases_en_hoja_de_ruta(
         }
     return insertar_envases_en_hoja_de_ruta(pool)
 
+def _handle_editar_registro_hdr(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+) -> Dict[str, Any]:
+    if len(params) != 5:
+        return {
+            "error": "invalid_params",
+            "details": "editar_registro_hdr expects motivo, detalle, nuevo_detalle, recorrido and fechas_recorrido",
+        }
+    return editar_registro_hdr(pool, params[0], params[1], params[2], params[3], params[4])
+
 
 def _handle_analyze_upload_image(
     pool: ConnectionPool,
@@ -787,6 +856,7 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "traer_hoja_de_ruta_por_dia": _handle_traer_hoja_de_ruta_por_dia,
     "traer_hoja_de_ruta": _handle_traer_hoja_de_ruta,
     "insertar_envases_en_hoja_de_ruta": _handle_insertar_envases_en_hoja_de_ruta,
+    "editar_registro_hdr": _handle_editar_registro_hdr,
 
 }
 

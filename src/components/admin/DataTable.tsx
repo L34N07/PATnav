@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { DataRow, toDisplayValue } from './dataModel'
 
 type DataTableProps = {
@@ -6,6 +6,8 @@ type DataTableProps = {
   rows: DataRow[]
   columnWidths: number[]
   onColumnResize: (index: number, width: number) => void
+  onHeaderClick?: (column: string) => void
+  sortColumn?: string | null
   selectedRowIndex: number | null
   onRowSelect: (row: DataRow, index: number) => void
   isLoading: boolean
@@ -16,6 +18,13 @@ type DataTableProps = {
   rowCount: number
   onPageChange: (page: number) => void
   valueFormatter?: (value: unknown) => string
+  renderCell?: (params: {
+    row: DataRow
+    column: string
+    value: unknown
+    rowIndex: number
+    columnIndex: number
+  }) => ReactNode | undefined
   emptyMessage?: string
   fitColumnsToContainer?: boolean
 }
@@ -27,6 +36,8 @@ export default function DataTable({
   rows,
   columnWidths,
   onColumnResize,
+  onHeaderClick,
+  sortColumn = null,
   selectedRowIndex,
   onRowSelect,
   isLoading,
@@ -37,6 +48,7 @@ export default function DataTable({
   rowCount,
   onPageChange,
   valueFormatter = toDisplayValue,
+  renderCell,
   emptyMessage = "No hay resultados para mostrar.",
   fitColumnsToContainer = false
 }: DataTableProps) {
@@ -222,7 +234,23 @@ export default function DataTable({
                   className="client-table__header-cell"
                   style={{ width: effectiveColumnWidths[index] ?? MIN_COLUMN_WIDTH }}
                 >
-                  <span className="client-table__header-text">{column}</span>
+                  {onHeaderClick ? (
+                    <button
+                      type="button"
+                      className="client-table__header-button"
+                      onClick={() => onHeaderClick(column)}
+                      aria-pressed={sortColumn === column}
+                    >
+                      <span className="client-table__header-text">{column}</span>
+                      {sortColumn === column ? (
+                        <span className="client-table__sort-indicator" aria-hidden="true">
+                          ▲
+                        </span>
+                      ) : null}
+                    </button>
+                  ) : (
+                    <span className="client-table__header-text">{column}</span>
+                  )}
                   <div
                     className="resizer client-table__resizer"
                     onMouseDown={event => handleMouseDown(event, index)}
@@ -250,7 +278,17 @@ export default function DataTable({
                         className="client-table__cell"
                         style={{ width: effectiveColumnWidths[colIndex] ?? MIN_COLUMN_WIDTH }}
                       >
-                        {valueFormatter(row[column])}
+                        {(() => {
+                          const value = row[column]
+                          const rendered = renderCell?.({
+                            row,
+                            column,
+                            value,
+                            rowIndex: index,
+                            columnIndex: colIndex
+                          })
+                          return rendered !== undefined ? rendered : valueFormatter(value)
+                        })()}
                       </td>
                     ))}
                   </tr>

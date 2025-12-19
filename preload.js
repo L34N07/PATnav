@@ -19,6 +19,7 @@ const electronAPI = Object.freeze({
   insertarEnvasesEnHojaDeRuta: () => ipcRenderer.invoke('python:insertar_envases_en_hoja_de_ruta'),
   ingresarRegistroHojaDeRuta: payload =>
     ipcRenderer.invoke('python:ingresar_registro_hoja_de_ruta', payload),
+  editarRegistroHojaDeRuta: payload => ipcRenderer.invoke('python:editar_registro_hdr', payload),
   traer_hoja_de_ruta: () => ipcRenderer.invoke('python:traer_hoja_de_ruta'),
   previewHojaDeRutaPdf: payload => ipcRenderer.invoke('pdf:preview_hoja_de_ruta', payload),
   printHojaDeRutaPdf: payload => ipcRenderer.invoke('pdf:print_hoja_de_ruta', payload),

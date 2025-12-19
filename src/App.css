@@ -231,6 +231,16 @@ body {
   align-self: flex-start;
 }
 
+.admin-panel-button.primary.admin-panel-button--success {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #fff;
+}
+
+.admin-panel-button.primary.admin-panel-button--success:hover:not(:disabled) {
+  background: #15803d;
+}
+
 .admin-panel-button.primary:hover:not(:disabled) {
   background: #1f1f1f;
 }
@@ -1229,6 +1239,28 @@ body {
   text-overflow: ellipsis;
 }
 
+.client-table__header-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.client-table__sort-indicator {
+  font-size: 0.65rem;
+  line-height: 1;
+  opacity: 0.7;
+}
+
 .resizer,
 .client-table__resizer {
   position: absolute;
@@ -1479,6 +1511,17 @@ body {
   cursor: pointer;
 }
 
+.fetch-button.fetch-button--success {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #fff;
+}
+
+.fetch-button.fetch-button--success:hover:not(:disabled) {
+  background: #15803d;
+  color: #fff;
+}
+
 .edit-button{
   width: 90%;
   align-self: center;
@@ -1703,7 +1746,7 @@ body {
   min-width: 0;
   max-width: 100%;
   flex: 0 1 auto;
-  max-height: 60vh;
+  max-height: 75vh;
 }
 
 .hoja-ruta-history-card .client-table {
@@ -1730,6 +1773,33 @@ body {
 
 .hoja-ruta-history-card .client-table__header-text {
   white-space: normal;
+}
+
+.hoja-ruta-history-card .hoja-ruta-detalle-inline {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  border-radius: 8px;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+}
+
+.hoja-ruta-history-card .hoja-ruta-detalle-inline:focus-visible {
+  outline: none;
+  background: rgba(37, 99, 235, 0.06);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+}
+
+.hoja-ruta-history-card .hoja-ruta-detalle-inline:disabled {
+  background: transparent;
+  color: #9ca3af;
 }
 
 @media (max-width: 1100px) {
@@ -1873,7 +1943,7 @@ body {
 }
 
 .hoja-ruta-field textarea {
-  min-height: 96px;
+  min-height: 38px;
   resize: vertical;
 }
 
@@ -2103,6 +2173,30 @@ body {
   color: #9ca3af;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--success {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #fff;
+}
+
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--success:hover:not(:disabled) {
+  background: #15803d;
+  border-color: #166534;
+  color: #fff;
+}
+
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--success:active:not(:disabled) {
+  background: #166534;
+  border-color: #14532d;
+  color: #fff;
+}
+
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--success:disabled {
+  background: #bbf7d0;
+  border-color: #86efac;
+  color: #166534;
 }
 
 .loan-actions__section-title {

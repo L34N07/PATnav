@@ -31,6 +31,14 @@ export interface HojaDeRutaPdfPayload {
   diaRecorrido: string
 }
 
+export interface EditarRegistroHojaDeRutaPayload {
+  motivo: string
+  detalle: string
+  nuevoDetalle: string
+  recorrido: string
+  fechasRecorrido: string
+}
+
 export interface PdfPreviewResult {
   base64?: string
   error?: string
@@ -137,6 +145,7 @@ export interface ElectronAPI {
   ) => Promise<PythonResult>
   insertarEnvasesEnHojaDeRuta: () => Promise<PythonResult>
   ingresarRegistroHojaDeRuta: (payload: IngresarHojaDeRutaPayload) => Promise<PythonResult>
+  editarRegistroHojaDeRuta: (payload: EditarRegistroHojaDeRutaPayload) => Promise<PythonResult>
   traer_hoja_de_ruta: () => Promise<PythonResult>
   previewHojaDeRutaPdf: (payload: HojaDeRutaPdfPayload) => Promise<PdfPreviewResult>
   printHojaDeRutaPdf: (payload: HojaDeRutaPdfPayload) => Promise<PrintResult>

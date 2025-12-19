@@ -289,7 +289,7 @@ export default function AdminPanelView() {
                   ))}
                 </div>
                 <button
-                  className="admin-panel-button primary"
+                  className="admin-panel-button primary admin-panel-button--success"
                   type="button"
                   onClick={handleUpdatePermissions}
                   disabled={!hasChanges || isUpdating}
