@@ -130,6 +130,8 @@ export interface ElectronAPI {
   modificarCobrosImpagos: () => Promise<PythonResult>
   resumen_remitos: () => Promise<PythonResult>
   traer_resumen_prestamos: () => Promise<PythonResult>
+  traer_facturas_atrasadas: () => Promise<PythonResult>
+  traer_ignorar: () => Promise<PythonResult>
   traer_movimientos_cliente: (
     codCliente: number | string,
     subcodigo?: string | number

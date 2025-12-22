@@ -738,6 +738,71 @@ body {
   color: #fff;
 }
 
+.facturas-ignoradas-modal__content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.facturas-ignoradas-modal__content .content {
+  padding: 0;
+  background: transparent;
+}
+
+.facturas-ignoradas-modal__content .loan-summary-panel {
+  margin-top: 0;
+}
+
+.facturas-ignoradas-modal__content .sidebar.loan-actions {
+  margin-top: 0;
+}
+
+.admin-login-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 2200;
+}
+
+.admin-login-modal__card {
+  width: min(90vw, 360px);
+  margin: 0;
+}
+
+.admin-login-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.admin-login-modal__cancel {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.admin-login-modal__cancel:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.admin-login-modal__cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .loan-summary-modal__summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -768,6 +833,10 @@ body {
   color: #111827;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.loan-summary-modal__pill-value--numeric {
+  text-align: right;
 }
 
 .loan-summary-modal__body {
@@ -842,6 +911,10 @@ body {
   gap: 12px;
   height: 100%;
   min-height: 260px;
+}
+
+.loan-summary-modal__content--single {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .loan-summary-modal__content .movement-card-grid {
@@ -2175,6 +2248,24 @@ body {
   box-shadow: none;
 }
 
+.content.test-view-layout .sidebar .fetch-button.fetch-button--active:not(:disabled),
+.content.test-view2-layout .sidebar.loan-actions .fetch-button.fetch-button--active:not(:disabled),
+.content.transfer-view-layout .sidebar.loan-actions .fetch-button.fetch-button--active:not(:disabled),
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--active:not(:disabled) {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.content.test-view-layout .sidebar .fetch-button.fetch-button--active:hover:not(:disabled),
+.content.test-view2-layout .sidebar.loan-actions .fetch-button.fetch-button--active:hover:not(:disabled),
+.content.transfer-view-layout .sidebar.loan-actions .fetch-button.fetch-button--active:hover:not(:disabled),
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--active:hover:not(:disabled) {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+}
+
 .content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--success {
   background: #16a34a;
   border-color: #15803d;
@@ -2278,6 +2369,12 @@ body {
   font-size: 0.9rem;
   font-weight: 500;
   color: #1f2937;
+}
+
+.loan-card-header-item--numeric {
+  display: block;
+  text-align: right;
+  justify-self: end;
 }
 
 .loan-card-header-item strong {
@@ -2436,6 +2533,17 @@ body {
   box-shadow: 0 4px 12px rgba(47, 85, 151, 0.15);
 }
 
+.movement-card--static {
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+.movement-card--static:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 .movement-card:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
@@ -2453,6 +2561,17 @@ body {
   flex-direction: column;
   gap: 4px;
   min-width: 90px;
+}
+
+.movement-card-group--numeric {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.movement-card-group--numeric .movement-card-label,
+.movement-card-group--numeric .movement-card-value {
+  text-align: right;
+  width: 100%;
 }
 
 .movement-card-label {

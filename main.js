@@ -880,6 +880,10 @@ registerPythonHandler('python:resumen_remitos', 'resumen_remitos')
 
 registerPythonHandler('python:traer_resumen_prestamos', 'traer_resumen_prestamos')
 
+registerPythonHandler('python:traer_facturas_atrasadas', 'traer_facturas_atrasadas')
+
+registerPythonHandler('python:traer_ignorar', 'traer_ignorar')
+
 registerPythonHandler('python:traer_movimientos_cliente', 'traer_movimientos_cliente', {
   validate: payload => {
     if (payload.codCliente === undefined || payload.codCliente === null) {

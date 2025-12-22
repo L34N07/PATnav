@@ -264,6 +264,12 @@ def resumen_remitos(pool: ConnectionPool) -> Dict[str, Any]:
 def traer_resumen_prestamos(pool: ConnectionPool) -> Dict[str, Any]:
     return execute_procedure(pool, "{CALL traer_resumen_prestamos}")
 
+def traer_facturas_atrasadas(pool: ConnectionPool) -> Dict[str, Any]:
+    return execute_procedure(pool, "{CALL traer_facturas_atrasadas}")
+
+def traer_ignorar(pool: ConnectionPool) -> Dict[str, Any]:
+    return execute_procedure(pool, "{CALL traer_ignorar}")
+
 
 def traer_movimientos_cliente(
     pool: ConnectionPool, cod_cliente: Any, subcodigo: Any = ""
@@ -678,6 +684,28 @@ def _handle_traer_resumen_prestamos(
         }
     return traer_resumen_prestamos(pool)
 
+def _handle_traer_facturas_atrasadas(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+) -> Dict[str, Any]:
+    if params:
+        return {
+            "error": "invalid_params",
+            "details": "traer_facturas_atrasadas does not accept parameters",
+        }
+    return traer_facturas_atrasadas(pool)
+
+def _handle_traer_ignorar(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+) -> Dict[str, Any]:
+    if params:
+        return {
+            "error": "invalid_params",
+            "details": "traer_ignorar does not accept parameters",
+        }
+    return traer_ignorar(pool)
+
 def _handle_traer_movimientos_cliente(
     pool: ConnectionPool,
     params: Sequence[Any],
@@ -847,6 +875,8 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "traer_incongruencias": _handle_traer_incongruencias,
     "resumen_remitos": _handle_resumen_remitos,
     "traer_resumen_prestamos": _handle_traer_resumen_prestamos,
+    "traer_facturas_atrasadas": _handle_traer_facturas_atrasadas,
+    "traer_ignorar": _handle_traer_ignorar,
     "traer_movimientos_cliente": _handle_traer_movimientos_cliente,
     "actualizar_infoextra_por_registro": _handle_actualizar_infoextra_por_registro,
     "actualizar_nuevo_stock": _handle_actualizar_nuevo_stock,

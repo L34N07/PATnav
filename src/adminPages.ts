@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import TestView from './components/admin/views/TestView'
 import TestView2 from './components/admin/views/TestView2'
-import CobrosTransferenciaView from './components/admin/views/CobrosTransferenciaView'
+import FacturasAtrasadasView from './components/admin/views/FacturasAtrasadasView'
 import HojaDeRutaView from './components/admin/views/HojaDeRutaView'
 
 export type AdminPageId = 'test' | 'test2' | 'transfer' | 'hojaRuta'
@@ -18,9 +18,9 @@ export const ADMIN_PAGES: AdminPageDefinition[] = [
   { id: 'test2', label: 'Prestamos y Devoluciones', permissionKey: 'testView2', component: TestView2 },
   {
     id: 'transfer',
-    label: 'Cobros por Transferencia',
+    label: 'Facturas Atrasadas',
     permissionKey: 'View3',
-    component: CobrosTransferenciaView
+    component: FacturasAtrasadasView
   },
   {
     id: 'hojaRuta',

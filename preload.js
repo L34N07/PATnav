@@ -9,6 +9,8 @@ const electronAPI = Object.freeze({
   modificarCobrosImpagos: () => ipcRenderer.invoke('python:modificar_cobros_impagos'),
   resumen_remitos: () => ipcRenderer.invoke('python:resumen_remitos'),
   traer_resumen_prestamos: () => ipcRenderer.invoke('python:traer_resumen_prestamos'),
+  traer_facturas_atrasadas: () => ipcRenderer.invoke('python:traer_facturas_atrasadas'),
+  traer_ignorar: () => ipcRenderer.invoke('python:traer_ignorar'),
   traer_movimientos_cliente: (codCliente, subcodigo = "") =>
     ipcRenderer.invoke('python:traer_movimientos_cliente', { codCliente, subcodigo }),
   actualizar_infoextra_por_registro: payload =>
