@@ -4,7 +4,7 @@ import re
 import signal
 import sys
 from datetime import date, datetime
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import pyodbc
 
@@ -48,19 +48,40 @@ try:
 except ImportError:
     pytesseract = None  # type: ignore
 
-SERVER = '192.168.100.138,1433'
+def _env_str(name: str, default: str) -> str:
+    value = os.environ.get(name)
+    return value if value else default
 
-DATABASE = 'NAVIERA'
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
 
-DRIVER = 'ODBC Driver 18 for SQL Server'
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
-USE_WINDOWS_AUTH = False
+SERVER = _env_str("PATNAV_DB_SERVER", "192.168.100.2,1433")
 
-SQL_USER = 'navexe'
+DATABASE = _env_str("PATNAV_DB_DATABASE", "NAVIERA")
 
-SQL_PASS = 'navexe1433'
+DRIVER = _env_str("PATNAV_DB_DRIVER", "ODBC Driver 18 for SQL Server")
 
-CONNECT_TIMEOUT = 10
+USE_WINDOWS_AUTH = _env_bool("PATNAV_DB_WINDOWS_AUTH", False)
+
+SQL_USER = _env_str("PATNAV_DB_USER", "navexe")
+
+SQL_PASS = _env_str("PATNAV_DB_PASS", "navexe1433")
+
+CONNECT_TIMEOUT = _env_int("PATNAV_DB_CONNECT_TIMEOUT", 10)
+
+POOL_SIZE = _env_int("PATNAV_DB_POOL_SIZE", 1)
 
 CURRENCY_PATTERN = re.compile(r'\$\s*([0-9][0-9.\s,]*)')
 ACCOUNT_PATTERN = re.compile(r'(C[VB]U)\s*[:=\-]?\s*([0-9O\s]{6,})', re.IGNORECASE)
@@ -354,6 +375,52 @@ def update_user_permissions(
     return result
 
 
+def _normalize_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _validate_required_text(
+    value: Any,
+    field_name: str,
+    max_len: int,
+    empty_message: Optional[str] = None,
+) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
+    if value is None:
+        return None, {"error": "invalid_params", "details": f"{field_name} is required"}
+    normalized = _normalize_text(value)
+    if not normalized:
+        detail = empty_message or f"{field_name} is required"
+        return None, {"error": "invalid_params", "details": detail}
+    if max_len and len(normalized) > max_len:
+        return None, {
+            "error": "invalid_params",
+            "details": f"{field_name} must be {max_len} characters or fewer",
+        }
+    return normalized, None
+
+
+def _parse_date_value(
+    value: Any,
+    field_name: str,
+) -> Tuple[Optional[date], Optional[Dict[str, str]]]:
+    try:
+        if isinstance(value, datetime):
+            return value.date(), None
+        if isinstance(value, date):
+            return value, None
+        if value is None:
+            raise TypeError("missing")
+        raw = str(value).strip()
+        return datetime.strptime(raw, "%Y-%m-%d").date(), None
+    except (TypeError, ValueError):
+        return None, {
+            "error": "invalid_params",
+            "details": f"{field_name} must be a date in YYYY-MM-DD format",
+        }
+
+
 def ingresar_registro_hoja_de_ruta(
     pool: ConnectionPool,
     motivo: Any,
@@ -364,41 +431,24 @@ def ingresar_registro_hoja_de_ruta(
     if motivo is None or detalle is None or recorrido is None or fecha_recorrido is None:
         return {"error": "invalid_params", "details": "All fields are required"}
 
-    motivo_value = str(motivo).strip()
-    detalle_value = str(detalle).strip()
-    recorrido_value = str(recorrido).strip()
-    fecha_raw = str(fecha_recorrido).strip()
+    motivo_value, error = _validate_required_text(motivo, "motivo", 15)
+    if error:
+        return error
 
-    if not motivo_value:
-        return {"error": "invalid_params", "details": "motivo is required"}
-    if len(motivo_value) > 15:
-        return {"error": "invalid_params", "details": "motivo must be 15 characters or fewer"}
+    detalle_value, error = _validate_required_text(detalle, "detalle", 100)
+    if error:
+        return error
 
-    if not detalle_value:
-        return {"error": "invalid_params", "details": "detalle is required"}
-    if len(detalle_value) > 100:
-        return {"error": "invalid_params", "details": "detalle must be 100 characters or fewer"}
+    recorrido_value, error = _validate_required_text(recorrido, "recorrido", 4)
+    if error:
+        return error
 
-    if not recorrido_value:
-        return {"error": "invalid_params", "details": "recorrido is required"}
-    if len(recorrido_value) > 4:
-        return {"error": "invalid_params", "details": "recorrido must be 4 characters or fewer"}
-
-    try:
-        if isinstance(fecha_recorrido, datetime):
-            fecha_value: date = fecha_recorrido.date()
-        elif isinstance(fecha_recorrido, date):
-            fecha_value = fecha_recorrido
-        else:
-            fecha_value = datetime.strptime(fecha_raw, "%Y-%m-%d").date()
-    except (TypeError, ValueError):
-        return {
-            "error": "invalid_params",
-            "details": "fecha_recorrido must be a date in YYYY-MM-DD format",
-        }
+    fecha_value, error = _parse_date_value(fecha_recorrido, "fecha_recorrido")
+    if error:
+        return error
 
     fecha_recorrido_value = fecha_value.isoformat()
-    fecha_ingreso_value = datetime.now().date().isoformat()
+    fecha_ingreso_value = date.today().isoformat()
     return run_procedure(
         pool,
         (
@@ -445,49 +495,30 @@ def editar_registro_hdr(
     recorrido: Any,
     fechas_recorrido: Any,
 ) -> Dict[str, Any]:
-    motivo_value = str(motivo).strip()
-    detalle_value = str(detalle).strip()
-    nuevo_detalle_value = str(nuevo_detalle).strip()
-    recorrido_value = str(recorrido).strip()
-    fecha_raw = str(fechas_recorrido).strip()
+    motivo_value, error = _validate_required_text(motivo, "motivo", 15)
+    if error:
+        return error
 
-    if not motivo_value:
-        return {"error": "invalid_params", "details": "motivo is required"}
-    if len(motivo_value) > 15:
-        return {"error": "invalid_params", "details": "motivo must be 15 characters or fewer"}
+    detalle_value, error = _validate_required_text(detalle, "detalle", 100)
+    if error:
+        return error
 
-    if detalle is None:
-        return {"error": "invalid_params", "details": "detalle is required"}
-    if len(detalle_value) > 100:
-        return {"error": "invalid_params", "details": "detalle must be 100 characters or fewer"}
+    nuevo_detalle_value, error = _validate_required_text(
+        nuevo_detalle,
+        "nuevo_detalle",
+        100,
+        empty_message="nuevo_detalle cannot be empty",
+    )
+    if error:
+        return error
 
-    if nuevo_detalle is None:
-        return {"error": "invalid_params", "details": "nuevo_detalle is required"}
-    if not nuevo_detalle_value:
-        return {"error": "invalid_params", "details": "nuevo_detalle cannot be empty"}
-    if len(nuevo_detalle_value) > 100:
-        return {
-            "error": "invalid_params",
-            "details": "nuevo_detalle must be 100 characters or fewer",
-        }
+    recorrido_value, error = _validate_required_text(recorrido, "recorrido", 4)
+    if error:
+        return error
 
-    if not recorrido_value:
-        return {"error": "invalid_params", "details": "recorrido is required"}
-    if len(recorrido_value) > 4:
-        return {"error": "invalid_params", "details": "recorrido must be 4 characters or fewer"}
-
-    try:
-        if isinstance(fechas_recorrido, datetime):
-            fecha_value: date = fechas_recorrido.date()
-        elif isinstance(fechas_recorrido, date):
-            fecha_value = fechas_recorrido
-        else:
-            fecha_value = datetime.strptime(fecha_raw, "%Y-%m-%d").date()
-    except (TypeError, ValueError):
-        return {
-            "error": "invalid_params",
-            "details": "fechas_recorrido must be a date in YYYY-MM-DD format",
-        }
+    fecha_value, error = _parse_date_value(fechas_recorrido, "fechas_recorrido")
+    if error:
+        return error
 
     return run_procedure(
         pool,
@@ -565,11 +596,10 @@ def _extract_created_timestamp(text: str) -> Optional[str]:
 
 
 def analyze_upload_image(
-    pool: ConnectionPool,
+    _pool: ConnectionPool,
     image_path: Any,
 
 ) -> Dict[str, Any]:
-    del pool
     if not image_path:
         return {"error": "invalid_params", "details": "image_path is required"}
 
@@ -904,32 +934,46 @@ def _dispatch(pool: ConnectionPool, cmd: str, params: Sequence[Any]) -> Dict[str
     return handler(pool, params)
 
 def main() -> None:
-    pool = ConnectionPool()
+    pool = ConnectionPool(size=POOL_SIZE)
     def _cleanup(*_args: Any) -> None:
-        pool.close()
         sys.exit(0)
     signal.signal(signal.SIGINT, _cleanup)
     signal.signal(signal.SIGTERM, _cleanup)
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            payload = json.loads(line)
-            cmd = payload.get("cmd")
-            params = _normalize_params(payload.get("params"))
-        except json.JSONDecodeError:
-            cmd = line
-            params = []
-        if cmd == "exit":
-            break
-        if not cmd:
-            res = {"error": "missing_command"}
-        else:
-            res = _dispatch(pool, cmd, params)
-        print(json.dumps(res, default=str))
-        sys.stdout.flush()
-    pool.close()
+    try:
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            cmd = None
+            params: Sequence[Any] = []
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                cmd = line
+            else:
+                if isinstance(payload, dict):
+                    cmd = payload.get("cmd")
+                    params = _normalize_params(payload.get("params"))
+                elif isinstance(payload, str):
+                    cmd = payload
+                else:
+                    res = {
+                        "error": "invalid_params",
+                        "details": "payload must be an object or string",
+                    }
+                    print(json.dumps(res, default=str))
+                    sys.stdout.flush()
+                    continue
+            if cmd == "exit":
+                break
+            if not cmd:
+                res = {"error": "missing_command"}
+            else:
+                res = _dispatch(pool, cmd, params)
+            print(json.dumps(res, default=str))
+            sys.stdout.flush()
+    finally:
+        pool.close()
 
 if __name__ == "__main__":
     main()

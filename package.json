@@ -16,8 +16,10 @@
     "build": "vite build",
     "postbuild": "node scripts/prepare-static-assets.js",
     "start": "cross-env NODE_ENV=production electron .",
+    "predist": "npm run build:python",
     "dist": "npm run build && electron-builder --x64",
-    "build:python": "python -m PyInstaller --onefile --clean --target-arch 64bit --distpath release --workpath build --specpath build script.py"
+    "build:python": "python -m PyInstaller --onefile --clean --target-arch 64bit --distpath release --workpath build --specpath build script.py",
+    "build:python:fast": "python -m PyInstaller --onefile --target-arch 64bit --distpath release --workpath build --specpath build script.py"
   },
   "build": {
     "appId": "com.l34n07.navieraapp",

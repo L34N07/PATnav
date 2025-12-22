@@ -19,12 +19,119 @@ type AnalysisMatch = {
 
 type AnalysisResult = {
   match: AnalysisMatch | null
-  text?: string
   amount?: string | null
   created?: string | null
 }
 
 const STATUS_DURATION_MS = 2000
+
+type UploadsGridItemProps = {
+  image: UploadImage
+  isSelected: boolean
+  onSelect: (image: UploadImage) => void
+}
+
+const UploadsGridItem = React.memo(function UploadsGridItem({
+  image,
+  isSelected,
+  onSelect
+}: UploadsGridItemProps) {
+  const handleClick = useCallback(() => onSelect(image), [image, onSelect])
+
+  return (
+    <button
+      type="button"
+      className={`uploads-browser__item${isSelected ? " selected" : ""}`}
+      onClick={handleClick}
+      aria-pressed={isSelected}
+    >
+      <div className="uploads-browser__preview">
+        <img src={image.dataUrl || image.fileUrl} alt={image.fileName} loading="lazy" />
+      </div>
+      <div className="uploads-browser__caption">
+        <span className="uploads-browser__filename" title={image.fileName}>
+          {image.fileName}
+        </span>
+      </div>
+    </button>
+  )
+})
+
+type ImageAnalysisModalProps = {
+  image: UploadImage
+  isAnalyzing: boolean
+  analysisResult: AnalysisResult | null
+  onClose: () => void
+}
+
+function ImageAnalysisModal({
+  image,
+  isAnalyzing,
+  analysisResult,
+  onClose
+}: ImageAnalysisModalProps) {
+  return (
+    <div className="image-modal" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="image-modal__panel" onClick={event => event.stopPropagation()}>
+        <div className="image-modal__header">
+          <h3 className="image-modal__title">{image.fileName}</h3>
+          <button className="image-modal__close" type="button" onClick={onClose}>
+            Cerrar
+          </button>
+        </div>
+        <div className="image-modal__body">
+          <div className="image-modal__preview">
+            <img src={image.dataUrl || image.fileUrl} alt={image.fileName} />
+          </div>
+          <div className="image-modal__sidebar">
+            {isAnalyzing ? (
+              <div className="ocr-status">Analizando imagen...</div>
+            ) : analysisResult ? (
+              analysisResult.match ? (
+                <div className="ocr-result">
+                  {analysisResult.match.holder ? (
+                    <div className="ocr-result__pair">
+                      <span className="ocr-result__label">Titular</span>
+                      <span className="ocr-result__value ocr-result__value--holder">
+                        {analysisResult.match.holder}
+                      </span>
+                    </div>
+                  ) : null}
+                  <div className="ocr-result__pair">
+                    <span className="ocr-result__label">{analysisResult.match.type}</span>
+                    <span className="ocr-result__value ocr-result__value--account">
+                      {analysisResult.match.number}
+                    </span>
+                  </div>
+                  {analysisResult.created ? (
+                    <div className="ocr-result__pair">
+                      <span className="ocr-result__label">Fecha</span>
+                      <span className="ocr-result__value">{analysisResult.created}</span>
+                    </div>
+                  ) : null}
+                  {analysisResult.amount ? (
+                    <div className="ocr-result__pair">
+                      <span className="ocr-result__label">Monto</span>
+                      <span className="ocr-result__amount">${analysisResult.amount}</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="ocr-status">
+                  No se identificaron CVU o CBU en la imagen analizada.
+                </div>
+              )
+            ) : (
+              <div className="ocr-status">
+                Presione &quot;Analizar Imagen&quot; para extraer CVU o CBU.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function CobrosTransferenciaView() {
   const electronAPI = window.electronAPI
@@ -106,7 +213,6 @@ export default function CobrosTransferenciaView() {
 
         setAnalysisResult({
           match: response?.match ?? null,
-          text: response?.text,
           amount: response?.amount ?? null,
           created: response?.created ?? null
         })
@@ -126,23 +232,23 @@ export default function CobrosTransferenciaView() {
     [electronAPI, setErrorMessage, setStatusMessage]
   )
 
-  const handleSelectImage = (image: UploadImage) => {
+  const handleSelectImage = useCallback((image: UploadImage) => {
     setSelectedImage(image)
-  }
+  }, [])
 
-  const handleAnalyzeImage = () => {
+  const handleAnalyzeImage = useCallback(() => {
     if (!selectedImage) {
       setErrorMessage("Seleccione una imagen para analizar.")
       return
     }
     setAnalysisImage(selectedImage)
     void performImageAnalysis(selectedImage)
-  }
+  }, [performImageAnalysis, selectedImage])
 
-  const handleCloseAnalysis = () => {
+  const handleCloseAnalysis = useCallback(() => {
     setAnalysisImage(null)
     setAnalysisResult(null)
-  }
+  }, [])
 
   return (
     <>
@@ -164,26 +270,12 @@ export default function CobrosTransferenciaView() {
                 {images.map(image => {
                   const isSelected = selectedImage?.filePath === image.filePath
                   return (
-                    <button
+                    <UploadsGridItem
                       key={image.filePath}
-                      type="button"
-                      className={`uploads-browser__item${isSelected ? " selected" : ""}`}
-                      onClick={() => handleSelectImage(image)}
-                      aria-pressed={isSelected}
-                    >
-                      <div className="uploads-browser__preview">
-                        <img
-                          src={image.dataUrl || image.fileUrl}
-                          alt={image.fileName}
-                          loading="lazy"
-                        />
-                      </div>
-                      <div className="uploads-browser__caption">
-                        <span className="uploads-browser__filename" title={image.fileName}>
-                          {image.fileName}
-                        </span>
-                      </div>
-                    </button>
+                      image={image}
+                      isSelected={isSelected}
+                      onSelect={handleSelectImage}
+                    />
                   )
                 })}
               </div>
@@ -219,68 +311,12 @@ export default function CobrosTransferenciaView() {
         </aside>
       </div>
       {analysisImage ? (
-        <div className="image-modal" role="dialog" aria-modal="true" onClick={handleCloseAnalysis}>
-          <div className="image-modal__panel" onClick={event => event.stopPropagation()}>
-            <div className="image-modal__header">
-              <h3 className="image-modal__title">{analysisImage.fileName}</h3>
-              <button className="image-modal__close" type="button" onClick={handleCloseAnalysis}>
-                Cerrar
-              </button>
-            </div>
-            <div className="image-modal__body">
-              <div className="image-modal__preview">
-                <img
-                  src={analysisImage.dataUrl || analysisImage.fileUrl}
-                  alt={analysisImage.fileName}
-                />
-              </div>
-              <div className="image-modal__sidebar">
-                {isAnalyzing ? (
-                  <div className="ocr-status">Analizando imagen...</div>
-                ) : analysisResult ? (
-                  analysisResult.match ? (
-                    <div className="ocr-result">
-                      {analysisResult.match.holder ? (
-                        <div className="ocr-result__pair">
-                          <span className="ocr-result__label">Titular</span>
-                          <span className="ocr-result__value ocr-result__value--holder">
-                            {analysisResult.match.holder}
-                          </span>
-                        </div>
-                      ) : null}
-                      <div className="ocr-result__pair">
-                        <span className="ocr-result__label">{analysisResult.match.type}</span>
-                        <span className="ocr-result__value ocr-result__value--account">
-                          {analysisResult.match.number}
-                        </span>
-                      </div>
-                      {analysisResult.created ? (
-                        <div className="ocr-result__pair">
-                          <span className="ocr-result__label">Fecha</span>
-                          <span className="ocr-result__value">{analysisResult.created}</span>
-                        </div>
-                      ) : null}
-                      {analysisResult.amount ? (
-                        <div className="ocr-result__pair">
-                          <span className="ocr-result__label">Monto</span>
-                          <span className="ocr-result__amount">${analysisResult.amount}</span>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="ocr-status">
-                      No se identificaron CVU o CBU en la imagen analizada.
-                    </div>
-                  )
-                ) : (
-                  <div className="ocr-status">
-                    Presione &quot;Analizar Imagen&quot; para extraer CVU o CBU.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <ImageAnalysisModal
+          image={analysisImage}
+          isAnalyzing={isAnalyzing}
+          analysisResult={analysisResult}
+          onClose={handleCloseAnalysis}
+        />
       ) : null}
     </>
   )
