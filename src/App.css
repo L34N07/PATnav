@@ -2272,7 +2272,19 @@ body {
   color: #fff;
 }
 
+.content.test-view2-layout .sidebar.loan-actions .fetch-button.fetch-button--success {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #fff;
+}
+
 .content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--success:hover:not(:disabled) {
+  background: #15803d;
+  border-color: #166534;
+  color: #fff;
+}
+
+.content.test-view2-layout .sidebar.loan-actions .fetch-button.fetch-button--success:hover:not(:disabled) {
   background: #15803d;
   border-color: #166534;
   color: #fff;
@@ -2284,7 +2296,19 @@ body {
   color: #fff;
 }
 
+.content.test-view2-layout .sidebar.loan-actions .fetch-button.fetch-button--success:active:not(:disabled) {
+  background: #166534;
+  border-color: #14532d;
+  color: #fff;
+}
+
 .content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--success:disabled {
+  background: #bbf7d0;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.content.test-view2-layout .sidebar.loan-actions .fetch-button.fetch-button--success:disabled {
   background: #bbf7d0;
   border-color: #86efac;
   color: #166534;

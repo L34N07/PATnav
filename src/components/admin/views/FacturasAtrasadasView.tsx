@@ -11,6 +11,7 @@ type FacturaAtrasadaRow = {
   fechaVencimientoSortKey: number
   codCliente: number
   nroLugarEntrega: string
+  domicilio: string
   importeTotal: number
   cobradoTotal: number
   saldo: number
@@ -21,6 +22,7 @@ type FacturaSummaryRow = {
   clientKey: string
   codCliente: number
   nroLugarEntrega: string
+  domicilio: string
   totalSaldo: number
   metodosCobro: string
   oldestFactura: FacturaAtrasadaRow
@@ -173,6 +175,9 @@ const toFacturaRow = (row: Record<string, unknown>, index: number): FacturaAtras
   const nroLugarEntrega = toStringValue(
     pickRowValue(rowMap, ["nro_lugar_entrega", "lugar_entrega", "nro_lugar"])
   )
+  const domicilio = toStringValue(
+    pickRowValue(rowMap, ["domicilio", "domicilio_entrega", "domicilio entrega"])
+  )
   const importeTotal = toNumberValue(
     pickRowValue(rowMap, ["importe_total", "importe total", "importe"])
   )
@@ -194,6 +199,7 @@ const toFacturaRow = (row: Record<string, unknown>, index: number): FacturaAtras
     fechaVencimientoSortKey: sortKey,
     codCliente,
     nroLugarEntrega,
+    domicilio,
     importeTotal,
     cobradoTotal,
     saldo,
@@ -260,6 +266,7 @@ const buildSummaryRows = (rows: FacturaAtrasadaRow[]): FacturaSummaryRow[] => {
       clientKey: key,
       codCliente: oldestFactura.codCliente,
       nroLugarEntrega: oldestFactura.nroLugarEntrega,
+      domicilio: oldestFactura.domicilio,
       totalSaldo,
       metodosCobro,
       oldestFactura,
@@ -341,6 +348,8 @@ const FacturaSummaryModal: React.FC<FacturaSummaryModalProps> = ({
   onClose
 }) => {
   const clientLabel = formatClientIdentifier(summary.codCliente, summary.nroLugarEntrega)
+  const codClienteLabel = Number.isFinite(summary.codCliente) ? String(summary.codCliente) : "-"
+  const domicilioLabel = summary.domicilio || "-"
   const oldestFacturaLabel = formatComprobante(summary.oldestFactura)
   const vencimientoLabel = summary.oldestFactura.fechaVencimiento
   const saldoTotalLabel = formatAmount(summary.totalSaldo)
@@ -358,7 +367,8 @@ const FacturaSummaryModal: React.FC<FacturaSummaryModalProps> = ({
         <div className="loan-summary-modal__header">
           <div className="loan-summary-modal__title-block">
             <span className="loan-summary-modal__eyebrow">Facturas atrasadas</span>
-            <h3 className="loan-summary-modal__title">Cliente {clientLabel}</h3>
+            <h3 className="loan-summary-modal__title">Cliente {codClienteLabel}</h3>
+            <p className="loan-summary-modal__subtitle">Domicilio {domicilioLabel}</p>
             <p className="loan-summary-modal__subtitle">
               Lugar de entrega {summary.nroLugarEntrega || "-"}
             </p>

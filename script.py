@@ -67,7 +67,7 @@ def _env_bool(name: str, default: bool) -> bool:
         return default
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
-SERVER = _env_str("PATNAV_DB_SERVER", "192.168.100.2,1433")
+SERVER = _env_str("PATNAV_DB_SERVER", "192.168.100.138,1433")
 
 DATABASE = _env_str("PATNAV_DB_DATABASE", "NAVIERA")
 
@@ -487,6 +487,18 @@ def traer_hoja_de_ruta(pool: ConnectionPool) -> Dict[str, Any]:
 def insertar_envases_en_hoja_de_ruta(pool: ConnectionPool) -> Dict[str, Any]:
     return run_procedure(pool, "EXEC InsertarEnvasesEnHojaDeRuta")
 
+def insertar_mensajes_lote_por_lote(pool: ConnectionPool, nro_lote: Any) -> Dict[str, Any]:
+    try:
+        nro_value = int(nro_lote)
+    except (TypeError, ValueError):
+        return {"error": "invalid_params", "details": "nro_lote must be an integer"}
+
+    return run_procedure(
+        pool,
+        "EXEC InsertarMensajesLotePorLote @nro_lote=?",
+        (nro_value,),
+    )
+
 def editar_registro_hdr(
     pool: ConnectionPool,
     motivo: Any,
@@ -872,6 +884,17 @@ def _handle_insertar_envases_en_hoja_de_ruta(
         }
     return insertar_envases_en_hoja_de_ruta(pool)
 
+def _handle_insertar_mensajes_lote_por_lote(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+) -> Dict[str, Any]:
+    if len(params) != 1:
+        return {
+            "error": "invalid_params",
+            "details": "insertar_mensajes_lote_por_lote expects nro_lote",
+        }
+    return insertar_mensajes_lote_por_lote(pool, params[0])
+
 def _handle_editar_registro_hdr(
     pool: ConnectionPool,
     params: Sequence[Any],
@@ -916,6 +939,7 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "traer_hoja_de_ruta_por_dia": _handle_traer_hoja_de_ruta_por_dia,
     "traer_hoja_de_ruta": _handle_traer_hoja_de_ruta,
     "insertar_envases_en_hoja_de_ruta": _handle_insertar_envases_en_hoja_de_ruta,
+    "insertar_mensajes_lote_por_lote": _handle_insertar_mensajes_lote_por_lote,
     "editar_registro_hdr": _handle_editar_registro_hdr,
 
 }

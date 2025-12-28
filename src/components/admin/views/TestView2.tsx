@@ -38,6 +38,8 @@ export default function TestView2() {
   const [selectedMovementByClient, setSelectedMovementByClient] = useState<MovementSelectionMap>({})
   const [isInfoExtraUpdating, setIsInfoExtraUpdating] = useState(false)
   const [isNuevoStockUpdating, setIsNuevoStockUpdating] = useState(false)
+  const [controlLote, setControlLote] = useState("")
+  const [isControlRunning, setIsControlRunning] = useState(false)
 
   useAutoDismissMessage(statusMessage, setStatusMessage, STATUS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, STATUS_MESSAGE_DURATION_MS)
@@ -122,7 +124,11 @@ const groupSummaryRows = (rows: LoanSummaryRow[]): LoanSummaryRow[] => {
   }, [expandedClientKey, selectedMovementId, movementsByClient])
 
   const isAnyActionRunning =
-    isResumenRunning || isSummaryLoading || isInfoExtraUpdating || isNuevoStockUpdating
+    isResumenRunning ||
+    isSummaryLoading ||
+    isInfoExtraUpdating ||
+    isNuevoStockUpdating ||
+    isControlRunning
   const selectedMovementEstado = selectedMovement
     ? selectedMovement.infoExtra.trim().toUpperCase()
     : ""
@@ -385,6 +391,53 @@ const groupSummaryRows = (rows: LoanSummaryRow[]): LoanSummaryRow[] => {
     }
   }
 
+  const handleControlLoteChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextValue = event.target.value
+    const digitsOnly = nextValue.replace(/\D/g, "")
+    setControlLote(digitsOnly)
+  }
+
+  const handleEnviarControl = async () => {
+    if (!electronAPI?.insertarMensajesLotePorLote) {
+      setErrorMessage("No se encuentra disponible la accion de control.")
+      return
+    }
+
+    const trimmedLote = controlLote.trim()
+    if (!trimmedLote) {
+      setErrorMessage("Ingrese un numero de lote.")
+      return
+    }
+
+    const nroLote = Number(trimmedLote)
+    if (!Number.isInteger(nroLote)) {
+      setErrorMessage("El numero de lote debe ser un entero.")
+      return
+    }
+
+    setIsControlRunning(true)
+    clearMessages()
+
+    try {
+      const result = await electronAPI.insertarMensajesLotePorLote({ nroLote })
+      if (result?.error) {
+        throw new Error(result.details || result.error)
+      }
+
+      setStatusMessage("Control enviado correctamente.")
+      setControlLote("")
+    } catch (error) {
+      console.error("No se pudo ejecutar insertarMensajesLotePorLote:", error)
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Error desconocido al ejecutar el control."
+      )
+    } finally {
+      setIsControlRunning(false)
+    }
+  }
+
   return (
     <>
       <StatusToasts statusMessage={statusMessage} errorMessage={errorMessage} />
@@ -435,6 +488,28 @@ const groupSummaryRows = (rows: LoanSummaryRow[]): LoanSummaryRow[] => {
             )}
           </div>
           <div className="loan-actions__divider" aria-hidden="true" />
+          <div className="loan-actions__button-group">
+            <span className="loan-actions__section-title">CONTROL</span>
+            <label className="hoja-ruta-field hoja-ruta-field--compact loan-actions__field">
+              Nro de lote
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={controlLote}
+                onChange={handleControlLoteChange}
+                disabled={isAnyActionRunning}
+              />
+            </label>
+            <button
+              className="fetch-button fetch-button--success"
+              type="button"
+              onClick={handleEnviarControl}
+              disabled={isAnyActionRunning || controlLote.trim().length === 0}
+            >
+              {isControlRunning ? "Enviando..." : "Enviar"}
+            </button>
+          </div>
         </div>
       </div>
       {expandedRow && expandedClientKey ? (

@@ -19,6 +19,8 @@ const electronAPI = Object.freeze({
     ipcRenderer.invoke('python:actualizar_nuevo_stock', payload),
   updateUserPermissions: payload => ipcRenderer.invoke('python:update_user_permissions', payload),
   insertarEnvasesEnHojaDeRuta: () => ipcRenderer.invoke('python:insertar_envases_en_hoja_de_ruta'),
+  insertarMensajesLotePorLote: payload =>
+    ipcRenderer.invoke('python:insertar_mensajes_lote_por_lote', payload),
   ingresarRegistroHojaDeRuta: payload =>
     ipcRenderer.invoke('python:ingresar_registro_hoja_de_ruta', payload),
   editarRegistroHojaDeRuta: payload => ipcRenderer.invoke('python:editar_registro_hdr', payload),

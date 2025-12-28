@@ -102,7 +102,7 @@ const formatFechaForTable = (value: string) => {
 }
 
 const MOTIVO_OPTIONS = [
-  "Agua",
+  "AGUA",
   "LLEVAR DISP",
   "CAMBIO DISP",
   "REVISAR DISP",
@@ -110,7 +110,8 @@ const MOTIVO_OPTIONS = [
   "RETIRAR DISP",
   "PERDIDA AGUA",
   "CANILLA",
-  "COBRAR"
+  "COBRAR",
+  "RESPUESTA"
 ] as const
 
 const RECORRIDO_NUM_OPTIONS = ["1", "2", "3"] as const

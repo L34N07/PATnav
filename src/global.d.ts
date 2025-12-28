@@ -86,6 +86,10 @@ export interface ActualizarNuevoStockPayload {
   nuevoStock: number
 }
 
+export interface InsertarMensajesLotePorLotePayload {
+  nroLote: number
+}
+
 export interface TraerMovimientosClientePayload {
   codCliente: number | string
   subcodigo: string | number
@@ -146,6 +150,9 @@ export interface ElectronAPI {
     payload: UpdateUserPermissionsPayload
   ) => Promise<PythonResult>
   insertarEnvasesEnHojaDeRuta: () => Promise<PythonResult>
+  insertarMensajesLotePorLote: (
+    payload: InsertarMensajesLotePorLotePayload
+  ) => Promise<PythonResult>
   ingresarRegistroHojaDeRuta: (payload: IngresarHojaDeRutaPayload) => Promise<PythonResult>
   editarRegistroHojaDeRuta: (payload: EditarRegistroHojaDeRutaPayload) => Promise<PythonResult>
   traer_hoja_de_ruta: () => Promise<PythonResult>

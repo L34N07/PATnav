@@ -326,6 +326,12 @@ const buildHojaDeRutaHtml = ({ pages }) => {
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      .cell--detalle {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        text-overflow: clip;
+      }
 
       .col-motivo { width: 22%; }
       .col-detalle { width: 58%; }
@@ -928,6 +934,30 @@ registerPythonHandler('python:update_user_permissions', 'update_user_permissions
 registerPythonHandler(
   'python:insertar_envases_en_hoja_de_ruta',
   'insertar_envases_en_hoja_de_ruta'
+)
+
+registerPythonHandler(
+  'python:insertar_mensajes_lote_por_lote',
+  'insertar_mensajes_lote_por_lote',
+  {
+    validate: payload => {
+      if (payload.nroLote === undefined || payload.nroLote === null || payload.nroLote === '') {
+        return {
+          error: 'invalid_params',
+          details: 'nroLote is required'
+        }
+      }
+      const nroValue = Number(payload.nroLote)
+      if (!Number.isInteger(nroValue)) {
+        return {
+          error: 'invalid_params',
+          details: 'nroLote must be an integer'
+        }
+      }
+      return undefined
+    },
+    mapPayload: payload => [Number(payload.nroLote)]
+  }
 )
 
 registerPythonHandler(
