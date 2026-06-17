@@ -2,6 +2,7 @@
 import os
 import re
 import signal
+import shutil
 import sys
 from datetime import date, datetime
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
@@ -9,9 +10,10 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 import pyodbc
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageOps
 except ImportError:
     Image = None  # type: ignore
+    ImageOps = None  # type: ignore
 
 try:
     import pytesseract
@@ -32,19 +34,28 @@ try:
     _RESOURCE_ROOTS = _gather_resource_roots()
 
     def _resolve_tesseract_path() -> str:
-        for base_dir in _RESOURCE_ROOTS:
-            candidate = os.path.join(base_dir, "Tesseract", "tesseract.exe")
-            if os.path.isfile(candidate):
-                return candidate
-        return os.path.join(_RESOURCE_ROOTS[0], "Tesseract", "tesseract.exe")
+        configured_path = os.environ.get("PATNAV_TESSERACT_CMD")
+        if configured_path:
+            return configured_path
+
+        if sys.platform.startswith("win"):
+            for base_dir in _RESOURCE_ROOTS:
+                candidate = os.path.join(base_dir, "Tesseract", "tesseract.exe")
+                if os.path.isfile(candidate):
+                    return candidate
+            return os.path.join(_RESOURCE_ROOTS[0], "Tesseract", "tesseract.exe")
+
+        return shutil.which("tesseract") or "tesseract"
 
     TESS_PATH = _resolve_tesseract_path()
     pytesseract.pytesseract.tesseract_cmd = TESS_PATH
     tess_dir = os.path.dirname(TESS_PATH)
     current_path = os.environ.get("PATH", "")
-    if tess_dir not in current_path.split(os.pathsep):
+    if tess_dir and tess_dir not in current_path.split(os.pathsep):
         os.environ["PATH"] = tess_dir + (os.pathsep + current_path if current_path else "")
-    os.environ.setdefault("TESSDATA_PREFIX", os.path.join(tess_dir, "tessdata"))
+    tessdata_dir = os.path.join(tess_dir, "tessdata") if tess_dir else ""
+    if tessdata_dir and os.path.isdir(tessdata_dir):
+        os.environ.setdefault("TESSDATA_PREFIX", tessdata_dir)
 except ImportError:
     pytesseract = None  # type: ignore
 
@@ -83,26 +94,56 @@ CONNECT_TIMEOUT = _env_int("PATNAV_DB_CONNECT_TIMEOUT", 10)
 
 POOL_SIZE = _env_int("PATNAV_DB_POOL_SIZE", 1)
 
-CURRENCY_PATTERN = re.compile(r'\$\s*([0-9][0-9.\s,]*)')
-ACCOUNT_PATTERN = re.compile(r'(C[VB]U)\s*[:=\-]?\s*([0-9O\s]{6,})', re.IGNORECASE)
+CURRENCY_PATTERN = re.compile(r'\$\s*([0-9][0-9. ,]*)')
+ACCOUNT_PATTERN = re.compile(
+    r'\b(C[VB]U)\b\s*[:=\-.]?\s*([0-9A-ZIlOo|.\-\s]{10,48})',
+    re.IGNORECASE,
+)
 CREATED_PATTERN = re.compile(
     r"creada\s+el\s+(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s*[-–]\s*([0-9]{1,2}:[0-9]{2})",
     re.IGNORECASE
 )
+DISPLAYED_DATE_PATTERN = re.compile(
+    r"\b(\d{1,2})\s*/\s*([a-záéíóúñ]{3,10})\.?\s*[-–]\s*([0-9]{1,2}:[0-9]{2})(?:\s*(?:hs?|hrs?))?",
+    re.IGNORECASE,
+)
+ACCOUNT_DIGIT_TRANSLATION = str.maketrans({
+    "O": "0",
+    "o": "0",
+    "I": "1",
+    "l": "1",
+    "|": "1",
+    "B": "8",
+    "S": "5",
+})
 MONTH_MAP = {
+    "ene": 1,
     "enero": 1,
+    "feb": 2,
     "febrero": 2,
+    "mar": 3,
     "marzo": 3,
+    "abr": 4,
     "abril": 4,
+    "may": 5,
     "mayo": 5,
+    "jun": 6,
     "junio": 6,
+    "jul": 7,
     "julio": 7,
+    "ago": 8,
     "agosto": 8,
+    "sep": 9,
+    "set": 9,
+    "sept": 9,
     "septiembre": 9,
     "setiembre": 9,
+    "oct": 10,
     "octubre": 10,
+    "nov": 11,
     "noviembre": 11,
     "november": 11,
+    "dic": 12,
     "diciembre": 12,
 }
 
@@ -356,21 +397,32 @@ def update_user_permissions(
     test_view2 = 1 if bool(permissions.get("testView2")) else 0
     View3 = 1 if bool(permissions.get("View3")) else 0
     View4 = 1 if bool(permissions.get("View4")) else 0
+    View5 = 1 if bool(permissions.get("View5")) else 0
 
     result = run_procedure(
         pool,
-        "{CALL update_user_permission (?, ?, ?, ?, ?)}",
-        (parsed_user_id, test_view, test_view2, View3, View4),
+        "{CALL update_user_permission (?, ?, ?, ?, ?, ?)}",
+        (parsed_user_id, test_view, test_view2, View3, View4, View5),
     )
 
     if result.get("error") == "db_execute_failed":
         details = str(result.get("details", "")).lower()
         if "too many" in details or "arguments" in details:
-            return run_procedure(
+            result = run_procedure(
                 pool,
-                "{CALL update_user_permission (?, ?, ?, ?)}",
-                (parsed_user_id, test_view, test_view2, View3),
+                "{CALL update_user_permission (?, ?, ?, ?, ?)}",
+                (parsed_user_id, test_view, test_view2, View3, View4),
             )
+            if result.get("error") != "db_execute_failed":
+                return result
+
+            details = str(result.get("details", "")).lower()
+            if "too many" in details or "arguments" in details:
+                return run_procedure(
+                    pool,
+                    "{CALL update_user_permission (?, ?, ?, ?)}",
+                    (parsed_user_id, test_view, test_view2, View3),
+                )
 
     return result
 
@@ -545,6 +597,22 @@ def _clean_holder_value(value: str) -> str:
     tokens = cleaned.split()
     if len(tokens) >= 2 and len(tokens[0]) == 1:
         cleaned = " ".join(tokens[1:])
+        tokens = cleaned.split()
+    lowered = cleaned.lower()
+    blocked_terms = (
+        "banco",
+        "cbu",
+        "cvu",
+        "coelsa",
+        "destino",
+        "dinero",
+        "disponible",
+        "galicia",
+        "mercado pago",
+        "origen",
+    )
+    if len(tokens) < 2 or any(term in lowered for term in blocked_terms):
+        return ""
     return cleaned
 
 
@@ -553,58 +621,160 @@ def _extract_currency_amount(text: str) -> Optional[str]:
         return None
     for match in CURRENCY_PATTERN.finditer(text):
         raw = match.group(1)
-        cleaned = raw.replace(" ", "")
+        cleaned = re.sub(r"\s+", "", raw)
         if cleaned:
             return cleaned
     return None
+
+
+def _normalize_account_digits(value: str) -> str:
+    translated = value.translate(ACCOUNT_DIGIT_TRANSLATION)
+    return re.sub(r"\D", "", translated)
+
+
+def _score_account_digits(digits: str) -> int:
+    length = len(digits)
+    if length < 22:
+        return -1000
+    if length == 22:
+        return 120
+    if length > 22:
+        return 90 - min(length - 22, 20)
+    return -1000
 
 
 def _extract_account_match(text: str) -> Optional[Dict[str, Any]]:
     if not text:
         return None
 
+    candidates: List[Tuple[int, int, Dict[str, Any]]] = []
     previous_line = ""
+    candidate_index = 0
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line:
             continue
 
-        match = ACCOUNT_PATTERN.search(line)
-        if match:
+        for match in ACCOUNT_PATTERN.finditer(line):
             account_type = match.group(1).upper().replace(" ", "")
-            raw_digits = match.group(2).upper().replace("O", "0")
-            digits = re.sub(r"\D", "", raw_digits)
-            if len(digits) >= 10:
-                if len(digits) > 22:
-                    digits = digits[:22]
-                normalized_type = "CVU" if account_type.startswith("CV") else "CBU"
-                holder = _clean_holder_value(previous_line)
-                holder_value = holder or None
-                return {"type": normalized_type, "number": digits, "holder": holder_value}
+            raw_digits = match.group(2)
+            digits = _normalize_account_digits(raw_digits)
+            score = _score_account_digits(digits)
+            if score <= 0:
+                continue
+
+            if len(digits) > 22:
+                digits = digits[:22]
+
+            normalized_type = "CVU" if account_type.startswith("CV") else "CBU"
+            holder = _clean_holder_value(previous_line)
+            holder_value = holder or None
+            candidate = {"type": normalized_type, "number": digits, "holder": holder_value}
+            candidates.append((score, -candidate_index, candidate))
+            candidate_index += 1
 
         previous_line = line
 
-    return None
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda item: (item[0], item[1]))[2]
+
+
+def _infer_transfer_year(day_number: int, month: int) -> int:
+    today = date.today()
+    inferred_year = today.year
+    try:
+        candidate_date = date(inferred_year, month, day_number)
+    except ValueError:
+        return inferred_year
+    if candidate_date > today:
+        return inferred_year - 1
+    return inferred_year
+
+
+def _format_ocr_timestamp(day: str, month_name: str, time_value: str) -> Optional[str]:
+    month = MONTH_MAP.get(month_name.strip().lower())
+    if not month:
+        return None
+    day_number = int(day)
+    year = _infer_transfer_year(day_number, month)
+    formatted_date = f"{day_number:02d}/{month:02d}/{year}"
+    return f"{formatted_date} - {time_value}"
 
 
 def _extract_created_timestamp(text: str) -> Optional[str]:
     if not text:
         return None
 
-    current_year = datetime.now().year
-
-    for match in CREATED_PATTERN.finditer(text):
-        day = match.group(1)
-        month_name = match.group(2).strip().lower()
-        time_value = match.group(3)
-        month = MONTH_MAP.get(month_name)
-        if not month:
-            continue
-        day_number = int(day)
-        formatted_date = f"{day_number:02d}/{month:02d}/{current_year}"
-        return f"{formatted_date} - {time_value}"
+    for pattern in (DISPLAYED_DATE_PATTERN, CREATED_PATTERN):
+        for match in pattern.finditer(text):
+            formatted = _format_ocr_timestamp(match.group(1), match.group(2), match.group(3))
+            if formatted:
+                return formatted
 
     return None
+
+
+def _autocontrast_image(image: Any) -> Any:
+    if ImageOps is None:
+        return image
+    return ImageOps.autocontrast(image)
+
+
+def _scale_image(image: Any, factor: int) -> Any:
+    width, height = image.size
+    return image.resize((width * factor, height * factor))
+
+
+def _crop_by_ratio(image: Any, left: float, top: float, right: float, bottom: float) -> Any:
+    width, height = image.size
+    box = (
+        int(width * left),
+        int(height * top),
+        int(width * right),
+        int(height * bottom),
+    )
+    return image.crop(box)
+
+
+def _build_ocr_attempts(pil_image: Any) -> List[Tuple[str, Any, str]]:
+    base = pil_image.convert("RGB")
+    gray = base.convert("L")
+    scaled = _autocontrast_image(_scale_image(gray, 2))
+    top_region = _crop_by_ratio(base, 0.05, 0.05, 0.70, 0.30).convert("L")
+    account_region = _crop_by_ratio(base, 0.05, 0.33, 0.78, 0.56).convert("L")
+
+    return [
+        ("full_scaled_layout", scaled, "--psm 6"),
+        ("full_default", gray, ""),
+        ("full_scaled_sparse", scaled, "--psm 11"),
+        ("top_scaled", _autocontrast_image(_scale_image(top_region, 3)), "--psm 6"),
+        ("account_scaled", _autocontrast_image(_scale_image(account_region, 3)), "--psm 6"),
+    ]
+
+
+def _read_ocr_text(pil_image: Any) -> str:
+    texts: List[str] = []
+    seen = set()
+    errors: List[str] = []
+
+    for name, image, config in _build_ocr_attempts(pil_image):
+        try:
+            text = pytesseract.image_to_string(image, config=config).strip()
+        except Exception as exc:
+            errors.append(f"{name}: {exc!r}")
+            continue
+
+        if text and text not in seen:
+            texts.append(text)
+            seen.add(text)
+
+    if texts:
+        return "\n\n".join(texts)
+
+    details = "; ".join(errors) if errors else "OCR did not return text"
+    raise RuntimeError(details)
 
 
 def analyze_upload_image(
@@ -628,8 +798,7 @@ def analyze_upload_image(
 
     try:
         with Image.open(file_path) as pil_image:
-            gray = pil_image.convert("L")
-            text = pytesseract.image_to_string(gray)
+            text = _read_ocr_text(pil_image)
     except Exception as exc:
         return {"error": "ocr_failed", "details": repr(exc)}
 

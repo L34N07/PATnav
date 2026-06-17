@@ -13,6 +13,10 @@
   },
   "scripts": {
     "dev": "cross-env NODE_ENV=development concurrently -k \"vite\" \"electron .\"",
+    "dev:linux": "npm run db:start && cross-env NODE_ENV=development PATNAV_DB_SERVER=127.0.0.1,1433 PATNAV_PYTHON=.venv/bin/python concurrently -k \"vite\" \"electron .\"",
+    "db:start": "node scripts/start-dev-db.js",
+    "db:stop": "docker stop patnav-sql",
+    "db:logs": "docker logs -f patnav-sql",
     "build": "vite build",
     "postbuild": "node scripts/prepare-static-assets.js",
     "start": "cross-env NODE_ENV=production electron .",

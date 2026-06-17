@@ -1,0 +1,21 @@
+PATNAV important context for future work
+=======================================
+
+- PATNAV is still a Windows-first Electron app. Do not make product or packaging changes that would break Windows.
+- Linux/Omarchy support is only temporary dev support so the last PATNAV tool can be built while PLTNAV is delayed.
+- Normal Windows behavior should keep using the packaged Python bridge executable, `script.exe`.
+- Linux dev mode runs `script.py` directly through `.venv/bin/python` via `PATNAV_PYTHON`.
+- Use `npm run dev:linux` on Linux. It runs `npm run db:start` first, then starts Vite and Electron.
+- The local SQL Server dev container is named `patnav-sql`.
+- The local database name expected by the app is `NAVIERA`.
+- Local DB recovery files live in `nav_data/` as `NAVIERAX.mdf` and `NAVIERAX_1.ldf`.
+- `nav_data/`, `.mdf`, `.ldf`, and `.bak` files must stay out of git.
+- SQL Server is running in Docker on `127.0.0.1,1433`.
+- The app login path is: React -> Electron preload IPC -> main.js -> Python bridge -> pyodbc -> SQL Server stored procedures.
+- On Arch/Omarchy, the Microsoft ODBC Driver 18 package is `msodbcsql` from AUR, not `msodbcsql18`.
+- The venv needs `pyodbc`, `Pillow`, `pytesseract`, and `pyinstaller`; see `requirements.txt`.
+- If the app says "No se pudo validar las credenciales", first test the Python bridge and ODBC connection before assuming the credentials are wrong.
+- If Electron text renders invisible on Linux, check that `node_modules/electron/dist/electron` is a Linux ELF binary, not `electron.exe` running through Wine.
+- OCR may not work on Linux yet because the repo bundles Windows Tesseract assets. Keep OCR changes careful and Windows-compatible.
+- PDF generation should generally work through Electron, but printing/opening behavior can differ between Linux dev and Windows production.
+- Avoid broad refactors. Keep changes focused on the last tool and compatible with the existing stored-procedure backend.

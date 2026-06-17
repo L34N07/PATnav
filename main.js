@@ -14,6 +14,17 @@ const DEV_URL = 'http://localhost:5173'
 const PROD_URL = `file://${path.join(__dirname, 'dist/index.html')}`
 const DEFAULT_URL = isDev ? DEV_URL : PROD_URL
 const UPLOADS_DIR = resolveResourcePath('uploads')
+const UPLOAD_IMAGE_MIME_TYPES = Object.freeze({
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp'
+})
+
+if (process.platform === 'linux' && process.env.PATNAV_ENABLE_GPU !== '1') {
+  app.disableHardwareAcceleration()
+  app.commandLine.appendSwitch('disable-gpu')
+}
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -22,6 +33,9 @@ const ensureUploadsDir = () => {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true })
   }
 }
+
+const getUploadImageMimeType = fileName =>
+  UPLOAD_IMAGE_MIME_TYPES[path.extname(fileName).toLowerCase()] ?? null
 
 const RECORRIDO_DAY_ORDER = Object.freeze({ L: 0, M: 1, X: 2, J: 3, V: 4, S: 5 })
 
@@ -391,10 +405,11 @@ const waitForRenderer = async (targetUrl, { timeout = 30000, interval = 250 } = 
 }
 
 class PythonBridge {
-  constructor(executablePath) {
+  constructor(executablePath, args = []) {
     this.executablePath = executablePath
+    this.args = args
     const resourcesRoot = getResourcesRoot()
-    this.process = spawn(executablePath, [], {
+    this.process = spawn(executablePath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
       cwd: resourcesRoot,
@@ -548,8 +563,24 @@ class PythonBridge {
 
 let pythonBridge = null
 
+const resolveDevPythonBridge = () => {
+  if (!isDev || process.platform === 'win32') {
+    return null
+  }
+
+  const scriptPath = path.join(__dirname, 'script.py')
+  if (!fs.existsSync(scriptPath)) {
+    return null
+  }
+
+  return {
+    executablePath: process.env.PATNAV_PYTHON || 'python3',
+    args: [scriptPath]
+  }
+}
+
 const resolveScriptPath = () => {
-  const scriptNames = process.platform === 'win32' ? ['script.exe'] : ['script', 'script.exe']
+  const scriptNames = process.platform === 'win32' ? ['script.exe'] : ['script']
   const candidates = []
 
   const addCandidates = basePath => {
@@ -573,13 +604,25 @@ const resolveScriptPath = () => {
   return match
 }
 
+const resolveBridgeCommand = () => {
+  const devPythonBridge = resolveDevPythonBridge()
+  if (devPythonBridge && process.env.PATNAV_USE_BINARY_BRIDGE !== '1') {
+    return devPythonBridge
+  }
+
+  return {
+    executablePath: resolveScriptPath(),
+    args: []
+  }
+}
+
 const getPythonBridge = () => {
   if (pythonBridge && pythonBridge.isRunning()) {
     return pythonBridge
   }
 
-  const scriptPath = resolveScriptPath()
-  pythonBridge = new PythonBridge(scriptPath)
+  const bridgeCommand = resolveBridgeCommand()
+  pythonBridge = new PythonBridge(bridgeCommand.executablePath, bridgeCommand.args)
   return pythonBridge
 }
 
@@ -830,9 +873,10 @@ ipcMain.handle('uploads:list_images', async () => {
     const files = await Promise.all(
       entries
         .filter(entry => entry.isFile())
-        .filter(entry => /\.jpe?g$/i.test(entry.name))
+        .filter(entry => Boolean(getUploadImageMimeType(entry.name)))
         .map(async entry => {
           const filePath = path.join(UPLOADS_DIR, entry.name)
+          const mimeType = getUploadImageMimeType(entry.name) || 'image/jpeg'
           const [stats, buffer] = await Promise.all([
             fs.promises.stat(filePath),
             fs.promises.readFile(filePath)
@@ -841,7 +885,7 @@ ipcMain.handle('uploads:list_images', async () => {
             fileName: entry.name,
             filePath,
             fileUrl: pathToFileURL(filePath).href,
-            dataUrl: `data:image/jpeg;base64,${buffer.toString('base64')}`,
+            dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
             modifiedTime: stats.mtimeMs,
             size: stats.size
           }

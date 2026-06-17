@@ -2,12 +2,14 @@ html,
 body,
 #root {
   height: 100%;
+  color-scheme: light;
 }
 
 body {
   margin: 0;
   font-family: 'Figtree', Arial, "Helvetica Neue", Helvetica, sans-serif;
   background: #f7f7f7;
+  color: #111827;
   overflow: hidden;
 }
 

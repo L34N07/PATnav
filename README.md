@@ -10,6 +10,24 @@ npm install
 npm run dev
 ```
 
+Temporary Linux dev mode with a local SQL Server Docker container:
+
+```bash
+npm install
+yay -S unixodbc msodbcsql
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+npm run db:start
+npm run dev:linux
+```
+
+Place local database recovery files in `nav_data/` as `NAVIERAX.mdf` and
+`NAVIERAX_1.ldf` before running `npm run db:start`. The helper creates or starts
+the `patnav-sql` container, copies those files into the SQL Server data volume,
+attaches them as the `NAVIERA` database, and creates the local `navexe` login
+used by `script.py`.
+
 Production Mode: Build and start
 
 ```bash
@@ -23,7 +41,9 @@ Executable App: Run to build the executable and uncompressed folder.
 npm run dist
 ```
 
-The application no longer spawns the legacy `script.py` helper. Provide your preferred backend or data source when wiring up the client and irregularity tables.
+Windows builds use the packaged Python bridge executable. Linux dev mode runs
+`script.py` directly with `python3` so the app can be tested without producing a
+Linux PyInstaller build.
 
 ## Server Setup
 

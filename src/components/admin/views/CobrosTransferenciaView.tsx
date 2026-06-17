@@ -70,6 +70,10 @@ function ImageAnalysisModal({
   analysisResult,
   onClose
 }: ImageAnalysisModalProps) {
+  const hasDetectedFields = Boolean(
+    analysisResult?.match || analysisResult?.created || analysisResult?.amount
+  )
+
   return (
     <div className="image-modal" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="image-modal__panel" onClick={event => event.stopPropagation()}>
@@ -87,9 +91,9 @@ function ImageAnalysisModal({
             {isAnalyzing ? (
               <div className="ocr-status">Analizando imagen...</div>
             ) : analysisResult ? (
-              analysisResult.match ? (
+              hasDetectedFields ? (
                 <div className="ocr-result">
-                  {analysisResult.match.holder ? (
+                  {analysisResult.match?.holder ? (
                     <div className="ocr-result__pair">
                       <span className="ocr-result__label">Titular</span>
                       <span className="ocr-result__value ocr-result__value--holder">
@@ -97,12 +101,14 @@ function ImageAnalysisModal({
                       </span>
                     </div>
                   ) : null}
-                  <div className="ocr-result__pair">
-                    <span className="ocr-result__label">{analysisResult.match.type}</span>
-                    <span className="ocr-result__value ocr-result__value--account">
-                      {analysisResult.match.number}
-                    </span>
-                  </div>
+                  {analysisResult.match ? (
+                    <div className="ocr-result__pair">
+                      <span className="ocr-result__label">{analysisResult.match.type}</span>
+                      <span className="ocr-result__value ocr-result__value--account">
+                        {analysisResult.match.number}
+                      </span>
+                    </div>
+                  ) : null}
                   {analysisResult.created ? (
                     <div className="ocr-result__pair">
                       <span className="ocr-result__label">Fecha</span>
@@ -118,12 +124,12 @@ function ImageAnalysisModal({
                 </div>
               ) : (
                 <div className="ocr-status">
-                  No se identificaron CVU o CBU en la imagen analizada.
+                  No se identificaron CVU, CBU, fecha o monto en la imagen analizada.
                 </div>
               )
             ) : (
               <div className="ocr-status">
-                Presione &quot;Analizar Imagen&quot; para extraer CVU o CBU.
+                Presione &quot;Analizar Imagen&quot; para extraer CVU, CBU, fecha y monto.
               </div>
             )}
           </div>
@@ -217,8 +223,8 @@ export default function CobrosTransferenciaView() {
           created: response?.created ?? null
         })
 
-        if (!response?.match) {
-          setStatusMessage("No se detectaron CVU o CBU en la imagen seleccionada.")
+        if (!response?.match && !response?.amount && !response?.created) {
+          setStatusMessage("No se detectaron CVU, CBU, fecha ni monto en la imagen seleccionada.")
         }
       } catch (error) {
         console.error("No se pudo analizar la imagen:", error)
