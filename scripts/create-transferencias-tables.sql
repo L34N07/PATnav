@@ -1,0 +1,172 @@
+SET XACT_ABORT ON;
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
+IF OBJECT_ID(N'dbo.UsuariosTransferencia', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.UsuariosTransferencia
+    (
+        id_usuario_transferencia int IDENTITY(1, 1) NOT NULL,
+        id_cliente numeric(4, 0) NULL,
+        nro_lugar_entrega numeric(2, 0) NULL,
+        cvu_cbu varchar(22) NULL,
+        orden smallint NOT NULL,
+
+        CONSTRAINT PK_UsuariosTransferencia
+            PRIMARY KEY CLUSTERED (id_usuario_transferencia),
+        CONSTRAINT FK_UsuariosTransferencia_LugarEntrega
+            FOREIGN KEY (id_cliente, nro_lugar_entrega)
+            REFERENCES dbo.LugarEntrega (cod_cliente, nro_lugar_entrega),
+        CONSTRAINT CK_UsuariosTransferencia_Propietario
+            CHECK
+            (
+                (
+                    id_cliente IS NULL
+                    AND nro_lugar_entrega IS NULL
+                    AND cvu_cbu IS NULL
+                    AND orden = 0
+                )
+                OR
+                (
+                    id_cliente IS NOT NULL
+                    AND nro_lugar_entrega IS NOT NULL
+                    AND cvu_cbu IS NOT NULL
+                    AND orden > 0
+                )
+            ),
+        CONSTRAINT CK_UsuariosTransferencia_CvuCbu
+            CHECK
+            (
+                cvu_cbu IS NULL
+                OR (LEN(cvu_cbu) = 22 AND cvu_cbu NOT LIKE '%[^0-9]%')
+            )
+    );
+
+    CREATE UNIQUE INDEX UX_UsuariosTransferencia_ClienteLugarOrden
+        ON dbo.UsuariosTransferencia (id_cliente, nro_lugar_entrega, orden);
+
+    CREATE UNIQUE INDEX UX_UsuariosTransferencia_CvuCbu
+        ON dbo.UsuariosTransferencia (cvu_cbu)
+        WHERE cvu_cbu IS NOT NULL;
+END;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'dbo.UsuariosTransferencia')
+      AND name = N'UX_UsuariosTransferencia_ClienteLugarOrden'
+)
+BEGIN
+    CREATE UNIQUE INDEX UX_UsuariosTransferencia_ClienteLugarOrden
+        ON dbo.UsuariosTransferencia (id_cliente, nro_lugar_entrega, orden);
+END;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'dbo.UsuariosTransferencia')
+      AND name = N'UX_UsuariosTransferencia_CvuCbu'
+)
+BEGIN
+    CREATE UNIQUE INDEX UX_UsuariosTransferencia_CvuCbu
+        ON dbo.UsuariosTransferencia (cvu_cbu)
+        WHERE cvu_cbu IS NOT NULL;
+END;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM dbo.UsuariosTransferencia
+    WHERE id_cliente IS NULL
+      AND nro_lugar_entrega IS NULL
+      AND cvu_cbu IS NULL
+      AND orden = 0
+)
+BEGIN
+    INSERT INTO dbo.UsuariosTransferencia
+    (
+        id_cliente,
+        nro_lugar_entrega,
+        cvu_cbu,
+        orden
+    )
+    VALUES
+    (
+        NULL,
+        NULL,
+        NULL,
+        0
+    );
+END;
+GO
+
+IF OBJECT_ID(N'dbo.Transferencias', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Transferencias
+    (
+        id_transferencia bigint IDENTITY(1, 1) NOT NULL,
+        cvu_cbu varchar(22) NOT NULL,
+        monto decimal(18, 2) NOT NULL,
+        id_usuario_transferencia int NOT NULL,
+        fecha datetime2(0) NOT NULL,
+
+        CONSTRAINT PK_Transferencias
+            PRIMARY KEY CLUSTERED (id_transferencia),
+        CONSTRAINT FK_Transferencias_UsuariosTransferencia
+            FOREIGN KEY (id_usuario_transferencia)
+            REFERENCES dbo.UsuariosTransferencia (id_usuario_transferencia),
+        CONSTRAINT CK_Transferencias_CvuCbu
+            CHECK (LEN(cvu_cbu) = 22 AND cvu_cbu NOT LIKE '%[^0-9]%'),
+        CONSTRAINT CK_Transferencias_Monto
+            CHECK (monto > 0)
+    );
+
+    CREATE INDEX IX_Transferencias_CvuCbu_Fecha
+        ON dbo.Transferencias (cvu_cbu, fecha DESC);
+
+    CREATE INDEX IX_Transferencias_Usuario_Fecha
+        ON dbo.Transferencias (id_usuario_transferencia, fecha DESC);
+END;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'dbo.Transferencias')
+      AND name = N'IX_Transferencias_CvuCbu_Fecha'
+)
+BEGIN
+    CREATE INDEX IX_Transferencias_CvuCbu_Fecha
+        ON dbo.Transferencias (cvu_cbu, fecha DESC);
+END;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'dbo.Transferencias')
+      AND name = N'IX_Transferencias_Usuario_Fecha'
+)
+BEGIN
+    CREATE INDEX IX_Transferencias_Usuario_Fecha
+        ON dbo.Transferencias (id_usuario_transferencia, fecha DESC);
+END;
+GO
+
+SELECT
+    id_usuario_transferencia AS unidentified_user_id,
+    orden
+FROM dbo.UsuariosTransferencia
+WHERE id_cliente IS NULL
+  AND nro_lugar_entrega IS NULL
+  AND cvu_cbu IS NULL
+  AND orden = 0;
+GO

@@ -9,6 +9,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import pyodbc
 
+from comprobante_ocr import merge_ocr_attempts, ocr_data_to_lines
+
 try:
     from PIL import Image, ImageOps
 except ImportError:
@@ -94,58 +96,13 @@ CONNECT_TIMEOUT = _env_int("PATNAV_DB_CONNECT_TIMEOUT", 10)
 
 POOL_SIZE = _env_int("PATNAV_DB_POOL_SIZE", 1)
 
-CURRENCY_PATTERN = re.compile(r'\$\s*([0-9][0-9. ,]*)')
-ACCOUNT_PATTERN = re.compile(
-    r'\b(C[VB]U)\b\s*[:=\-.]?\s*([0-9A-ZIlOo|.\-\s]{10,48})',
-    re.IGNORECASE,
-)
-CREATED_PATTERN = re.compile(
-    r"creada\s+el\s+(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s*[-–]\s*([0-9]{1,2}:[0-9]{2})",
-    re.IGNORECASE
-)
-DISPLAYED_DATE_PATTERN = re.compile(
-    r"\b(\d{1,2})\s*/\s*([a-záéíóúñ]{3,10})\.?\s*[-–]\s*([0-9]{1,2}:[0-9]{2})(?:\s*(?:hs?|hrs?))?",
-    re.IGNORECASE,
-)
-ACCOUNT_DIGIT_TRANSLATION = str.maketrans({
-    "O": "0",
-    "o": "0",
-    "I": "1",
-    "l": "1",
-    "|": "1",
-    "B": "8",
-    "S": "5",
-})
-MONTH_MAP = {
-    "ene": 1,
-    "enero": 1,
-    "feb": 2,
-    "febrero": 2,
-    "mar": 3,
-    "marzo": 3,
-    "abr": 4,
-    "abril": 4,
-    "may": 5,
-    "mayo": 5,
-    "jun": 6,
-    "junio": 6,
-    "jul": 7,
-    "julio": 7,
-    "ago": 8,
-    "agosto": 8,
-    "sep": 9,
-    "set": 9,
-    "sept": 9,
-    "septiembre": 9,
-    "setiembre": 9,
-    "oct": 10,
-    "octubre": 10,
-    "nov": 11,
-    "noviembre": 11,
-    "november": 11,
-    "dic": 12,
-    "diciembre": 12,
-}
+OCR_LANGUAGE = _env_str("PATNAV_OCR_LANGUAGE", "eng")
+
+OCR_TIMEOUT_SECONDS = _env_int("PATNAV_OCR_TIMEOUT_SECONDS", 12)
+
+OCR_MAX_IMAGE_BYTES = _env_int("PATNAV_OCR_MAX_IMAGE_BYTES", 10 * 1024 * 1024)
+
+OCR_MAX_IMAGE_PIXELS = _env_int("PATNAV_OCR_MAX_IMAGE_PIXELS", 20_000_000)
 
 def _build_conn_str() -> str:
     parts = [
@@ -591,131 +548,6 @@ def editar_registro_hdr(
     )
 
 
-def _clean_holder_value(value: str) -> str:
-    cleaned = re.sub(r"^[^\w]+", "", value).strip()
-    cleaned = re.sub(r"\s{2,}", " ", cleaned)
-    tokens = cleaned.split()
-    if len(tokens) >= 2 and len(tokens[0]) == 1:
-        cleaned = " ".join(tokens[1:])
-        tokens = cleaned.split()
-    lowered = cleaned.lower()
-    blocked_terms = (
-        "banco",
-        "cbu",
-        "cvu",
-        "coelsa",
-        "destino",
-        "dinero",
-        "disponible",
-        "galicia",
-        "mercado pago",
-        "origen",
-    )
-    if len(tokens) < 2 or any(term in lowered for term in blocked_terms):
-        return ""
-    return cleaned
-
-
-def _extract_currency_amount(text: str) -> Optional[str]:
-    if not text:
-        return None
-    for match in CURRENCY_PATTERN.finditer(text):
-        raw = match.group(1)
-        cleaned = re.sub(r"\s+", "", raw)
-        if cleaned:
-            return cleaned
-    return None
-
-
-def _normalize_account_digits(value: str) -> str:
-    translated = value.translate(ACCOUNT_DIGIT_TRANSLATION)
-    return re.sub(r"\D", "", translated)
-
-
-def _score_account_digits(digits: str) -> int:
-    length = len(digits)
-    if length < 22:
-        return -1000
-    if length == 22:
-        return 120
-    if length > 22:
-        return 90 - min(length - 22, 20)
-    return -1000
-
-
-def _extract_account_match(text: str) -> Optional[Dict[str, Any]]:
-    if not text:
-        return None
-
-    candidates: List[Tuple[int, int, Dict[str, Any]]] = []
-    previous_line = ""
-    candidate_index = 0
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-
-        for match in ACCOUNT_PATTERN.finditer(line):
-            account_type = match.group(1).upper().replace(" ", "")
-            raw_digits = match.group(2)
-            digits = _normalize_account_digits(raw_digits)
-            score = _score_account_digits(digits)
-            if score <= 0:
-                continue
-
-            if len(digits) > 22:
-                digits = digits[:22]
-
-            normalized_type = "CVU" if account_type.startswith("CV") else "CBU"
-            holder = _clean_holder_value(previous_line)
-            holder_value = holder or None
-            candidate = {"type": normalized_type, "number": digits, "holder": holder_value}
-            candidates.append((score, -candidate_index, candidate))
-            candidate_index += 1
-
-        previous_line = line
-
-    if not candidates:
-        return None
-
-    return max(candidates, key=lambda item: (item[0], item[1]))[2]
-
-
-def _infer_transfer_year(day_number: int, month: int) -> int:
-    today = date.today()
-    inferred_year = today.year
-    try:
-        candidate_date = date(inferred_year, month, day_number)
-    except ValueError:
-        return inferred_year
-    if candidate_date > today:
-        return inferred_year - 1
-    return inferred_year
-
-
-def _format_ocr_timestamp(day: str, month_name: str, time_value: str) -> Optional[str]:
-    month = MONTH_MAP.get(month_name.strip().lower())
-    if not month:
-        return None
-    day_number = int(day)
-    year = _infer_transfer_year(day_number, month)
-    formatted_date = f"{day_number:02d}/{month:02d}/{year}"
-    return f"{formatted_date} - {time_value}"
-
-
-def _extract_created_timestamp(text: str) -> Optional[str]:
-    if not text:
-        return None
-
-    for pattern in (DISPLAYED_DATE_PATTERN, CREATED_PATTERN):
-        for match in pattern.finditer(text):
-            formatted = _format_ocr_timestamp(match.group(1), match.group(2), match.group(3))
-            if formatted:
-                return formatted
-
-    return None
-
-
 def _autocontrast_image(image: Any) -> Any:
     if ImageOps is None:
         return image
@@ -724,7 +556,8 @@ def _autocontrast_image(image: Any) -> Any:
 
 def _scale_image(image: Any, factor: int) -> Any:
     width, height = image.size
-    return image.resize((width * factor, height * factor))
+    resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+    return image.resize((width * factor, height * factor), resampling)
 
 
 def _crop_by_ratio(image: Any, left: float, top: float, right: float, bottom: float) -> Any:
@@ -754,24 +587,30 @@ def _build_ocr_attempts(pil_image: Any) -> List[Tuple[str, Any, str]]:
     ]
 
 
-def _read_ocr_text(pil_image: Any) -> str:
-    texts: List[str] = []
-    seen = set()
+def _read_ocr_attempts(pil_image: Any) -> List[Dict[str, Any]]:
+    attempts: List[Dict[str, Any]] = []
     errors: List[str] = []
 
     for name, image, config in _build_ocr_attempts(pil_image):
         try:
-            text = pytesseract.image_to_string(image, config=config).strip()
+            ocr_data = pytesseract.image_to_data(
+                image,
+                lang=OCR_LANGUAGE,
+                config=f"--oem 3 {config}".strip(),
+                output_type=pytesseract.Output.DICT,
+                timeout=OCR_TIMEOUT_SECONDS,
+            )
         except Exception as exc:
             errors.append(f"{name}: {exc!r}")
             continue
 
-        if text and text not in seen:
-            texts.append(text)
-            seen.add(text)
+        lines = ocr_data_to_lines(ocr_data)
+        text = "\n".join(str(line["text"]) for line in lines).strip()
+        if text:
+            attempts.append({"name": name, "text": text, "lines": lines})
 
-    if texts:
-        return "\n\n".join(texts)
+    if attempts:
+        return attempts
 
     details = "; ".join(errors) if errors else "OCR did not return text"
     raise RuntimeError(details)
@@ -790,6 +629,20 @@ def analyze_upload_image(
     if not os.path.isfile(file_path):
         return {"error": "not_found", "details": f"No file found at {file_path}"}
 
+    try:
+        file_size = os.path.getsize(file_path)
+    except OSError as exc:
+        return {"error": "unreadable_image", "details": repr(exc)}
+
+    if file_size <= 0:
+        return {"error": "invalid_image", "details": "The image file is empty"}
+
+    if file_size > OCR_MAX_IMAGE_BYTES:
+        return {
+            "error": "image_too_large",
+            "details": f"The image exceeds the {OCR_MAX_IMAGE_BYTES} byte limit",
+        }
+
     if pytesseract is None or Image is None:
         return {
             "error": "ocr_unavailable",
@@ -797,19 +650,63 @@ def analyze_upload_image(
         }
 
     try:
+        Image.MAX_IMAGE_PIXELS = OCR_MAX_IMAGE_PIXELS
         with Image.open(file_path) as pil_image:
-            text = _read_ocr_text(pil_image)
+            image_format = pil_image.format
+            if image_format not in {"PNG", "JPEG"}:
+                return {
+                    "error": "unsupported_image_type",
+                    "details": "Only PNG and JPG/JPEG receipts are supported",
+                }
+            pil_image.load()
+            attempts = _read_ocr_attempts(pil_image)
     except Exception as exc:
         return {"error": "ocr_failed", "details": repr(exc)}
 
-    match = _extract_account_match(text)
-    amount = _extract_currency_amount(text)
-    created = _extract_created_timestamp(text)
-    result = {"match": match, "text": text}
-    if amount:
-        result["amount"] = amount
-    if created:
-        result["created"] = created
+    parsed = merge_ocr_attempts(attempts)
+    fields = parsed["fields"]
+    account = fields["account"]
+    payer = fields["payer_name"]
+    amount = fields["amount"]
+    payment_date = fields["payment_date"]
+
+    match = None
+    if account.get("value"):
+        match = {
+            "type": account.get("type"),
+            "number": account["value"],
+            "holder": payer.get("value"),
+        }
+
+    try:
+        ocr_version = str(pytesseract.get_tesseract_version())
+    except Exception:
+        ocr_version = None
+
+    result = {
+        "ok": True,
+        "scanner": "mercado_pago_comprobante",
+        "match": match,
+        "amount": amount.get("value"),
+        "created": payment_date.get("display"),
+        "fields": fields,
+        "missing_fields": parsed["missing_fields"],
+        "warnings": parsed["warnings"],
+        "text": parsed.get("text", ""),
+        "ocr": {
+            "engine": "tesseract",
+            "version": ocr_version,
+            "language": OCR_LANGUAGE,
+            "average_confidence": parsed.get("average_confidence"),
+            "selected_attempt": parsed.get("ocr_attempt"),
+            "attempts": parsed.get("attempts", []),
+        },
+        "file": {
+            "path": file_path,
+            "size_bytes": file_size,
+            "detected_format": image_format,
+        },
+    }
     return result
 
 def _handle_get_app_user(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:

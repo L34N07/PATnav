@@ -1220,6 +1220,23 @@ body {
   font-weight: 600;
 }
 
+.ocr-result__warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.ocr-result__warning {
+  padding: 8px 10px;
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
 .test-view-layout__sidebar {
   display: flex;
   flex-direction: column;

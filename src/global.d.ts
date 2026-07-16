@@ -111,16 +111,44 @@ export interface UploadImagesResult {
 }
 
 export type OcrAccountMatch = {
-  type: "CVU" | "CBU"
+  type: "CVU" | "CBU" | null
   number: string
   holder?: string | null
 }
 
+export interface OcrFieldResult {
+  type?: "CVU" | "CBU" | null
+  value?: string | null
+  display?: string | null
+  formatted?: string | null
+  confidence?: number | null
+  validation?: string
+  source?: string
+  source_attempt?: string
+}
+
 export interface AnalyzeUploadImageResult {
+  ok?: boolean
+  scanner?: string
   match?: OcrAccountMatch | null
   text?: string
-  amount?: string
-  created?: string
+  amount?: string | null
+  created?: string | null
+  fields?: {
+    payer_name: OcrFieldResult
+    account: OcrFieldResult
+    amount: OcrFieldResult
+    payment_date: OcrFieldResult
+  }
+  missing_fields?: string[]
+  warnings?: Array<{ code: string; message: string }>
+  ocr?: {
+    engine?: string
+    version?: string | null
+    language?: string
+    average_confidence?: number | null
+    selected_attempt?: string | null
+  }
   error?: string
   details?: string
 }

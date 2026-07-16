@@ -12,15 +12,33 @@ type UploadImage = {
 }
 
 type AnalysisMatch = {
-  type: "CVU" | "CBU"
+  type: "CVU" | "CBU" | null
   number: string
   holder?: string | null
+}
+
+type AnalysisField = {
+  type?: "CVU" | "CBU" | null
+  value?: string | null
+  display?: string | null
+  formatted?: string | null
+  confidence?: number | null
+  validation?: string
 }
 
 type AnalysisResult = {
   match: AnalysisMatch | null
   amount?: string | null
   created?: string | null
+  fields?: {
+    payer_name: AnalysisField
+    account: AnalysisField
+    amount: AnalysisField
+    payment_date: AnalysisField
+  }
+  missingFields?: string[]
+  warnings?: Array<{ code: string; message: string }>
+  averageConfidence?: number | null
 }
 
 const STATUS_DURATION_MS = 2000
@@ -70,8 +88,15 @@ function ImageAnalysisModal({
   analysisResult,
   onClose
 }: ImageAnalysisModalProps) {
+  const fields = analysisResult?.fields
+  const holder = fields?.payer_name.value ?? analysisResult?.match?.holder
+  const accountType = fields?.account.type ?? analysisResult?.match?.type
+  const accountNumber = fields?.account.formatted ?? analysisResult?.match?.number
+  const amount = fields?.amount.display ??
+    (analysisResult?.amount ? `$${analysisResult.amount}` : null)
+  const paymentDate = fields?.payment_date.display ?? analysisResult?.created
   const hasDetectedFields = Boolean(
-    analysisResult?.match || analysisResult?.created || analysisResult?.amount
+    accountNumber || paymentDate || amount || holder
   )
 
   return (
@@ -93,32 +118,49 @@ function ImageAnalysisModal({
             ) : analysisResult ? (
               hasDetectedFields ? (
                 <div className="ocr-result">
-                  {analysisResult.match?.holder ? (
+                  {holder ? (
                     <div className="ocr-result__pair">
                       <span className="ocr-result__label">Titular</span>
                       <span className="ocr-result__value ocr-result__value--holder">
-                        {analysisResult.match.holder}
+                        {holder}
                       </span>
                     </div>
                   ) : null}
-                  {analysisResult.match ? (
+                  {accountNumber ? (
                     <div className="ocr-result__pair">
-                      <span className="ocr-result__label">{analysisResult.match.type}</span>
+                      <span className="ocr-result__label">{accountType ?? "CBU/CVU"}</span>
                       <span className="ocr-result__value ocr-result__value--account">
-                        {analysisResult.match.number}
+                        {accountNumber}
                       </span>
                     </div>
                   ) : null}
-                  {analysisResult.created ? (
+                  {paymentDate ? (
                     <div className="ocr-result__pair">
                       <span className="ocr-result__label">Fecha</span>
-                      <span className="ocr-result__value">{analysisResult.created}</span>
+                      <span className="ocr-result__value">{paymentDate}</span>
                     </div>
                   ) : null}
-                  {analysisResult.amount ? (
+                  {amount ? (
                     <div className="ocr-result__pair">
                       <span className="ocr-result__label">Monto</span>
-                      <span className="ocr-result__amount">${analysisResult.amount}</span>
+                      <span className="ocr-result__amount">{amount}</span>
+                    </div>
+                  ) : null}
+                  {typeof analysisResult.averageConfidence === "number" ? (
+                    <div className="ocr-result__pair">
+                      <span className="ocr-result__label">Confianza OCR</span>
+                      <span className="ocr-result__value">
+                        {Math.round(analysisResult.averageConfidence * 100)}%
+                      </span>
+                    </div>
+                  ) : null}
+                  {analysisResult.warnings?.length ? (
+                    <div className="ocr-result__warnings">
+                      {analysisResult.warnings.map(warning => (
+                        <div className="ocr-result__warning" key={warning.code}>
+                          {warning.message}
+                        </div>
+                      ))}
                     </div>
                   ) : null}
                 </div>
@@ -220,7 +262,11 @@ export default function CobrosTransferenciaView() {
         setAnalysisResult({
           match: response?.match ?? null,
           amount: response?.amount ?? null,
-          created: response?.created ?? null
+          created: response?.created ?? null,
+          fields: response?.fields,
+          missingFields: response?.missing_fields ?? [],
+          warnings: response?.warnings ?? [],
+          averageConfidence: response?.ocr?.average_confidence ?? null
         })
 
         if (!response?.match && !response?.amount && !response?.created) {

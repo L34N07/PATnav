@@ -17,6 +17,8 @@
     "db:start": "node scripts/start-dev-db.js",
     "db:stop": "docker stop patnav-sql",
     "db:logs": "docker logs -f patnav-sql",
+    "db:migrate:transferencias": "node scripts/apply-transferencias-migration.js",
+    "test:ocr": "python -m unittest discover -s tests -p \"test_*.py\" -v",
     "build": "vite build",
     "postbuild": "node scripts/prepare-static-assets.js",
     "start": "cross-env NODE_ENV=production electron .",

@@ -11,6 +11,10 @@ PATNAV important context for future work
 - Local DB recovery files live in `nav_data/` as `NAVIERAX.mdf` and `NAVIERAX_1.ldf`.
 - `nav_data/`, `.mdf`, `.ldf`, and `.bak` files must stay out of git.
 - SQL Server is running in Docker on `127.0.0.1,1433`.
+- Apply the idempotent transfer schema with `npm run db:migrate:transferencias`.
+- `UsuariosTransferencia` maps ordered CBU/CVU accounts to the composite
+  `LugarEntrega` key; its null client/location row with `orden = 0` is the unidentified placeholder.
+- `Transferencias` stores the detected account, amount, owner mapping, and transfer date.
 - The app login path is: React -> Electron preload IPC -> main.js -> Python bridge -> pyodbc -> SQL Server stored procedures.
 - On Arch/Omarchy, the Microsoft ODBC Driver 18 package is `msodbcsql` from AUR, not `msodbcsql18`.
 - The venv needs `pyodbc`, `Pillow`, `pytesseract`, and `pyinstaller`; see `requirements.txt`.

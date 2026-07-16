@@ -19,6 +19,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 npm run db:start
+npm run db:migrate:transferencias
 npm run dev:linux
 ```
 
@@ -27,6 +28,18 @@ Place local database recovery files in `nav_data/` as `NAVIERAX.mdf` and
 the `patnav-sql` container, copies those files into the SQL Server data volume,
 attaches them as the `NAVIERA` database, and creates the local `navexe` login
 used by `script.py`.
+
+`npm run db:migrate:transferencias` is idempotent. It creates the
+`UsuariosTransferencia` account-owner mapping and the `Transferencias` history
+table, including the unidentified owner placeholder used until a worker assigns
+a receipt to a client and delivery location.
+
+The receipt scanner combines several OCR passes with the parser for the current
+Mercado Pago receipt layout. Its parser tests can be run with:
+
+```bash
+npm run test:ocr
+```
 
 Production Mode: Build and start
 
