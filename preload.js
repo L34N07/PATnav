@@ -30,7 +30,23 @@ const electronAPI = Object.freeze({
   savePdf: payload => ipcRenderer.invoke('pdf:save_pdf', payload),
   openPdf: payload => ipcRenderer.invoke('pdf:open_pdf', payload),
   listUploadImages: () => ipcRenderer.invoke('uploads:list_images'),
-  analyzeUploadImage: filePath => ipcRenderer.invoke('python:analyze_upload_image', { filePath })
+  analyzeUploadImage: filePath => ipcRenderer.invoke('python:analyze_upload_image', { filePath }),
+  processUploadImage: (filePath, allowDuplicate = false) =>
+    ipcRenderer.invoke('python:process_upload_image', { filePath, allowDuplicate }),
+  markUploadProcessed: filePath =>
+    ipcRenderer.invoke('python:mark_upload_processed', { filePath }),
+  listTransferTable: tableName =>
+    ipcRenderer.invoke('python:list_transfer_table', { tableName }),
+  deleteTransferTableRow: (tableName, rowId) =>
+    ipcRenderer.invoke('python:delete_transfer_table_row', { tableName, rowId }),
+  listUnidentifiedTransferencias: () =>
+    ipcRenderer.invoke('python:list_unidentified_transferencias'),
+  listIdentifiedTransferencias: () =>
+    ipcRenderer.invoke('python:list_identified_transferencias'),
+  listTransferAddressCandidates: () =>
+    ipcRenderer.invoke('python:list_transfer_address_candidates'),
+  assignTransferenciaAccount: payload =>
+    ipcRenderer.invoke('python:assign_transferencia_account', payload)
 })
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

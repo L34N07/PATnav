@@ -12,9 +12,13 @@ PATNAV important context for future work
 - `nav_data/`, `.mdf`, `.ldf`, and `.bak` files must stay out of git.
 - SQL Server is running in Docker on `127.0.0.1,1433`.
 - Apply the idempotent transfer schema with `npm run db:migrate:transferencias`.
+- Apply the transfer table permission column with `npm run db:migrate:transfer-tables-permission`.
+- Apply the transfer identification permission column with `npm run db:migrate:transfer-identification-permission`.
 - `UsuariosTransferencia` maps ordered CBU/CVU accounts to the composite
-  `LugarEntrega` key; its null client/location row with `orden = 0` is the unidentified placeholder.
-- `Transferencias` stores the detected account, amount, owner mapping, and transfer date.
+  `LugarEntrega` key: `cod_cliente` + `nro_lugar_entrega`. Its null client/location row with `orden = 0` is the unidentified placeholder.
+- `Transferencias` stores the detected account, amount, owner mapping, transfer date, and OCR-only `nombre_asociado`.
+- `Procesar Imagenes` stores pending receipts, checks exact duplicates by `cvu_cbu` + `monto` + `fecha`, and renames handled files with the `Procesada_` prefix.
+- `Identificar Transferencias` uses `View7`; assigning a CBU/CVU creates the next ordered `UsuariosTransferencia` row and updates all matching `Transferencias`.
 - The app login path is: React -> Electron preload IPC -> main.js -> Python bridge -> pyodbc -> SQL Server stored procedures.
 - On Arch/Omarchy, the Microsoft ODBC Driver 18 package is `msodbcsql` from AUR, not `msodbcsql18`.
 - The venv needs `pyodbc`, `Pillow`, `pytesseract`, and `pyinstaller`; see `requirements.txt`.

@@ -1,17 +1,27 @@
 import type { ComponentType } from 'react'
+import type { HomeShellComponentProps } from './components/HomeShell'
 import TestView from './components/admin/views/TestView'
 import TestView2 from './components/admin/views/TestView2'
 import FacturasAtrasadasView from './components/admin/views/FacturasAtrasadasView'
 import HojaDeRutaView from './components/admin/views/HojaDeRutaView'
 import CobrosTransferenciaView from './components/admin/views/CobrosTransferenciaView'
+import TransferTablesView from './components/admin/views/TransferTablesView'
+import TransferIdentificationView from './components/admin/views/TransferIdentificationView'
 
-export type AdminPageId = 'test' | 'test2' | 'transfer' | 'cobrosTransferencia' | 'hojaRuta'
+export type AdminPageId =
+  | 'test'
+  | 'test2'
+  | 'transfer'
+  | 'cobrosTransferencia'
+  | 'transferTables'
+  | 'transferIdentification'
+  | 'hojaRuta'
 
 export type AdminPageDefinition = {
   id: AdminPageId
   label: string
   permissionKey: string
-  component: ComponentType
+  component: ComponentType<HomeShellComponentProps>
 }
 
 export const ADMIN_PAGES: AdminPageDefinition[] = [
@@ -28,6 +38,18 @@ export const ADMIN_PAGES: AdminPageDefinition[] = [
     label: 'Cobros por Transferencia',
     permissionKey: 'View5',
     component: CobrosTransferenciaView
+  },
+  {
+    id: 'transferTables',
+    label: 'Tablas Transferencias',
+    permissionKey: 'View6',
+    component: TransferTablesView
+  },
+  {
+    id: 'transferIdentification',
+    label: 'Identificar Transferencias',
+    permissionKey: 'View7',
+    component: TransferIdentificationView
   },
   {
     id: 'hojaRuta',

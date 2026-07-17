@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react"
+import type { AnalyzeUploadImageResult } from "../../../global"
 import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
 import StatusToasts from "../../StatusToasts"
 
@@ -9,6 +10,7 @@ type UploadImage = {
   dataUrl: string
   modifiedTime: number
   size: number
+  processed: boolean
 }
 
 type AnalysisMatch = {
@@ -38,10 +40,46 @@ type AnalysisResult = {
   }
   missingFields?: string[]
   warnings?: Array<{ code: string; message: string }>
-  averageConfidence?: number | null
 }
 
-const STATUS_DURATION_MS = 2000
+type StoredTransfer = {
+  id_transferencia: number
+  cvu_cbu: string
+  monto: string
+  fecha: string
+  fecha_display?: string
+  nombre_asociado?: string | null
+  id_usuario_transferencia: number
+  cod_cliente?: number | null
+  nro_lugar_entrega?: number | null
+  orden?: number | null
+}
+
+type ProcessImageResponse = {
+  status?: "stored" | "duplicate"
+  analysis?: AnalyzeUploadImageResult
+  duplicate?: StoredTransfer
+  transfer?: StoredTransfer
+  error?: string
+  details?: string
+  missing_fields?: string[]
+}
+
+type BatchStats = {
+  total: number
+  stored: number
+  skipped: number
+  errors: string[]
+}
+
+type DuplicateReview = {
+  image: UploadImage
+  result: ProcessImageResponse
+  remaining: UploadImage[]
+  stats: BatchStats
+}
+
+const STATUS_DURATION_MS = 4000
 
 type UploadsGridItemProps = {
   image: UploadImage
@@ -59,17 +97,27 @@ const UploadsGridItem = React.memo(function UploadsGridItem({
   return (
     <button
       type="button"
-      className={`uploads-browser__item${isSelected ? " selected" : ""}`}
+      className={`uploads-browser__item${isSelected ? " selected" : ""}${
+        image.processed ? " uploads-browser__item--processed" : ""
+      }`}
       onClick={handleClick}
       aria-pressed={isSelected}
     >
       <div className="uploads-browser__preview">
         <img src={image.dataUrl || image.fileUrl} alt={image.fileName} loading="lazy" />
+        {image.processed ? (
+          <span className="uploads-browser__processed-mark" aria-label="Procesada">
+            ✓
+          </span>
+        ) : null}
       </div>
       <div className="uploads-browser__caption">
         <span className="uploads-browser__filename" title={image.fileName}>
           {image.fileName}
         </span>
+        {image.processed ? (
+          <span className="uploads-browser__processed-label">Procesada</span>
+        ) : null}
       </div>
     </button>
   )
@@ -146,14 +194,6 @@ function ImageAnalysisModal({
                       <span className="ocr-result__amount">{amount}</span>
                     </div>
                   ) : null}
-                  {typeof analysisResult.averageConfidence === "number" ? (
-                    <div className="ocr-result__pair">
-                      <span className="ocr-result__label">Confianza OCR</span>
-                      <span className="ocr-result__value">
-                        {Math.round(analysisResult.averageConfidence * 100)}%
-                      </span>
-                    </div>
-                  ) : null}
                   {analysisResult.warnings?.length ? (
                     <div className="ocr-result__warnings">
                       {analysisResult.warnings.map(warning => (
@@ -181,6 +221,119 @@ function ImageAnalysisModal({
   )
 }
 
+type DuplicateTransferModalProps = {
+  review: DuplicateReview
+  isWorking: boolean
+  onStoreAnyway: () => void
+  onSkip: () => void
+}
+
+function formatStoredAmount(value: string) {
+  const amount = Number(value)
+  return Number.isFinite(amount)
+    ? new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" }).format(amount)
+    : value
+}
+
+function DuplicateTransferModal({
+  review,
+  isWorking,
+  onStoreAnyway,
+  onSkip
+}: DuplicateTransferModalProps) {
+  const stored = review.result.duplicate
+
+  if (!stored) {
+    return null
+  }
+
+  return (
+    <div className="image-modal" role="alertdialog" aria-modal="true">
+      <div className="image-modal__panel duplicate-transfer-modal">
+        <div className="image-modal__header">
+          <div>
+            <h3 className="image-modal__title">Posible transferencia duplicada</h3>
+            <p className="duplicate-transfer-modal__intro">
+              Ya existe una transferencia con la misma cuenta, monto y fecha.
+            </p>
+          </div>
+        </div>
+        <div className="image-modal__body">
+          <div className="image-modal__preview">
+            <img
+              src={review.image.dataUrl || review.image.fileUrl}
+              alt={review.image.fileName}
+            />
+          </div>
+          <div className="image-modal__sidebar duplicate-transfer-modal__details">
+            <span className="ocr-result__label">Transferencia almacenada</span>
+            <div className="ocr-result__pair">
+              <span className="ocr-result__label">Titular detectado</span>
+              <span className="ocr-result__value">{stored.nombre_asociado || "Sin nombre"}</span>
+            </div>
+            <div className="ocr-result__pair">
+              <span className="ocr-result__label">CBU/CVU</span>
+              <span className="ocr-result__value ocr-result__value--account">
+                {stored.cvu_cbu}
+              </span>
+            </div>
+            <div className="ocr-result__pair">
+              <span className="ocr-result__label">Monto</span>
+              <span className="ocr-result__amount">{formatStoredAmount(stored.monto)}</span>
+            </div>
+            <div className="ocr-result__pair">
+              <span className="ocr-result__label">Fecha</span>
+              <span className="ocr-result__value">
+                {stored.fecha_display || stored.fecha}
+              </span>
+            </div>
+            <div className="ocr-result__pair">
+              <span className="ocr-result__label">Cliente / lugar</span>
+              <span className="ocr-result__value">
+                {stored.cod_cliente == null
+                  ? "Sin identificar"
+                  : `${stored.cod_cliente} / ${stored.nro_lugar_entrega}`}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="duplicate-transfer-modal__actions">
+          <button
+            className="image-modal__close action-button--skip"
+            type="button"
+            onClick={onSkip}
+            disabled={isWorking}
+          >
+            Omitir y marcar procesada
+          </button>
+          <button
+            className="fetch-button action-button--confirm"
+            type="button"
+            onClick={onStoreAnyway}
+            disabled={isWorking}
+          >
+            {isWorking ? "Guardando..." : "Guardar de todos modos"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function mapAnalysisResult(response?: AnalyzeUploadImageResult): AnalysisResult | null {
+  if (!response) {
+    return null
+  }
+  return {
+    match: response.match ?? null,
+    amount: response.amount ?? null,
+    created: response.created ?? null,
+    fields: response.fields,
+    missingFields: response.missing_fields ?? [],
+    warnings: response.warnings ?? []
+  }
+}
+
 export default function CobrosTransferenciaView() {
   const electronAPI = window.electronAPI
 
@@ -192,6 +345,10 @@ export default function CobrosTransferenciaView() {
   const [analysisImage, setAnalysisImage] = useState<UploadImage | null>(null)
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [processingProgress, setProcessingProgress] = useState<string | null>(null)
+  const [duplicateReview, setDuplicateReview] = useState<DuplicateReview | null>(null)
+  const [isDuplicateActionRunning, setIsDuplicateActionRunning] = useState(false)
 
   useAutoDismissMessage(statusMessage, setStatusMessage, STATUS_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, STATUS_DURATION_MS)
@@ -259,15 +416,7 @@ export default function CobrosTransferenciaView() {
           throw new Error(response.details || response.error)
         }
 
-        setAnalysisResult({
-          match: response?.match ?? null,
-          amount: response?.amount ?? null,
-          created: response?.created ?? null,
-          fields: response?.fields,
-          missingFields: response?.missing_fields ?? [],
-          warnings: response?.warnings ?? [],
-          averageConfidence: response?.ocr?.average_confidence ?? null
-        })
+        setAnalysisResult(mapAnalysisResult(response))
 
         if (!response?.match && !response?.amount && !response?.created) {
           setStatusMessage("No se detectaron CVU, CBU, fecha ni monto en la imagen seleccionada.")
@@ -283,6 +432,178 @@ export default function CobrosTransferenciaView() {
     },
     [electronAPI, setErrorMessage, setStatusMessage]
   )
+
+  const finishProcessingBatch = useCallback(
+    async (stats: BatchStats) => {
+      setDuplicateReview(null)
+      setProcessingProgress(null)
+      setIsProcessing(false)
+      await refreshImages()
+
+      const summary = `${stats.stored} guardada${stats.stored === 1 ? "" : "s"}, ${
+        stats.skipped
+      } duplicada${stats.skipped === 1 ? "" : "s"} omitida${
+        stats.skipped === 1 ? "" : "s"
+      }.`
+      setStatusMessage(summary)
+      if (stats.errors.length > 0) {
+        setErrorMessage(
+          `${stats.errors.length} imagen${stats.errors.length === 1 ? "" : "es"} no se pudo procesar: ${stats.errors[0]}`
+        )
+      }
+    },
+    [refreshImages]
+  )
+
+  const processImageQueue = useCallback(
+    async (queue: UploadImage[], initialStats: BatchStats) => {
+      if (!electronAPI?.processUploadImage) {
+        setIsProcessing(false)
+        setErrorMessage("La accion de procesar imagenes no se encuentra disponible.")
+        return
+      }
+
+      let stats = initialStats
+      for (let index = 0; index < queue.length; index += 1) {
+        const image = queue[index]
+        const completed = stats.stored + stats.skipped + stats.errors.length
+        setProcessingProgress(`Procesando ${completed + 1} de ${stats.total}: ${image.fileName}`)
+
+        try {
+          const response = (await electronAPI.processUploadImage(
+            image.filePath,
+            false
+          )) as ProcessImageResponse
+
+          if (response.error) {
+            stats = {
+              ...stats,
+              errors: [...stats.errors, `${image.fileName}: ${response.details || response.error}`]
+            }
+            continue
+          }
+
+          if (response.status === "duplicate" && response.duplicate) {
+            setProcessingProgress(`Coincidencia encontrada: ${image.fileName}`)
+            setDuplicateReview({
+              image,
+              result: response,
+              remaining: queue.slice(index + 1),
+              stats
+            })
+            return
+          }
+
+          if (response.status === "stored") {
+            stats = { ...stats, stored: stats.stored + 1 }
+          } else {
+            stats = {
+              ...stats,
+              errors: [...stats.errors, `${image.fileName}: respuesta inesperada`]
+            }
+          }
+        } catch (error) {
+          stats = {
+            ...stats,
+            errors: [
+              ...stats.errors,
+              `${image.fileName}: ${error instanceof Error ? error.message : "error desconocido"}`
+            ]
+          }
+        }
+      }
+
+      await finishProcessingBatch(stats)
+    },
+    [electronAPI, finishProcessingBatch]
+  )
+
+  const handleProcessImages = useCallback(() => {
+    const pendingImages = images.filter(image => !image.processed)
+    if (pendingImages.length === 0) {
+      setStatusMessage("No hay imagenes pendientes de procesar.")
+      return
+    }
+
+    setErrorMessage(null)
+    setStatusMessage(null)
+    setIsProcessing(true)
+    void processImageQueue(pendingImages, {
+      total: pendingImages.length,
+      stored: 0,
+      skipped: 0,
+      errors: []
+    })
+  }, [images, processImageQueue])
+
+  const handleStoreDuplicate = useCallback(async () => {
+    if (!duplicateReview || !electronAPI?.processUploadImage) {
+      return
+    }
+
+    setIsDuplicateActionRunning(true)
+    const { image, remaining } = duplicateReview
+    let stats = duplicateReview.stats
+    try {
+      const response = (await electronAPI.processUploadImage(
+        image.filePath,
+        true
+      )) as ProcessImageResponse
+      if (response.error || response.status !== "stored") {
+        stats = {
+          ...stats,
+          errors: [...stats.errors, `${image.fileName}: ${response.details || response.error || "no se pudo guardar"}`]
+        }
+      } else {
+        stats = { ...stats, stored: stats.stored + 1 }
+      }
+    } catch (error) {
+      stats = {
+        ...stats,
+        errors: [
+          ...stats.errors,
+          `${image.fileName}: ${error instanceof Error ? error.message : "error desconocido"}`
+        ]
+      }
+    }
+
+    setDuplicateReview(null)
+    setIsDuplicateActionRunning(false)
+    await processImageQueue(remaining, stats)
+  }, [duplicateReview, electronAPI, processImageQueue])
+
+  const handleSkipDuplicate = useCallback(async () => {
+    if (!duplicateReview || !electronAPI?.markUploadProcessed) {
+      return
+    }
+
+    setIsDuplicateActionRunning(true)
+    const { image, remaining } = duplicateReview
+    let stats = duplicateReview.stats
+    try {
+      const response = await electronAPI.markUploadProcessed(image.filePath)
+      if (response?.error) {
+        stats = {
+          ...stats,
+          errors: [...stats.errors, `${image.fileName}: ${response.details || response.error}`]
+        }
+      } else {
+        stats = { ...stats, skipped: stats.skipped + 1 }
+      }
+    } catch (error) {
+      stats = {
+        ...stats,
+        errors: [
+          ...stats.errors,
+          `${image.fileName}: ${error instanceof Error ? error.message : "error desconocido"}`
+        ]
+      }
+    }
+
+    setDuplicateReview(null)
+    setIsDuplicateActionRunning(false)
+    await processImageQueue(remaining, stats)
+  }, [duplicateReview, electronAPI, processImageQueue])
 
   const handleSelectImage = useCallback((image: UploadImage) => {
     setSelectedImage(image)
@@ -337,14 +658,22 @@ export default function CobrosTransferenciaView() {
         <aside className="sidebar loan-actions transfer-view-actions">
           <div className="loan-actions__button-group">
             <span className="loan-actions__section-title">Acciones</span>
-            <button className="fetch-button" type="button">
-              Procesar Imagenes
+            <button
+              className="fetch-button"
+              type="button"
+              onClick={handleProcessImages}
+              disabled={isProcessing || isAnalyzing || images.every(image => image.processed)}
+            >
+              {isProcessing ? "Procesando..." : "Procesar Imagenes"}
             </button>
+            {processingProgress ? (
+              <div className="transfer-processing-progress">{processingProgress}</div>
+            ) : null}
             <button
               className="fetch-button"
               type="button"
               onClick={handleAnalyzeImage}
-              disabled={!selectedImage || isAnalyzing}
+              disabled={!selectedImage || isAnalyzing || isProcessing}
             >
               {isAnalyzing ? "Analizando..." : "Analizar Imagen"}
             </button>
@@ -355,7 +684,7 @@ export default function CobrosTransferenciaView() {
               className="fetch-button"
               type="button"
               onClick={refreshImages}
-              disabled={isLoading}
+              disabled={isLoading || isProcessing}
             >
               {isLoading ? "Cargando..." : "Actualizar"}
             </button>
@@ -368,6 +697,14 @@ export default function CobrosTransferenciaView() {
           isAnalyzing={isAnalyzing}
           analysisResult={analysisResult}
           onClose={handleCloseAnalysis}
+        />
+      ) : null}
+      {duplicateReview ? (
+        <DuplicateTransferModal
+          review={duplicateReview}
+          isWorking={isDuplicateActionRunning}
+          onStoreAnyway={() => void handleStoreDuplicate()}
+          onSkip={() => void handleSkipDuplicate()}
         />
       ) : null}
     </>

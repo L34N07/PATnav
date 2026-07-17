@@ -19,6 +19,8 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 npm run db:start
+npm run db:migrate:transfer-tables-permission
+npm run db:migrate:transfer-identification-permission
 npm run db:migrate:transferencias
 npm run dev:linux
 ```
@@ -33,6 +35,27 @@ used by `script.py`.
 `UsuariosTransferencia` account-owner mapping and the `Transferencias` history
 table, including the unidentified owner placeholder used until a worker assigns
 a receipt to a client and delivery location.
+
+`npm run db:migrate:transfer-tables-permission` is also idempotent. It adds the
+`View6` permission column used by the transfer table test view and updates
+`update_user_permission` so the Admin Panel can save that permission.
+
+`npm run db:migrate:transfer-identification-permission` adds the `View7`
+permission used by the employee-facing transfer identification view.
+
+`UsuariosTransferencia` links accounts to `LugarEntrega` through the existing
+composite key `cod_cliente` + `nro_lugar_entrega`. `Transferencias` stores the
+detected `cvu_cbu`, `monto`, `fecha`, owner mapping, and `nombre_asociado` from
+OCR. Before saving a receipt, the app checks for an exact existing match by
+`cvu_cbu` + `monto` + `fecha`; duplicates are shown to the worker before any
+extra row is inserted. Processed images are renamed with the `Procesada_`
+prefix and shown with a processed marker in the UI.
+
+The transfer identification view lists receipts still assigned to the
+unidentified placeholder. Assigning a CBU/CVU creates the next ordered
+`UsuariosTransferencia` row for the selected `cod_cliente` +
+`nro_lugar_entrega` and updates every stored transfer with the same CBU/CVU.
+Future processed receipts with that CBU/CVU resolve automatically.
 
 The receipt scanner combines several OCR passes with the parser for the current
 Mercado Pago receipt layout. Its parser tests can be run with:

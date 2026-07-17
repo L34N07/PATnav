@@ -102,6 +102,7 @@ export interface UploadImageEntry {
   dataUrl: string
   modifiedTime: number
   size: number
+  processed: boolean
 }
 
 export interface UploadImagesResult {
@@ -153,6 +154,120 @@ export interface AnalyzeUploadImageResult {
   details?: string
 }
 
+export interface StoredTransferResult {
+  id_transferencia: number
+  cvu_cbu: string
+  monto: string
+  fecha: string
+  fecha_display?: string
+  nombre_asociado?: string | null
+  id_usuario_transferencia: number
+  cod_cliente?: number | null
+  nro_lugar_entrega?: number | null
+  orden?: number | null
+}
+
+export interface ProcessUploadImageResult {
+  status?: "stored" | "duplicate"
+  analysis?: AnalyzeUploadImageResult
+  duplicate?: StoredTransferResult
+  duplicates?: StoredTransferResult[]
+  transfer?: StoredTransferResult
+  error?: string
+  details?: string
+  missing_fields?: string[]
+}
+
+export interface MarkUploadProcessedResult {
+  status?: "processed" | "already_processed"
+  file_path?: string
+  file_name?: string
+  error?: string
+  details?: string
+}
+
+export type TransferTableName = "transferencias" | "usuarios_transferencia"
+
+export interface TransferTableResult {
+  table?: TransferTableName
+  label?: string
+  primary_key?: string
+  columns?: string[]
+  rows?: Array<Record<string, unknown>>
+  error?: string
+  details?: string
+}
+
+export interface DeleteTransferTableRowResult {
+  status?: "deleted" | "not_deleted"
+  deleted?: number
+  error?: string
+  details?: string
+}
+
+export interface UnidentifiedTransferenciaResult {
+  id_transferencia: number
+  cvu_cbu: string
+  monto: string
+  fecha: string
+  fecha_display?: string
+  nombre_asociado?: string | null
+  id_usuario_transferencia: number
+  transferencias_mismo_cvu?: number
+  cod_cliente?: number | null
+  nro_lugar_entrega?: number | null
+  orden?: number | null
+  razon_social?: string | null
+  direccion?: string | null
+}
+
+export interface UnidentifiedTransferenciasResult {
+  columns?: string[]
+  rows?: UnidentifiedTransferenciaResult[]
+  error?: string
+  details?: string
+}
+
+export interface TransferAddressCandidate {
+  cod_cliente: number
+  nro_lugar_entrega: number
+  razon_social?: string | null
+  domicilio_fiscal?: string | null
+  calle?: string | null
+  numeropuerta?: number | null
+  observ_domicilio?: string | null
+  observ_domicilio_2?: string | null
+  municipio?: string | null
+  direccion?: string | null
+}
+
+export interface TransferAddressCandidatesResult {
+  columns?: string[]
+  rows?: TransferAddressCandidate[]
+  error?: string
+  details?: string
+}
+
+export interface AssignTransferenciaAccountPayload {
+  cvuCbu: string
+  codCliente: number | string
+  nroLugarEntrega: number | string
+}
+
+export interface AssignTransferenciaAccountResult {
+  status?: "assigned"
+  updated_transferencias?: number
+  created_usuario_transferencia?: boolean
+  owner?: {
+    id_usuario_transferencia: number
+    cod_cliente: number
+    nro_lugar_entrega: number
+    orden: number
+  }
+  error?: string
+  details?: string
+}
+
 export interface ElectronAPI {
   getClientes: () => Promise<PythonResult>
   getAppUser: (username: string) => Promise<AppUserResult>
@@ -190,6 +305,22 @@ export interface ElectronAPI {
   openPdf: (payload: SavePdfPayload) => Promise<OpenPdfResult>
   listUploadImages: () => Promise<UploadImagesResult>
   analyzeUploadImage: (filePath: string) => Promise<AnalyzeUploadImageResult>
+  processUploadImage: (
+    filePath: string,
+    allowDuplicate?: boolean
+  ) => Promise<ProcessUploadImageResult>
+  markUploadProcessed: (filePath: string) => Promise<MarkUploadProcessedResult>
+  listTransferTable: (tableName: TransferTableName) => Promise<TransferTableResult>
+  deleteTransferTableRow: (
+    tableName: TransferTableName,
+    rowId: number | string
+  ) => Promise<DeleteTransferTableRowResult>
+  listUnidentifiedTransferencias: () => Promise<UnidentifiedTransferenciasResult>
+  listIdentifiedTransferencias: () => Promise<UnidentifiedTransferenciasResult>
+  listTransferAddressCandidates: () => Promise<TransferAddressCandidatesResult>
+  assignTransferenciaAccount: (
+    payload: AssignTransferenciaAccountPayload
+  ) => Promise<AssignTransferenciaAccountResult>
 }
 
 declare global {

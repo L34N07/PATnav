@@ -887,7 +887,8 @@ ipcMain.handle('uploads:list_images', async () => {
             fileUrl: pathToFileURL(filePath).href,
             dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
             modifiedTime: stats.mtimeMs,
-            size: stats.size
+            size: stats.size,
+            processed: /^Procesada_(?:\d+_)?/i.test(entry.name)
           }
         })
     )
@@ -1061,6 +1062,74 @@ registerPythonHandler('python:analyze_upload_image', 'analyze_upload_image', {
     return undefined
   },
   mapPayload: payload => [payload.filePath]
+})
+
+registerPythonHandler('python:process_upload_image', 'process_upload_image', {
+  validate: payload => {
+    if (!payload?.filePath) {
+      return { error: 'invalid_params', details: 'filePath is required to process an image' }
+    }
+    return undefined
+  },
+  mapPayload: payload => [payload.filePath, payload.allowDuplicate === true]
+})
+
+registerPythonHandler('python:mark_upload_processed', 'mark_upload_processed', {
+  validate: payload => {
+    if (!payload?.filePath) {
+      return { error: 'invalid_params', details: 'filePath is required to mark an image' }
+    }
+    return undefined
+  },
+  mapPayload: payload => [payload.filePath]
+})
+
+registerPythonHandler('python:list_transfer_table', 'list_transfer_table', {
+  validate: payload => {
+    if (!payload?.tableName) {
+      return { error: 'invalid_params', details: 'tableName is required' }
+    }
+    return undefined
+  },
+  mapPayload: payload => [payload.tableName]
+})
+
+registerPythonHandler('python:delete_transfer_table_row', 'delete_transfer_table_row', {
+  validate: payload => {
+    if (!payload?.tableName || payload.rowId === undefined || payload.rowId === null) {
+      return { error: 'invalid_params', details: 'tableName and rowId are required' }
+    }
+    return undefined
+  },
+  mapPayload: payload => [payload.tableName, payload.rowId]
+})
+
+registerPythonHandler(
+  'python:list_unidentified_transferencias',
+  'list_unidentified_transferencias'
+)
+
+registerPythonHandler(
+  'python:list_identified_transferencias',
+  'list_identified_transferencias'
+)
+
+registerPythonHandler(
+  'python:list_transfer_address_candidates',
+  'list_transfer_address_candidates'
+)
+
+registerPythonHandler('python:assign_transferencia_account', 'assign_transferencia_account', {
+  validate: payload => {
+    if (!payload?.cvuCbu || payload.codCliente === undefined || payload.nroLugarEntrega === undefined) {
+      return {
+        error: 'invalid_params',
+        details: 'cvuCbu, codCliente and nroLugarEntrega are required'
+      }
+    }
+    return undefined
+  },
+  mapPayload: payload => [payload.cvuCbu, payload.codCliente, payload.nroLugarEntrega]
 })
 
 app.whenReady().then(async () => {

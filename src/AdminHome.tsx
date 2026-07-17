@@ -45,6 +45,7 @@ export default function AdminHome({ onLogout }: AdminHomeProps) {
       rightPages={[ADMIN_PANEL_PAGE]}
       activePageId={activePageId}
       onSelectPage={handleSelectPage}
+      pageProps={{ isAdmin: true }}
       wrapContent={wrapContent}
     />
   )

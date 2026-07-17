@@ -42,6 +42,7 @@ export default function UserHome({ onLogout, allowedPageIds }: UserHomeProps) {
       leftPages={visiblePages}
       activePageId={activePageId}
       onSelectPage={handleSelectPage}
+      pageProps={{ isAdmin: false }}
       emptyState={emptyState}
     />
   )

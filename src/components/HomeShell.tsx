@@ -1,10 +1,14 @@
 import React, { ComponentType, ReactNode, useCallback, useEffect, useState } from "react"
 import TopBar from "./TopBar"
 
+export type HomeShellComponentProps = {
+  isAdmin?: boolean
+}
+
 export type HomeShellPage<PageId extends string = string> = {
   id: PageId
   label: string
-  component: ComponentType
+  component: ComponentType<HomeShellComponentProps>
 }
 
 type HomeShellProps<PageId extends string> = {
@@ -13,6 +17,7 @@ type HomeShellProps<PageId extends string> = {
   rightPages?: HomeShellPage<PageId>[]
   activePageId: PageId | null
   onSelectPage: (pageId: PageId) => void
+  pageProps?: HomeShellComponentProps
   wrapContent?: (content: ReactNode, page: HomeShellPage<PageId>) => ReactNode
   emptyState?: ReactNode
 }
@@ -23,6 +28,7 @@ export default function HomeShell<PageId extends string>({
   rightPages = [],
   activePageId,
   onSelectPage,
+  pageProps,
   wrapContent,
   emptyState
 }: HomeShellProps<PageId>) {
@@ -66,8 +72,19 @@ export default function HomeShell<PageId extends string>({
   const content =
     ActiveComponent && activePage
       ? wrapContent
-        ? wrapContent(<ActiveComponent key={`${activePage.id}-${activePageRevision}`} />, activePage)
-        : <ActiveComponent key={`${activePage.id}-${activePageRevision}`} />
+        ? wrapContent(
+            <ActiveComponent
+              key={`${activePage.id}-${activePageRevision}`}
+              {...pageProps}
+            />,
+            activePage
+          )
+        : (
+          <ActiveComponent
+            key={`${activePage.id}-${activePageRevision}`}
+            {...pageProps}
+          />
+        )
       : null
 
   const body = content ?? emptyState ?? null

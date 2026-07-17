@@ -18,6 +18,8 @@
     "db:stop": "docker stop patnav-sql",
     "db:logs": "docker logs -f patnav-sql",
     "db:migrate:transferencias": "node scripts/apply-transferencias-migration.js",
+    "db:migrate:transfer-tables-permission": "node scripts/apply-view6-permission-migration.js",
+    "db:migrate:transfer-identification-permission": "node scripts/apply-view7-permission-migration.js",
     "test:ocr": "python -m unittest discover -s tests -p \"test_*.py\" -v",
     "build": "vite build",
     "postbuild": "node scripts/prepare-static-assets.js",
