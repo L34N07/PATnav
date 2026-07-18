@@ -1185,7 +1185,8 @@ registerPythonHandler('python:apply_transfer_payment', 'apply_transfer_payment',
     payload.receiptComprobante,
     payload.receiptClient,
     payload.transferAmount,
-    payload.selectedVentas
+    payload.selectedVentas,
+    payload.transferId
   ]
 })
 

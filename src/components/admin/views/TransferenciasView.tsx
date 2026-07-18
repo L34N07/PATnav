@@ -519,7 +519,7 @@ function IdentifiedDetailsModal({
                           `${toDisplayValue(venta.cod_cliente)}-${toDisplayValue(venta.nro_lugar_entrega)}`}
                       </span>
                       <span className="transfer-venta-card__date">
-                        {formatOperationDate(venta.fecha_operacion)}
+                        {formatOperationDate(venta.fecha_vencimiento)}
                       </span>
                       <span className="transfer-venta-card__amount">
                         {totalAmount}
@@ -1017,6 +1017,7 @@ export default function TransferenciasView({
 
     try {
       const result: ApplyTransferPaymentResult = await electronAPI.applyTransferPayment({
+        transferId: identifiedDetailsTransfer.id_transferencia,
         receiptComprobante: selectedComprobante,
         receiptClient: {
           codCliente: selectedBill.cod_cliente,

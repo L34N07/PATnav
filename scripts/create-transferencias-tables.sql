@@ -200,6 +200,8 @@ BEGIN
         id_usuario_transferencia int NOT NULL,
         fecha datetime2(0) NOT NULL,
         nombre_asociado nvarchar(160) NULL,
+        estado varchar(20) NOT NULL
+            CONSTRAINT DF_Transferencias_Estado DEFAULT ('NO-CARGADA'),
 
         CONSTRAINT PK_Transferencias
             PRIMARY KEY CLUSTERED (id_transferencia),
@@ -209,7 +211,9 @@ BEGIN
         CONSTRAINT CK_Transferencias_CvuCbu
             CHECK (LEN(cvu_cbu) = 22 AND cvu_cbu NOT LIKE '%[^0-9]%'),
         CONSTRAINT CK_Transferencias_Monto
-            CHECK (monto > 0)
+            CHECK (monto > 0),
+        CONSTRAINT CK_Transferencias_Estado
+            CHECK (estado IN ('NO-CARGADA', 'CARGADA'))
     );
 
     CREATE INDEX IX_Transferencias_CvuCbu_Fecha
@@ -224,6 +228,35 @@ IF COL_LENGTH(N'dbo.Transferencias', N'nombre_asociado') IS NULL
 BEGIN
     ALTER TABLE dbo.Transferencias
     ADD nombre_asociado nvarchar(160) NULL;
+END;
+GO
+
+IF COL_LENGTH(N'dbo.Transferencias', N'estado') IS NULL
+BEGIN
+    ALTER TABLE dbo.Transferencias
+    ADD estado varchar(20) NOT NULL
+        CONSTRAINT DF_Transferencias_Estado DEFAULT ('NO-CARGADA') WITH VALUES;
+END;
+GO
+
+UPDATE dbo.Transferencias
+SET estado = CASE
+    WHEN UPPER(LTRIM(RTRIM(estado))) = 'CARGADA' THEN 'CARGADA'
+    ELSE 'NO-CARGADA'
+END;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.check_constraints
+    WHERE parent_object_id = OBJECT_ID(N'dbo.Transferencias')
+      AND name = N'CK_Transferencias_Estado'
+)
+BEGIN
+    ALTER TABLE dbo.Transferencias WITH CHECK
+    ADD CONSTRAINT CK_Transferencias_Estado
+        CHECK (estado IN ('NO-CARGADA', 'CARGADA'));
 END;
 GO
 
@@ -250,6 +283,20 @@ IF NOT EXISTS
 BEGIN
     CREATE INDEX IX_Transferencias_Usuario_Fecha
         ON dbo.Transferencias (id_usuario_transferencia, fecha DESC);
+END;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'dbo.Transferencias')
+      AND name = N'IX_Transferencias_Estado_Fecha'
+)
+BEGIN
+    CREATE INDEX IX_Transferencias_Estado_Fecha
+        ON dbo.Transferencias (estado, fecha DESC)
+        INCLUDE (id_usuario_transferencia, cvu_cbu, monto);
 END;
 GO
 

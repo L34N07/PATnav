@@ -171,6 +171,7 @@ export interface StoredTransferResult {
   fecha: string
   fecha_display?: string
   nombre_asociado?: string | null
+  estado?: "NO-CARGADA" | "CARGADA" | string | null
   id_usuario_transferencia: number
   cod_cliente?: number | null
   nro_lugar_entrega?: number | null
@@ -222,6 +223,7 @@ export interface UnidentifiedTransferenciaResult {
   fecha: string
   fecha_display?: string
   nombre_asociado?: string | null
+  estado?: "NO-CARGADA" | "CARGADA" | string | null
   id_usuario_transferencia: number
   transferencias_mismo_cvu?: number
   cod_cliente?: number | null
@@ -262,7 +264,7 @@ export interface TransferVentaResult {
   tipo_comprobante: string
   prefijo: string | number
   numero: string | number
-  fecha_operacion: string
+  fecha_vencimiento: string
   mcampo_control?: string | null
   cod_cliente: string | number
   nro_lugar_entrega: string | number
@@ -312,6 +314,7 @@ export interface CobroComprobanteCheckResult {
 }
 
 export interface ApplyTransferPaymentPayload {
+  transferId?: number | string
   receiptComprobante: CobroComprobantePayload
   receiptClient: {
     codCliente: number | string
@@ -342,6 +345,7 @@ export interface ApplyTransferPaymentResult {
   inserted_cobros?: number
   inserted_cobros_aplicados?: number
   updated_ventas?: number
+  updated_transferencias?: number
   remaining_transfer_amount?: string
   error?: string
   details?: string

@@ -814,7 +814,8 @@ TRANSFER_TABLE_QUERIES = {
                 monto,
                 id_usuario_transferencia,
                 fecha,
-                nombre_asociado
+                nombre_asociado,
+                estado
             FROM dbo.Transferencias
             ORDER BY id_transferencia DESC;
         """,
@@ -971,6 +972,7 @@ def list_unidentified_transferencias(pool: ConnectionPool) -> Dict[str, Any]:
                 t.monto,
                 t.fecha,
                 t.nombre_asociado,
+                t.estado,
                 t.id_usuario_transferencia,
                 COUNT(*) OVER (PARTITION BY t.cvu_cbu) AS transferencias_mismo_cvu
             FROM dbo.Transferencias AS t
@@ -978,6 +980,7 @@ def list_unidentified_transferencias(pool: ConnectionPool) -> Dict[str, Any]:
                 ON u.id_usuario_transferencia = t.id_usuario_transferencia
             WHERE u.cod_cliente IS NULL
               AND u.nro_lugar_entrega IS NULL
+              AND t.estado = 'NO-CARGADA'
             ORDER BY t.fecha DESC, t.id_transferencia DESC;
             """
         )
@@ -1014,6 +1017,7 @@ def list_identified_transferencias(pool: ConnectionPool) -> Dict[str, Any]:
                 t.monto,
                 t.fecha,
                 t.nombre_asociado,
+                t.estado,
                 t.id_usuario_transferencia,
                 u.cod_cliente,
                 u.nro_lugar_entrega,
@@ -1054,6 +1058,7 @@ def list_identified_transferencias(pool: ConnectionPool) -> Dict[str, Any]:
                 ON m.cod_municipio = le.cod_municipio
             WHERE u.cod_cliente IS NOT NULL
               AND u.nro_lugar_entrega IS NOT NULL
+              AND t.estado = 'NO-CARGADA'
             ORDER BY t.fecha DESC, t.id_transferencia DESC;
             """
         )
@@ -1226,7 +1231,7 @@ def list_transfer_ventas(
                 LTRIM(RTRIM(v.tipo_comprobante)) AS tipo_comprobante,
                 v.prefijo,
                 v.numero,
-                v.fecha_operacion,
+                v.fecha_vencimiento,
                 v.Mcampo_control AS mcampo_control,
                 v.cod_cliente,
                 v.nro_lugar_entrega,
@@ -1257,8 +1262,8 @@ def list_transfer_ventas(
             INNER JOIN expanded_locations AS loc
                 ON loc.cod_cliente = v.cod_cliente
                AND loc.nro_lugar_entrega = v.nro_lugar_entrega
-            WHERE v.fecha_operacion >= DATEADD(month, -12, GETDATE())
-            ORDER BY v.fecha_operacion DESC, v.prefijo DESC, v.numero DESC;
+            WHERE v.fecha_vencimiento >= DATEADD(month, -12, GETDATE())
+            ORDER BY v.fecha_vencimiento DESC, v.prefijo DESC, v.numero DESC;
             """,
             (
                 account_value,
@@ -1427,6 +1432,7 @@ def apply_transfer_payment(
     receipt_client: Any,
     transfer_amount: Any,
     selected_ventas: Any,
+    transfer_id: Any = None,
 ) -> Dict[str, Any]:
     if not isinstance(receipt_comprobante, dict):
         return {
@@ -1453,6 +1459,7 @@ def apply_transfer_payment(
         receipt_cod_cliente = int(receipt_client.get("codCliente"))
         receipt_nro_lugar = int(receipt_client.get("nroLugarEntrega"))
         wire_amount = _decimal_from_any(transfer_amount, "transfer_amount")
+        parsed_transfer_id = int(transfer_id) if transfer_id not in (None, "") else None
     except ValueError as exc:
         return {"error": "invalid_params", "details": str(exc)}
     except (TypeError, ValueError) as exc:
@@ -1465,6 +1472,12 @@ def apply_transfer_payment(
         return {
             "error": "invalid_params",
             "details": "transfer_amount must be greater than zero.",
+        }
+
+    if parsed_transfer_id is not None and parsed_transfer_id <= 0:
+        return {
+            "error": "invalid_params",
+            "details": "transfer_id must be greater than zero.",
         }
 
     selected_keys: List[Tuple[str, int, int]] = []
@@ -1504,6 +1517,31 @@ def apply_transfer_payment(
         cursor = conn.cursor()
         cursor.execute("SET XACT_ABORT ON; SET LOCK_TIMEOUT 5000;")
 
+        if parsed_transfer_id is not None:
+            cursor.execute(
+                """
+                SELECT TOP (1) estado
+                FROM dbo.Transferencias WITH (UPDLOCK, HOLDLOCK)
+                WHERE id_transferencia = ?;
+                """,
+                (parsed_transfer_id,),
+            )
+            transfer_row = cursor.fetchone()
+            if transfer_row is None:
+                conn.rollback()
+                return {
+                    "error": "transferencia_not_found",
+                    "details": "No existe la transferencia seleccionada.",
+                }
+
+            transfer_status = str(transfer_row.estado or "").strip().upper()
+            if transfer_status == "CARGADA":
+                conn.rollback()
+                return {
+                    "error": "transferencia_already_loaded",
+                    "details": "La transferencia seleccionada ya fue cargada.",
+                }
+
         cursor.execute(
             """
             SELECT TOP (1) 1
@@ -1529,7 +1567,7 @@ def apply_transfer_payment(
                     LTRIM(RTRIM(v.tipo_comprobante)) AS tipo_comprobante,
                     v.prefijo,
                     v.numero,
-                    v.fecha_operacion,
+                    v.fecha_vencimiento,
                     v.Mcampo_control,
                     COALESCE((
                         SELECT SUM(COALESCE(vi.importe, 0))
@@ -1583,14 +1621,14 @@ def apply_transfer_payment(
                     "tipo_comprobante": tipo,
                     "prefijo": prefijo,
                     "numero": numero,
-                    "fecha_operacion": row.fecha_operacion,
+                    "fecha_vencimiento": row.fecha_vencimiento,
                     "deuda": deuda,
                 }
             )
 
         venta_records.sort(
             key=lambda record: (
-                record["fecha_operacion"],
+                str(record["fecha_vencimiento"] or ""),
                 record["tipo_comprobante"],
                 record["prefijo"],
                 record["numero"],
@@ -1694,6 +1732,19 @@ def apply_transfer_payment(
                 "details": "No se pudo aplicar ningun importe.",
             }
 
+        transferencias_updated = 0
+        if parsed_transfer_id is not None:
+            cursor.execute(
+                """
+                UPDATE dbo.Transferencias
+                SET estado = 'CARGADA'
+                WHERE id_transferencia = ?
+                  AND estado = 'NO-CARGADA';
+                """,
+                (parsed_transfer_id,),
+            )
+            transferencias_updated = cursor.rowcount if cursor.rowcount is not None else 0
+
         conn.commit()
         return {
             "status": "saved",
@@ -1708,6 +1759,7 @@ def apply_transfer_payment(
             "inserted_cobros": 1,
             "inserted_cobros_aplicados": len(applied_rows),
             "updated_ventas": paid_updates,
+            "updated_transferencias": transferencias_updated,
             "remaining_transfer_amount": str(remaining),
         }
     except pyodbc.Error as exc:
@@ -1929,6 +1981,7 @@ def process_upload_image(
                 t.monto,
                 t.fecha,
                 t.nombre_asociado,
+                t.estado,
                 t.id_usuario_transferencia,
                 u.cod_cliente,
                 u.nro_lugar_entrega,
@@ -2021,6 +2074,7 @@ def process_upload_image(
                 INSERTED.monto,
                 INSERTED.fecha,
                 INSERTED.nombre_asociado,
+                INSERTED.estado,
                 INSERTED.id_usuario_transferencia
             VALUES (?, ?, ?, ?, ?);
             """,
@@ -2463,12 +2517,13 @@ def _handle_apply_transfer_payment(
     pool: ConnectionPool,
     params: Sequence[Any],
 ) -> Dict[str, Any]:
-    if len(params) != 4:
+    if not 4 <= len(params) <= 5:
         return {
             "error": "invalid_params",
-            "details": "apply_transfer_payment expects receipt_comprobante, receipt_client, transfer_amount and selected_ventas",
+            "details": "apply_transfer_payment expects receipt_comprobante, receipt_client, transfer_amount, selected_ventas and optional transfer_id",
         }
-    return apply_transfer_payment(pool, params[0], params[1], params[2], params[3])
+    transfer_id = params[4] if len(params) == 5 else None
+    return apply_transfer_payment(pool, params[0], params[1], params[2], params[3], transfer_id)
 
 
 def _handle_assign_transferencia_account(

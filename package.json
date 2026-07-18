@@ -17,6 +17,7 @@
     "db:start": "node scripts/start-dev-db.js",
     "db:stop": "docker stop patnav-sql",
     "db:logs": "docker logs -f patnav-sql",
+    "db:migrate:comprobantes-permission": "node scripts/apply-view5-permission-migration.js",
     "db:migrate:transferencias": "node scripts/apply-transferencias-migration.js",
     "db:migrate:transfer-tables-permission": "node scripts/apply-view6-permission-migration.js",
     "db:migrate:transfer-identification-permission": "node scripts/apply-view7-permission-migration.js",
