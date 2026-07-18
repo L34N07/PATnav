@@ -904,6 +904,32 @@ ipcMain.handle('uploads:list_images', async () => {
   }
 })
 
+ipcMain.handle('uploads:delete_processed_images', async () => {
+  try {
+    ensureUploadsDir()
+    const entries = await fs.promises.readdir(UPLOADS_DIR, { withFileTypes: true })
+    const processedEntries = entries
+      .filter(entry => entry.isFile())
+      .filter(entry => Boolean(getUploadImageMimeType(entry.name)))
+      .filter(entry => /^Procesada_(?:\d+_)?/i.test(entry.name))
+
+    const deletedFiles = []
+    for (const entry of processedEntries) {
+      const filePath = path.join(UPLOADS_DIR, entry.name)
+      await fs.promises.unlink(filePath)
+      deletedFiles.push({ fileName: entry.name, filePath })
+    }
+
+    return { deleted: deletedFiles.length, files: deletedFiles }
+  } catch (error) {
+    console.error('Failed to delete processed upload images:', error)
+    return {
+      error: 'delete_failed',
+      details: error instanceof Error ? error.message : 'No se pudieron eliminar las imagenes procesadas.'
+    }
+  }
+})
+
 registerPythonHandler('python:get_app_user', 'get_app_user', {
   mapPayload: payload => [payload.username]
 })

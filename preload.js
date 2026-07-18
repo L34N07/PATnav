@@ -30,6 +30,7 @@ const electronAPI = Object.freeze({
   savePdf: payload => ipcRenderer.invoke('pdf:save_pdf', payload),
   openPdf: payload => ipcRenderer.invoke('pdf:open_pdf', payload),
   listUploadImages: () => ipcRenderer.invoke('uploads:list_images'),
+  deleteProcessedUploadImages: () => ipcRenderer.invoke('uploads:delete_processed_images'),
   analyzeUploadImage: filePath => ipcRenderer.invoke('python:analyze_upload_image', { filePath }),
   processUploadImage: (filePath, allowDuplicate = false) =>
     ipcRenderer.invoke('python:process_upload_image', { filePath, allowDuplicate }),

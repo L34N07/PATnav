@@ -400,6 +400,7 @@ type IdentifiedDetailsModalProps = {
   ventasError: string | null
   onCancel: () => void
   onSelectBill: (venta: TransferVentaResult) => void
+  onResetBillSelection: () => void
   onTogglePaymentVenta: (venta: TransferVentaResult) => void
   onSavePayment: () => void
 }
@@ -417,6 +418,7 @@ function IdentifiedDetailsModal({
   ventasError,
   onCancel,
   onSelectBill,
+  onResetBillSelection,
   onTogglePaymentVenta,
   onSavePayment
 }: IdentifiedDetailsModalProps) {
@@ -543,13 +545,19 @@ function IdentifiedDetailsModal({
 
           <aside className="transfer-identified-modal__side">
             <span className="transfer-identified-modal__side-title">Seleccion</span>
-            <div className="transfer-identified-modal__selected-bill">
+            <button
+              type="button"
+              className="transfer-identified-modal__selected-bill"
+              onClick={onResetBillSelection}
+              disabled={!selectedComprobante || isCheckingCobro || isSavingPayment}
+              title={selectedComprobante ? "Volver a seleccionar comprobante" : undefined}
+            >
               {selectedComprobante
                 ? buildComprobanteLabel(selectedComprobante)
                 : isCheckingCobro
                   ? "Verificando..."
-                  : "Seleccione una factura"}
-            </div>
+                  : "Seleccione Comprobante"}
+            </button>
           </aside>
         </div>
 
@@ -581,17 +589,17 @@ function IdentifiedDetailsModal({
   )
 }
 
-type TransferIdentificationViewProps = {
+type TransferenciasViewProps = {
   isAdmin?: boolean
 }
 
-type TransferIdentificationMode = "unidentified" | "identified"
+type TransferenciasMode = "unidentified" | "identified"
 
-export default function TransferIdentificationView({
+export default function TransferenciasView({
   isAdmin = false
-}: TransferIdentificationViewProps) {
+}: TransferenciasViewProps) {
   const electronAPI = window.electronAPI
-  const [activeMode, setActiveMode] = useState<TransferIdentificationMode>("unidentified")
+  const [activeMode, setActiveMode] = useState<TransferenciasMode>("unidentified")
   const [transfers, setTransfers] = useState<UnidentifiedTransferenciaResult[]>([])
   const [identifiedTransfers, setIdentifiedTransfers] = useState<UnidentifiedTransferenciaResult[]>([])
   const [addresses, setAddresses] = useState<TransferAddressCandidate[]>([])
@@ -813,7 +821,7 @@ export default function TransferIdentificationView({
   }, [])
 
   const handleModeChange = useCallback(
-    (mode: TransferIdentificationMode) => {
+    (mode: TransferenciasMode) => {
       setActiveMode(mode)
       setSelectedTransfer(null)
       setSelectedIdentifiedTransfer(null)
@@ -968,6 +976,17 @@ export default function TransferIdentificationView({
     },
     [identifiedDetailsTransfer]
   )
+
+  const handleResetBillSelection = useCallback(() => {
+    if (isCheckingCobro || isSavingPayment) {
+      return
+    }
+    setSelectedBill(null)
+    setSelectedComprobante(null)
+    setSelectedPaymentVentas([])
+    setPendingReplacementVenta(null)
+    setReplacementError(null)
+  }, [isCheckingCobro, isSavingPayment])
 
   const closeIdentifiedDetailsModal = useCallback(() => {
     setIdentifiedDetailsTransfer(null)
@@ -1130,6 +1149,13 @@ export default function TransferIdentificationView({
                         </span>
                       </div>
                     </button>
+                    <button
+                      type="button"
+                      className="loan-card-indicator transfer-identification-card__assign"
+                      onClick={() => openIdentifiedDetailsModal(transfer)}
+                    >
+                      Cargar
+                    </button>
                   </div>
                 )
               })
@@ -1177,16 +1203,6 @@ export default function TransferIdentificationView({
             >
               {isLoadingActiveTransfers ? "Cargando..." : "Actualizar"}
             </button>
-            {activeMode === "unidentified" ? (
-              <button
-                className="fetch-button fetch-button--success"
-                type="button"
-                onClick={() => openAssignmentModal(selectedTransfer)}
-                disabled={!selectedTransfer || isAssigning || addresses.length === 0}
-              >
-                Asignar domicilio
-              </button>
-            ) : null}
             {(isLoadingTransfers || isLoadingIdentifiedTransfers || isLoadingAddresses || isAssigning) ? (
               <span className="loan-actions__loading">
                 {isAssigning ? "Asignando..." : "Procesando..."}
@@ -1250,6 +1266,7 @@ export default function TransferIdentificationView({
           ventasError={ventasError}
           onCancel={closeIdentifiedDetailsModal}
           onSelectBill={handleSelectBill}
+          onResetBillSelection={handleResetBillSelection}
           onTogglePaymentVenta={handleTogglePaymentVenta}
           onSavePayment={handleSavePayment}
         />

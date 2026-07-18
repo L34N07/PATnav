@@ -839,15 +839,30 @@ body {
 }
 
 .transfer-identified-modal__selected-bill {
-  min-height: 44px;
+  width: 100%;
+  min-height: 58px;
   display: flex;
   align-items: center;
-  padding: 10px 12px;
-  border: 1px solid #fed7aa;
+  justify-content: center;
+  padding: 14px 14px;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  background: #fff7ed;
-  color: #9a3412;
+  background: #fff;
+  color: #ef0000;
+  font-size: 0.98rem;
   font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+}
+
+.transfer-identified-modal__selected-bill:hover:not(:disabled) {
+  border-color: #ef4444;
+  background: #fff5f5;
+}
+
+.transfer-identified-modal__selected-bill:disabled {
+  cursor: default;
+  opacity: 1;
 }
 
 .transfer-identified-modal__accumulated {
@@ -2896,6 +2911,17 @@ body {
   gap: 16px;
 }
 
+.transfer-view-actions .fetch-button.transfer-view-actions__delete-processed:not(:disabled) {
+  border-color: #dc2626;
+  color: #b91c1c;
+}
+
+.transfer-view-actions .fetch-button.transfer-view-actions__delete-processed:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #b91c1c;
+  color: #991b1b;
+}
+
 .transfer-view-actions .loan-actions__button-group--bottom {
   margin-top: auto;
   width: 100%;
@@ -3279,6 +3305,17 @@ body {
   background: #e5e7eb;
   border-color: #cbd5e1;
   transform: translateY(-1px);
+}
+
+.loan-card.transfer-identification-card .transfer-identification-card__assign {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #fff;
+}
+
+.loan-card.transfer-identification-card .transfer-identification-card__assign:hover {
+  background: #15803d;
+  color: #fff;
 }
 
 .loan-card-body {

@@ -4,17 +4,17 @@ import TestView from './components/admin/views/TestView'
 import TestView2 from './components/admin/views/TestView2'
 import FacturasAtrasadasView from './components/admin/views/FacturasAtrasadasView'
 import HojaDeRutaView from './components/admin/views/HojaDeRutaView'
-import CobrosTransferenciaView from './components/admin/views/CobrosTransferenciaView'
+import ComprobantesView from './components/admin/views/ComprobantesView'
 import TransferTablesView from './components/admin/views/TransferTablesView'
-import TransferIdentificationView from './components/admin/views/TransferIdentificationView'
+import TransferenciasView from './components/admin/views/TransferenciasView'
 
 export type AdminPageId =
   | 'test'
   | 'test2'
   | 'transfer'
-  | 'cobrosTransferencia'
+  | 'comprobantes'
   | 'transferTables'
-  | 'transferIdentification'
+  | 'transferencias'
   | 'hojaRuta'
 
 export type AdminPageDefinition = {
@@ -34,10 +34,10 @@ export const ADMIN_PAGES: AdminPageDefinition[] = [
     component: FacturasAtrasadasView
   },
   {
-    id: 'cobrosTransferencia',
-    label: 'Cobros por Transferencia',
+    id: 'comprobantes',
+    label: 'Comprobantes',
     permissionKey: 'View5',
-    component: CobrosTransferenciaView
+    component: ComprobantesView
   },
   {
     id: 'transferTables',
@@ -46,10 +46,10 @@ export const ADMIN_PAGES: AdminPageDefinition[] = [
     component: TransferTablesView
   },
   {
-    id: 'transferIdentification',
-    label: 'Identificar Transferencias',
+    id: 'transferencias',
+    label: 'Transferencias',
     permissionKey: 'View7',
-    component: TransferIdentificationView
+    component: TransferenciasView
   },
   {
     id: 'hojaRuta',

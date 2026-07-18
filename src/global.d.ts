@@ -111,6 +111,16 @@ export interface UploadImagesResult {
   details?: string
 }
 
+export interface DeleteProcessedUploadImagesResult {
+  deleted?: number
+  files?: Array<{
+    fileName: string
+    filePath: string
+  }>
+  error?: string
+  details?: string
+}
+
 export type OcrAccountMatch = {
   type: "CVU" | "CBU" | null
   number: string
@@ -393,6 +403,7 @@ export interface ElectronAPI {
   savePdf: (payload: SavePdfPayload) => Promise<SavePdfResult>
   openPdf: (payload: SavePdfPayload) => Promise<OpenPdfResult>
   listUploadImages: () => Promise<UploadImagesResult>
+  deleteProcessedUploadImages: () => Promise<DeleteProcessedUploadImagesResult>
   analyzeUploadImage: (filePath: string) => Promise<AnalyzeUploadImageResult>
   processUploadImage: (
     filePath: string,

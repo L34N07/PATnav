@@ -127,6 +127,7 @@ type ImageAnalysisModalProps = {
   image: UploadImage
   isAnalyzing: boolean
   analysisResult: AnalysisResult | null
+  mode: "view" | "analyze"
   onClose: () => void
 }
 
@@ -134,6 +135,7 @@ function ImageAnalysisModal({
   image,
   isAnalyzing,
   analysisResult,
+  mode,
   onClose
 }: ImageAnalysisModalProps) {
   const fields = analysisResult?.fields
@@ -160,7 +162,8 @@ function ImageAnalysisModal({
           <div className="image-modal__preview">
             <img src={image.dataUrl || image.fileUrl} alt={image.fileName} />
           </div>
-          <div className="image-modal__sidebar">
+          {mode === "analyze" ? (
+            <div className="image-modal__sidebar">
             {isAnalyzing ? (
               <div className="ocr-status">Analizando imagen...</div>
             ) : analysisResult ? (
@@ -214,7 +217,8 @@ function ImageAnalysisModal({
                 Presione &quot;Analizar Imagen&quot; para extraer CVU, CBU, fecha y monto.
               </div>
             )}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -334,7 +338,7 @@ function mapAnalysisResult(response?: AnalyzeUploadImageResult): AnalysisResult 
   }
 }
 
-export default function CobrosTransferenciaView() {
+export default function ComprobantesView() {
   const electronAPI = window.electronAPI
 
   const [images, setImages] = useState<UploadImage[]>([])
@@ -343,9 +347,11 @@ export default function CobrosTransferenciaView() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<UploadImage | null>(null)
   const [analysisImage, setAnalysisImage] = useState<UploadImage | null>(null)
+  const [imageModalMode, setImageModalMode] = useState<"view" | "analyze">("view")
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isDeletingProcessed, setIsDeletingProcessed] = useState(false)
   const [processingProgress, setProcessingProgress] = useState<string | null>(null)
   const [duplicateReview, setDuplicateReview] = useState<DuplicateReview | null>(null)
   const [isDuplicateActionRunning, setIsDuplicateActionRunning] = useState(false)
@@ -536,6 +542,48 @@ export default function CobrosTransferenciaView() {
     })
   }, [images, processImageQueue])
 
+  const handleDeleteProcessedImages = useCallback(async () => {
+    if (!electronAPI?.deleteProcessedUploadImages) {
+      setErrorMessage("La accion de eliminar imagenes procesadas no se encuentra disponible.")
+      return
+    }
+
+    const processedCount = images.filter(image => image.processed).length
+    if (processedCount === 0) {
+      setStatusMessage("No hay imagenes procesadas para eliminar.")
+      return
+    }
+
+    setIsDeletingProcessed(true)
+    setErrorMessage(null)
+
+    try {
+      const result = await electronAPI.deleteProcessedUploadImages()
+      if (result?.error) {
+        throw new Error(result.details || result.error)
+      }
+
+      setSelectedImage(prev => (prev?.processed ? null : prev))
+      setAnalysisImage(prev => (prev?.processed ? null : prev))
+      setAnalysisResult(prev => (analysisImage?.processed ? null : prev))
+      await refreshImages()
+
+      const deleted = result.deleted ?? 0
+      setStatusMessage(
+        `${deleted} imagen${deleted === 1 ? "" : "es"} procesada${deleted === 1 ? "" : "s"} eliminada${deleted === 1 ? "" : "s"}.`
+      )
+    } catch (error) {
+      console.error("No se pudieron eliminar las imagenes procesadas:", error)
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Error desconocido al eliminar imagenes procesadas."
+      )
+    } finally {
+      setIsDeletingProcessed(false)
+    }
+  }, [analysisImage, electronAPI, images, refreshImages])
+
   const handleStoreDuplicate = useCallback(async () => {
     if (!duplicateReview || !electronAPI?.processUploadImage) {
       return
@@ -614,9 +662,20 @@ export default function CobrosTransferenciaView() {
       setErrorMessage("Seleccione una imagen para analizar.")
       return
     }
+    setImageModalMode("analyze")
     setAnalysisImage(selectedImage)
     void performImageAnalysis(selectedImage)
   }, [performImageAnalysis, selectedImage])
+
+  const handleViewImage = useCallback(() => {
+    if (!selectedImage) {
+      setErrorMessage("Seleccione una imagen para visualizar.")
+      return
+    }
+    setImageModalMode("view")
+    setAnalysisResult(null)
+    setAnalysisImage(selectedImage)
+  }, [selectedImage])
 
   const handleCloseAnalysis = useCallback(() => {
     setAnalysisImage(null)
@@ -630,7 +689,7 @@ export default function CobrosTransferenciaView() {
         <div className="uploads-browser">
           <div className="uploads-browser__header">
             <div className="uploads-browser__intro">
-              <h2 className="uploads-browser__title">Cobros por Transferencia</h2>
+              <h2 className="uploads-browser__title">Comprobantes</h2>
             </div>
           </div>
           <div className="uploads-browser__body">
@@ -662,7 +721,7 @@ export default function CobrosTransferenciaView() {
               className="fetch-button"
               type="button"
               onClick={handleProcessImages}
-              disabled={isProcessing || isAnalyzing || images.every(image => image.processed)}
+              disabled={isProcessing || isAnalyzing || isDeletingProcessed || images.every(image => image.processed)}
             >
               {isProcessing ? "Procesando..." : "Procesar Imagenes"}
             </button>
@@ -673,9 +732,30 @@ export default function CobrosTransferenciaView() {
               className="fetch-button"
               type="button"
               onClick={handleAnalyzeImage}
-              disabled={!selectedImage || isAnalyzing || isProcessing}
+              disabled={!selectedImage || isAnalyzing || isProcessing || isDeletingProcessed}
             >
               {isAnalyzing ? "Analizando..." : "Analizar Imagen"}
+            </button>
+            <button
+              className="fetch-button"
+              type="button"
+              onClick={handleViewImage}
+              disabled={isProcessing || isDeletingProcessed}
+            >
+              VER
+            </button>
+            <button
+              className="fetch-button transfer-view-actions__delete-processed"
+              type="button"
+              onClick={() => void handleDeleteProcessedImages()}
+              disabled={
+                isProcessing ||
+                isAnalyzing ||
+                isDeletingProcessed ||
+                images.every(image => !image.processed)
+              }
+            >
+              {isDeletingProcessed ? "Eliminando..." : "Eliminar Procesadas"}
             </button>
           </div>
           <div className="loan-actions__divider" aria-hidden="true" />
@@ -696,6 +776,7 @@ export default function CobrosTransferenciaView() {
           image={analysisImage}
           isAnalyzing={isAnalyzing}
           analysisResult={analysisResult}
+          mode={imageModalMode}
           onClose={handleCloseAnalysis}
         />
       ) : null}
