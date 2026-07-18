@@ -1139,6 +1139,590 @@ def list_transfer_address_candidates(pool: ConnectionPool) -> Dict[str, Any]:
         pool.release(conn)
 
 
+def list_transfer_ventas(
+    pool: ConnectionPool,
+    cod_cliente: Any,
+    nro_lugar_entrega: Any,
+    cvu_cbu: Any = "",
+) -> Dict[str, Any]:
+    try:
+        parsed_cod_cliente = int(cod_cliente)
+        parsed_nro_lugar = int(nro_lugar_entrega)
+    except (TypeError, ValueError):
+        return {
+            "error": "invalid_params",
+            "details": "cod_cliente and nro_lugar_entrega must be integers.",
+        }
+
+    try:
+        conn = pool.acquire()
+    except ConnectionAcquireError as exc:
+        return {"error": "connection_failed", "details": exc.details}
+
+    account_value = str(cvu_cbu or "").strip()
+
+    location_cte = """
+            WITH linked_locations AS (
+                SELECT DISTINCT
+                    u.cod_cliente,
+                    u.nro_lugar_entrega
+                FROM dbo.UsuariosTransferencia AS u
+                WHERE u.cvu_cbu = ?
+                  AND u.cod_cliente IS NOT NULL
+                  AND u.nro_lugar_entrega IS NOT NULL
+
+                UNION
+
+                SELECT
+                    CAST(? AS numeric(18, 0)) AS cod_cliente,
+                    CAST(? AS numeric(18, 0)) AS nro_lugar_entrega
+            ),
+            expanded_locations AS (
+                SELECT
+                    cod_cliente,
+                    nro_lugar_entrega
+                FROM linked_locations
+
+                UNION
+
+                SELECT
+                    le_all.cod_cliente,
+                    le_all.nro_lugar_entrega
+                FROM linked_locations AS linked
+                INNER JOIN dbo.LugarEntrega AS le_linked
+                    ON le_linked.cod_cliente = linked.cod_cliente
+                   AND le_linked.nro_lugar_entrega = linked.nro_lugar_entrega
+                INNER JOIN dbo.LugarEntrega AS le_all
+                    ON le_all.cod_cliente = linked.cod_cliente
+                WHERE UPPER(LTRIM(RTRIM(COALESCE(le_linked.tipo_lugar, '')))) = 'C'
+            )
+    """
+
+    cursor: Optional['pyodbc.Cursor'] = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SET LOCK_TIMEOUT 5000;")
+        cursor.execute(
+            location_cte + """
+            , item_totals AS (
+                SELECT
+                    tipo_comprobante,
+                    prefijo,
+                    numero,
+                    SUM(COALESCE(importe, 0)) AS monto
+                FROM dbo.VentasItems
+                GROUP BY tipo_comprobante, prefijo, numero
+            ),
+            applied_totals AS (
+                SELECT
+                    tipo_comprobante,
+                    prefijo,
+                    numero,
+                    SUM(COALESCE(importe_aplicado, 0)) AS importe_aplicado
+                FROM dbo.CobrosAplicados
+                GROUP BY tipo_comprobante, prefijo, numero
+            )
+            SELECT
+                LTRIM(RTRIM(v.tipo_comprobante)) AS tipo_comprobante,
+                v.prefijo,
+                v.numero,
+                v.fecha_operacion,
+                v.Mcampo_control AS mcampo_control,
+                v.cod_cliente,
+                v.nro_lugar_entrega,
+                CONCAT(
+                    CONVERT(varchar(20), v.cod_cliente),
+                    '-',
+                    CONVERT(varchar(20), v.nro_lugar_entrega)
+                ) AS cliente,
+                COALESCE(it.monto, 0) AS monto,
+                CASE
+                    WHEN v.Mcampo_control IS NULL THEN COALESCE(atot.importe_aplicado, 0)
+                    ELSE 0
+                END AS importe_aplicado,
+                CASE
+                    WHEN v.Mcampo_control IS NULL
+                        THEN COALESCE(it.monto, 0) - COALESCE(atot.importe_aplicado, 0)
+                    ELSE COALESCE(it.monto, 0)
+                END AS deuda
+            FROM dbo.Ventas AS v
+            LEFT JOIN item_totals AS it
+                ON it.tipo_comprobante = v.tipo_comprobante
+               AND it.prefijo = v.prefijo
+               AND it.numero = v.numero
+            LEFT JOIN applied_totals AS atot
+                ON atot.tipo_comprobante = v.tipo_comprobante
+               AND atot.prefijo = v.prefijo
+               AND atot.numero = v.numero
+            INNER JOIN expanded_locations AS loc
+                ON loc.cod_cliente = v.cod_cliente
+               AND loc.nro_lugar_entrega = v.nro_lugar_entrega
+            WHERE v.fecha_operacion >= DATEADD(month, -12, GETDATE())
+            ORDER BY v.fecha_operacion DESC, v.prefijo DESC, v.numero DESC;
+            """,
+            (
+                account_value,
+                parsed_cod_cliente,
+                parsed_nro_lugar,
+            ),
+        )
+        columns = [column[0] for column in cursor.description]
+        rows = [
+            _serialize_db_row(columns, row)
+            for row in cursor.fetchall()
+        ]
+
+        cursor.execute(
+            location_cte + """
+            SELECT
+                le.cod_cliente,
+                le.nro_lugar_entrega,
+                CONCAT(
+                    CONVERT(varchar(20), le.cod_cliente),
+                    '-',
+                    CONVERT(varchar(20), le.nro_lugar_entrega)
+                ) AS cliente,
+                UPPER(LTRIM(RTRIM(COALESCE(le.tipo_lugar, '')))) AS tipo_lugar,
+                LTRIM(RTRIM(CONCAT(
+                    COALESCE(NULLIF(LTRIM(RTRIM(ca.nombre)), ''), ''),
+                    CASE
+                        WHEN le.numeropuerta IS NULL OR le.numeropuerta = 0 THEN ''
+                        ELSE CONCAT(' ', CONVERT(varchar(20), le.numeropuerta))
+                    END,
+                    CASE
+                        WHEN NULLIF(LTRIM(RTRIM(COALESCE(le.observ_domicilio, ''))), '') IS NULL THEN ''
+                        ELSE CONCAT(' ', LTRIM(RTRIM(le.observ_domicilio)))
+                    END,
+                    CASE
+                        WHEN NULLIF(LTRIM(RTRIM(COALESCE(le.[2observ_domicilio], ''))), '') IS NULL THEN ''
+                        ELSE CONCAT(' ', LTRIM(RTRIM(le.[2observ_domicilio])))
+                    END,
+                    CASE
+                        WHEN NULLIF(LTRIM(RTRIM(COALESCE(m.nombre, ''))), '') IS NULL THEN ''
+                        ELSE CONCAT(' - ', LTRIM(RTRIM(m.nombre)))
+                    END
+                ))) AS direccion
+            FROM expanded_locations AS loc
+            INNER JOIN dbo.LugarEntrega AS le
+                ON le.cod_cliente = loc.cod_cliente
+               AND le.nro_lugar_entrega = loc.nro_lugar_entrega
+            LEFT JOIN dbo.Calle AS ca
+                ON ca.cod_municipio = le.cod_municipio
+               AND ca.cod_calle = le.cod_calle
+            LEFT JOIN dbo.Municipio AS m
+                ON m.cod_municipio = le.cod_municipio
+            ORDER BY le.cod_cliente, le.nro_lugar_entrega;
+            """,
+            (
+                account_value,
+                parsed_cod_cliente,
+                parsed_nro_lugar,
+            ),
+        )
+        address_columns = [column[0] for column in cursor.description]
+        addresses = [
+            _serialize_db_row(address_columns, row)
+            for row in cursor.fetchall()
+        ]
+
+        return {
+            "columns": columns,
+            "rows": rows,
+            "address_columns": address_columns,
+            "addresses": addresses,
+        }
+    except pyodbc.Error as exc:
+        pool.discard(conn)
+        conn = None
+        return {"error": "db_execute_failed", "details": str(exc)}
+    finally:
+        _close_cursor(cursor)
+        pool.release(conn)
+
+
+def check_cobro_comprobante(
+    pool: ConnectionPool,
+    tipo_comprobante: Any,
+    prefijo: Any,
+    numero: Any,
+) -> Dict[str, Any]:
+    tipo_value = str(tipo_comprobante or "").strip().upper()
+    if not tipo_value:
+        return {
+            "error": "invalid_params",
+            "details": "tipo_comprobante is required.",
+        }
+
+    try:
+        parsed_prefijo = int(prefijo)
+        parsed_numero = int(numero)
+    except (TypeError, ValueError):
+        return {
+            "error": "invalid_params",
+            "details": "prefijo and numero must be integers.",
+        }
+
+    try:
+        conn = pool.acquire()
+    except ConnectionAcquireError as exc:
+        return {"error": "connection_failed", "details": exc.details}
+
+    cursor: Optional['pyodbc.Cursor'] = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SET LOCK_TIMEOUT 5000;")
+        cursor.execute(
+            """
+            SELECT COUNT_BIG(1)
+            FROM dbo.Cobros
+            WHERE LTRIM(RTRIM(tipo_comprobante_cobro)) = ?
+              AND prefijo_recibo = ?
+              AND numero_recibo = ?;
+            """,
+            (tipo_value, parsed_prefijo, parsed_numero),
+        )
+        count = int(cursor.fetchone()[0])
+        return {
+            "exists": count > 0,
+            "count": count,
+            "tipo_comprobante": tipo_value,
+            "prefijo": parsed_prefijo,
+            "numero": parsed_numero,
+        }
+    except pyodbc.Error as exc:
+        pool.discard(conn)
+        conn = None
+        return {"error": "db_execute_failed", "details": str(exc)}
+    finally:
+        _close_cursor(cursor)
+        pool.release(conn)
+
+
+def _parse_comprobante_parts(
+    tipo_comprobante: Any,
+    prefijo: Any,
+    numero: Any,
+) -> Tuple[str, int, int]:
+    tipo_value = str(tipo_comprobante or "").strip().upper()
+    if not tipo_value:
+        raise ValueError("tipo_comprobante is required.")
+    try:
+        parsed_prefijo = int(prefijo)
+        parsed_numero = int(numero)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("prefijo and numero must be integers.") from exc
+    return tipo_value, parsed_prefijo, parsed_numero
+
+
+def _decimal_from_any(value: Any, field_name: str) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be numeric.") from exc
+
+
+def apply_transfer_payment(
+    pool: ConnectionPool,
+    receipt_comprobante: Any,
+    receipt_client: Any,
+    transfer_amount: Any,
+    selected_ventas: Any,
+) -> Dict[str, Any]:
+    if not isinstance(receipt_comprobante, dict):
+        return {
+            "error": "invalid_params",
+            "details": "receipt_comprobante must be an object.",
+        }
+    if not isinstance(receipt_client, dict):
+        return {
+            "error": "invalid_params",
+            "details": "receipt_client must be an object.",
+        }
+    if not isinstance(selected_ventas, list) or len(selected_ventas) == 0:
+        return {
+            "error": "invalid_params",
+            "details": "selected_ventas must contain at least one venta.",
+        }
+
+    try:
+        receipt_tipo, receipt_prefijo, receipt_numero = _parse_comprobante_parts(
+            receipt_comprobante.get("tipoComprobante"),
+            receipt_comprobante.get("prefijo"),
+            receipt_comprobante.get("numero"),
+        )
+        receipt_cod_cliente = int(receipt_client.get("codCliente"))
+        receipt_nro_lugar = int(receipt_client.get("nroLugarEntrega"))
+        wire_amount = _decimal_from_any(transfer_amount, "transfer_amount")
+    except ValueError as exc:
+        return {"error": "invalid_params", "details": str(exc)}
+    except (TypeError, ValueError) as exc:
+        return {
+            "error": "invalid_params",
+            "details": "receipt client codCliente and nroLugarEntrega must be integers.",
+        }
+
+    if wire_amount <= 0:
+        return {
+            "error": "invalid_params",
+            "details": "transfer_amount must be greater than zero.",
+        }
+
+    selected_keys: List[Tuple[str, int, int]] = []
+    seen_keys = set()
+    for venta in selected_ventas:
+        if not isinstance(venta, dict):
+            return {
+                "error": "invalid_params",
+                "details": "Each selected venta must be an object.",
+            }
+        try:
+            key = _parse_comprobante_parts(
+                venta.get("tipoComprobante"),
+                venta.get("prefijo"),
+                venta.get("numero"),
+            )
+        except ValueError as exc:
+            return {"error": "invalid_params", "details": str(exc)}
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        selected_keys.append(key)
+
+    if not selected_keys:
+        return {
+            "error": "invalid_params",
+            "details": "selected_ventas does not contain valid comprobantes.",
+        }
+
+    try:
+        conn = pool.acquire()
+    except ConnectionAcquireError as exc:
+        return {"error": "connection_failed", "details": exc.details}
+
+    cursor: Optional['pyodbc.Cursor'] = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SET XACT_ABORT ON; SET LOCK_TIMEOUT 5000;")
+
+        cursor.execute(
+            """
+            SELECT TOP (1) 1
+            FROM dbo.Cobros WITH (UPDLOCK, HOLDLOCK)
+            WHERE LTRIM(RTRIM(tipo_comprobante_cobro)) = ?
+              AND prefijo_recibo = ?
+              AND numero_recibo = ?;
+            """,
+            (receipt_tipo, receipt_prefijo, receipt_numero),
+        )
+        if cursor.fetchone() is not None:
+            conn.rollback()
+            return {
+                "error": "comprobante_exists",
+                "details": "El comprobante de cobro ya existe en Cobros.",
+            }
+
+        venta_records: List[Dict[str, Any]] = []
+        for tipo, prefijo, numero in selected_keys:
+            cursor.execute(
+                """
+                SELECT TOP (1)
+                    LTRIM(RTRIM(v.tipo_comprobante)) AS tipo_comprobante,
+                    v.prefijo,
+                    v.numero,
+                    v.fecha_operacion,
+                    v.Mcampo_control,
+                    COALESCE((
+                        SELECT SUM(COALESCE(vi.importe, 0))
+                        FROM dbo.VentasItems AS vi
+                        WHERE vi.tipo_comprobante = v.tipo_comprobante
+                          AND vi.prefijo = v.prefijo
+                          AND vi.numero = v.numero
+                    ), 0) AS monto,
+                    COALESCE((
+                        SELECT SUM(COALESCE(ca.importe_aplicado, 0))
+                        FROM dbo.CobrosAplicados AS ca
+                        WHERE ca.tipo_comprobante = v.tipo_comprobante
+                          AND ca.prefijo = v.prefijo
+                          AND ca.numero = v.numero
+                    ), 0) AS importe_aplicado
+                FROM dbo.Ventas AS v WITH (UPDLOCK, HOLDLOCK)
+                WHERE LTRIM(RTRIM(v.tipo_comprobante)) = ?
+                  AND v.prefijo = ?
+                  AND v.numero = ?;
+                """,
+                (tipo, prefijo, numero),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                conn.rollback()
+                return {
+                    "error": "venta_not_found",
+                    "details": f"No existe la venta {tipo} {prefijo} {numero}.",
+                }
+
+            control = str(row.Mcampo_control or "").strip().upper()
+            if control == "P":
+                conn.rollback()
+                return {
+                    "error": "venta_already_paid",
+                    "details": f"La venta {tipo} {prefijo} {numero} ya esta pagada.",
+                }
+
+            monto = Decimal(str(row.monto or 0))
+            importe_aplicado = Decimal(str(row.importe_aplicado or 0))
+            deuda = monto - importe_aplicado
+            if deuda <= 0:
+                conn.rollback()
+                return {
+                    "error": "venta_without_debt",
+                    "details": f"La venta {tipo} {prefijo} {numero} no tiene deuda.",
+                }
+
+            venta_records.append(
+                {
+                    "tipo_comprobante": tipo,
+                    "prefijo": prefijo,
+                    "numero": numero,
+                    "fecha_operacion": row.fecha_operacion,
+                    "deuda": deuda,
+                }
+            )
+
+        venta_records.sort(
+            key=lambda record: (
+                record["fecha_operacion"],
+                record["tipo_comprobante"],
+                record["prefijo"],
+                record["numero"],
+            )
+        )
+
+        cursor.execute(
+            """
+            INSERT INTO dbo.Cobros
+            (
+                tipo_comprobante_cobro,
+                prefijo_recibo,
+                numero_recibo,
+                fecha_recibo,
+                cod_cliente,
+                nro_lugar_entrega,
+                saca_c
+            )
+            VALUES (?, ?, ?, ?, ?, ?, NULL);
+            """,
+            (
+                receipt_tipo,
+                receipt_prefijo,
+                receipt_numero,
+                datetime.now().replace(microsecond=0),
+                receipt_cod_cliente,
+                receipt_nro_lugar,
+            ),
+        )
+
+        remaining = wire_amount
+        applied_rows: List[Dict[str, Any]] = []
+        paid_updates = 0
+        for record in venta_records:
+            if remaining <= 0:
+                break
+            apply_amount = record["deuda"] if record["deuda"] <= remaining else remaining
+            if apply_amount <= 0:
+                continue
+
+            cursor.execute(
+                """
+                INSERT INTO dbo.CobrosAplicados
+                (
+                    tipo_comprobante_cobro,
+                    prefijo_recibo,
+                    numero_recibo,
+                    tipo_comprobante,
+                    prefijo,
+                    numero,
+                    importe_aplicado,
+                    numero_ci,
+                    saca_ca
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL);
+                """,
+                (
+                    receipt_tipo,
+                    receipt_prefijo,
+                    receipt_numero,
+                    record["tipo_comprobante"],
+                    record["prefijo"],
+                    record["numero"],
+                    apply_amount,
+                ),
+            )
+
+            fully_paid = apply_amount >= record["deuda"]
+            if fully_paid:
+                cursor.execute(
+                    """
+                    UPDATE dbo.Ventas
+                    SET Mcampo_control = 'P'
+                    WHERE LTRIM(RTRIM(tipo_comprobante)) = ?
+                      AND prefijo = ?
+                      AND numero = ?;
+                    """,
+                    (
+                        record["tipo_comprobante"],
+                        record["prefijo"],
+                        record["numero"],
+                    ),
+                )
+                paid_updates += cursor.rowcount if cursor.rowcount is not None else 0
+
+            applied_rows.append(
+                {
+                    "tipo_comprobante": record["tipo_comprobante"],
+                    "prefijo": record["prefijo"],
+                    "numero": record["numero"],
+                    "importe_aplicado": str(apply_amount),
+                    "fully_paid": fully_paid,
+                }
+            )
+            remaining -= apply_amount
+
+        if not applied_rows:
+            conn.rollback()
+            return {
+                "error": "nothing_applied",
+                "details": "No se pudo aplicar ningun importe.",
+            }
+
+        conn.commit()
+        return {
+            "status": "saved",
+            "cobro": {
+                "tipo_comprobante_cobro": receipt_tipo,
+                "prefijo_recibo": receipt_prefijo,
+                "numero_recibo": receipt_numero,
+                "cod_cliente": receipt_cod_cliente,
+                "nro_lugar_entrega": receipt_nro_lugar,
+            },
+            "cobros_aplicados": applied_rows,
+            "inserted_cobros": 1,
+            "inserted_cobros_aplicados": len(applied_rows),
+            "updated_ventas": paid_updates,
+            "remaining_transfer_amount": str(remaining),
+        }
+    except pyodbc.Error as exc:
+        try:
+            conn.rollback()
+        except pyodbc.Error:
+            pass
+        pool.discard(conn)
+        conn = None
+        return {"error": "db_execute_failed", "details": str(exc)}
+    finally:
+        _close_cursor(cursor)
+        pool.release(conn)
+
+
 def assign_transferencia_account(
     pool: ConnectionPool,
     cvu_cbu: Any,
@@ -1850,6 +2434,43 @@ def _handle_list_transfer_address_candidates(
     return list_transfer_address_candidates(pool)
 
 
+def _handle_list_transfer_ventas(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+) -> Dict[str, Any]:
+    if not 2 <= len(params) <= 3:
+        return {
+            "error": "invalid_params",
+            "details": "list_transfer_ventas expects cod_cliente, nro_lugar_entrega and optional cvu_cbu",
+        }
+    cvu_cbu = params[2] if len(params) == 3 else ""
+    return list_transfer_ventas(pool, params[0], params[1], cvu_cbu)
+
+
+def _handle_check_cobro_comprobante(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+) -> Dict[str, Any]:
+    if len(params) != 3:
+        return {
+            "error": "invalid_params",
+            "details": "check_cobro_comprobante expects tipo_comprobante, prefijo and numero",
+        }
+    return check_cobro_comprobante(pool, params[0], params[1], params[2])
+
+
+def _handle_apply_transfer_payment(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+) -> Dict[str, Any]:
+    if len(params) != 4:
+        return {
+            "error": "invalid_params",
+            "details": "apply_transfer_payment expects receipt_comprobante, receipt_client, transfer_amount and selected_ventas",
+        }
+    return apply_transfer_payment(pool, params[0], params[1], params[2], params[3])
+
+
 def _handle_assign_transferencia_account(
     pool: ConnectionPool,
     params: Sequence[Any],
@@ -1885,6 +2506,9 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "list_unidentified_transferencias": _handle_list_unidentified_transferencias,
     "list_identified_transferencias": _handle_list_identified_transferencias,
     "list_transfer_address_candidates": _handle_list_transfer_address_candidates,
+    "list_transfer_ventas": _handle_list_transfer_ventas,
+    "check_cobro_comprobante": _handle_check_cobro_comprobante,
+    "apply_transfer_payment": _handle_apply_transfer_payment,
     "assign_transferencia_account": _handle_assign_transferencia_account,
     "ingresar_registro_hoja_de_ruta": _handle_ingresar_registro_hoja_de_ruta,
     "traer_hoja_de_ruta_por_dia": _handle_traer_hoja_de_ruta_por_dia,

@@ -248,6 +248,95 @@ export interface TransferAddressCandidatesResult {
   details?: string
 }
 
+export interface TransferVentaResult {
+  tipo_comprobante: string
+  prefijo: string | number
+  numero: string | number
+  fecha_operacion: string
+  mcampo_control?: string | null
+  cod_cliente: string | number
+  nro_lugar_entrega: string | number
+  cliente: string
+  monto: string
+  importe_aplicado?: string
+  deuda?: string
+}
+
+export interface TransferVentaAddressResult {
+  cod_cliente: string | number
+  nro_lugar_entrega: string | number
+  cliente: string
+  tipo_lugar?: string | null
+  direccion?: string | null
+}
+
+export interface TransferVentasResult {
+  columns?: string[]
+  rows?: TransferVentaResult[]
+  address_columns?: string[]
+  addresses?: TransferVentaAddressResult[]
+  error?: string
+  details?: string
+}
+
+export interface ListTransferVentasPayload {
+  codCliente: number | string
+  nroLugarEntrega: number | string
+  cvuCbu?: string
+}
+
+export interface CobroComprobantePayload {
+  tipoComprobante: string
+  prefijo: number | string
+  numero: number | string
+}
+
+export interface CobroComprobanteCheckResult {
+  exists?: boolean
+  count?: number
+  tipo_comprobante?: string
+  prefijo?: number
+  numero?: number
+  error?: string
+  details?: string
+}
+
+export interface ApplyTransferPaymentPayload {
+  receiptComprobante: CobroComprobantePayload
+  receiptClient: {
+    codCliente: number | string
+    nroLugarEntrega: number | string
+  }
+  transferAmount: number | string
+  selectedVentas: CobroComprobantePayload[]
+}
+
+export interface AppliedCobroVentaResult {
+  tipo_comprobante: string
+  prefijo: number
+  numero: number
+  importe_aplicado: string
+  fully_paid: boolean
+}
+
+export interface ApplyTransferPaymentResult {
+  status?: "saved"
+  cobro?: {
+    tipo_comprobante_cobro: string
+    prefijo_recibo: number
+    numero_recibo: number
+    cod_cliente: number
+    nro_lugar_entrega: number
+  }
+  cobros_aplicados?: AppliedCobroVentaResult[]
+  inserted_cobros?: number
+  inserted_cobros_aplicados?: number
+  updated_ventas?: number
+  remaining_transfer_amount?: string
+  error?: string
+  details?: string
+}
+
 export interface AssignTransferenciaAccountPayload {
   cvuCbu: string
   codCliente: number | string
@@ -318,6 +407,15 @@ export interface ElectronAPI {
   listUnidentifiedTransferencias: () => Promise<UnidentifiedTransferenciasResult>
   listIdentifiedTransferencias: () => Promise<UnidentifiedTransferenciasResult>
   listTransferAddressCandidates: () => Promise<TransferAddressCandidatesResult>
+  listTransferVentas: (
+    payload: ListTransferVentasPayload
+  ) => Promise<TransferVentasResult>
+  checkCobroComprobante: (
+    payload: CobroComprobantePayload
+  ) => Promise<CobroComprobanteCheckResult>
+  applyTransferPayment: (
+    payload: ApplyTransferPaymentPayload
+  ) => Promise<ApplyTransferPaymentResult>
   assignTransferenciaAccount: (
     payload: AssignTransferenciaAccountPayload
   ) => Promise<AssignTransferenciaAccountResult>

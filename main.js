@@ -1119,6 +1119,50 @@ registerPythonHandler(
   'list_transfer_address_candidates'
 )
 
+registerPythonHandler('python:list_transfer_ventas', 'list_transfer_ventas', {
+  validate: payload => {
+    if (payload?.codCliente === undefined || payload?.nroLugarEntrega === undefined) {
+      return {
+        error: 'invalid_params',
+        details: 'codCliente and nroLugarEntrega are required'
+      }
+    }
+    return undefined
+  },
+  mapPayload: payload => [payload.codCliente, payload.nroLugarEntrega, payload.cvuCbu || '']
+})
+
+registerPythonHandler('python:check_cobro_comprobante', 'check_cobro_comprobante', {
+  validate: payload => {
+    if (!payload?.tipoComprobante || payload.prefijo === undefined || payload.numero === undefined) {
+      return {
+        error: 'invalid_params',
+        details: 'tipoComprobante, prefijo and numero are required'
+      }
+    }
+    return undefined
+  },
+  mapPayload: payload => [payload.tipoComprobante, payload.prefijo, payload.numero]
+})
+
+registerPythonHandler('python:apply_transfer_payment', 'apply_transfer_payment', {
+  validate: payload => {
+    if (!payload?.receiptComprobante || !payload?.receiptClient || payload.transferAmount === undefined || !Array.isArray(payload.selectedVentas)) {
+      return {
+        error: 'invalid_params',
+        details: 'receiptComprobante, receiptClient, transferAmount and selectedVentas are required'
+      }
+    }
+    return undefined
+  },
+  mapPayload: payload => [
+    payload.receiptComprobante,
+    payload.receiptClient,
+    payload.transferAmount,
+    payload.selectedVentas
+  ]
+})
+
 registerPythonHandler('python:assign_transferencia_account', 'assign_transferencia_account', {
   validate: payload => {
     if (!payload?.cvuCbu || payload.codCliente === undefined || payload.nroLugarEntrega === undefined) {

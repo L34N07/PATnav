@@ -598,8 +598,7 @@ body {
     minmax(170px, 0.95fr)
     minmax(130px, 0.65fr)
     minmax(150px, 0.7fr)
-    minmax(210px, 1fr)
-    minmax(360px, 1.8fr);
+    minmax(520px, 2.6fr);
 }
 
 .transfer-identification-card {
@@ -683,7 +682,96 @@ body {
 }
 
 .transfer-identified-modal {
-  max-width: 520px;
+  max-width: 860px;
+}
+
+.transfer-comprobante-modal {
+  max-width: 620px;
+}
+
+.transfer-comprobante-modal__fields {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(140px, 1fr) minmax(180px, 1fr);
+  gap: 12px;
+  padding: 18px 0 12px;
+}
+
+.transfer-comprobante-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #374151;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.transfer-comprobante-modal__field input,
+.transfer-comprobante-modal__field select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 11px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.transfer-comprobante-modal__field input:focus,
+.transfer-comprobante-modal__field select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.transfer-comprobante-modal__error {
+  margin: 4px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.transfer-identified-modal__summary {
+  margin: 14px 0 8px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: transparent;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  min-height: 42px;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+}
+
+.transfer-identified-modal__summary--hovered {
+  border: 1px solid #86efac;
+  background: #ecfdf5;
+  color: #065f46;
+  font-weight: 800;
+  animation: transfer-summary-green-blink 0.7s ease;
+}
+
+@keyframes transfer-summary-green-blink {
+  0% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5);
+  }
+  45% {
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.16);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+  }
 }
 
 .transfer-identified-modal__blank {
@@ -699,6 +787,159 @@ body {
   color: #6b7280;
   text-align: center;
   font-size: 0.9rem;
+}
+
+.transfer-identified-modal__blank--error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.transfer-ventas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 440px;
+  overflow-y: auto;
+  padding: 10px 2px 18px 0;
+}
+
+.transfer-identified-modal__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 18px;
+  align-items: start;
+}
+
+.transfer-identified-modal__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.transfer-identified-modal__side {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-left: 1px solid #e5e7eb;
+  background: #fafafa;
+  border-radius: 10px;
+}
+
+.transfer-identified-modal__side-title {
+  color: #4b5563;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.transfer-identified-modal__selected-bill {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-weight: 800;
+}
+
+.transfer-identified-modal__accumulated {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  padding: 10px 12px;
+  border-top: 1px solid #e5e7eb;
+  color: #4b5563;
+  font-size: 0.84rem;
+}
+
+.transfer-identified-modal__accumulated strong {
+  color: #111827;
+  font-size: 0.98rem;
+}
+
+.transfer-venta-card {
+  display: grid;
+  grid-template-columns:
+    minmax(105px, 0.78fr)
+    minmax(78px, 0.48fr)
+    minmax(95px, 0.6fr)
+    minmax(110px, 0.7fr)
+    minmax(110px, 0.7fr);
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.transfer-venta-card:hover:not([aria-disabled="true"]),
+.transfer-venta-card.selected {
+  border-color: #fb923c;
+  background: #fff7ed;
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.14);
+}
+
+.transfer-venta-card--blocked,
+.transfer-venta-card[aria-disabled="true"] {
+  border-color: #e5e7eb;
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.transfer-venta-card__bill {
+  font-weight: 800;
+}
+
+.transfer-venta-card__date {
+  color: inherit;
+  font-size: 0.86rem;
+}
+
+.transfer-venta-card__client {
+  color: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.transfer-venta-card__amount,
+.transfer-venta-card__debt {
+  justify-self: end;
+  font-weight: 800;
+}
+
+.transfer-venta-card__amount {
+  color: #065f46;
+}
+
+.transfer-venta-card__debt {
+  color: #9a3412;
+}
+
+.transfer-venta-card--blocked .transfer-venta-card__amount,
+.transfer-venta-card[aria-disabled="true"] .transfer-venta-card__amount,
+.transfer-venta-card--blocked .transfer-venta-card__debt,
+.transfer-venta-card[aria-disabled="true"] .transfer-venta-card__debt {
+  color: #9ca3af;
 }
 
 .transfer-assign-modal__intro {

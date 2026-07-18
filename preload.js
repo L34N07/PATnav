@@ -45,6 +45,12 @@ const electronAPI = Object.freeze({
     ipcRenderer.invoke('python:list_identified_transferencias'),
   listTransferAddressCandidates: () =>
     ipcRenderer.invoke('python:list_transfer_address_candidates'),
+  listTransferVentas: payload =>
+    ipcRenderer.invoke('python:list_transfer_ventas', payload),
+  checkCobroComprobante: payload =>
+    ipcRenderer.invoke('python:check_cobro_comprobante', payload),
+  applyTransferPayment: payload =>
+    ipcRenderer.invoke('python:apply_transfer_payment', payload),
   assignTransferenciaAccount: payload =>
     ipcRenderer.invoke('python:assign_transferencia_account', payload)
 })
