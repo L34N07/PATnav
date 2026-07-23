@@ -463,6 +463,9 @@ function IdentifiedDetailsModal({
             <p className="transfer-assign-modal__intro">
               {transfer.nombre_asociado || "Sin nombre"} - {formatAmount(transfer.monto)}
             </p>
+            <p className="transfer-assign-modal__intro transfer-identified-modal__receipt-date">
+              Fecha comprobante: {formatDate(transfer)}
+            </p>
           </div>
         </div>
 
@@ -1215,13 +1218,13 @@ export default function TransferenciasView({
             <span className="loan-actions__section-title">Seleccion</span>
             {activeMode === "identified" && selectedIdentifiedTransfer ? (
               <div className="transfer-identification-selection">
-	                <span>{selectedIdentifiedTransfer.nombre_asociado || "Sin nombre"}</span>
-	                <strong>{formatAmount(selectedIdentifiedTransfer.monto)}</strong>
-	                <small>{formatDate(selectedIdentifiedTransfer)}</small>
-	                <small>
-	                  Domicilio: {toDisplayValue(selectedIdentifiedTransfer.direccion) ||
-	                    "Sin domicilio cargado"}
-	                </small>
+                <span>{selectedIdentifiedTransfer.nombre_asociado || "Sin nombre"}</span>
+                <strong>{formatAmount(selectedIdentifiedTransfer.monto)}</strong>
+                <small>{formatDate(selectedIdentifiedTransfer)}</small>
+                <small className="transfer-identification-selection__address">
+                  Domicilio: {toDisplayValue(selectedIdentifiedTransfer.direccion) ||
+                    "Sin domicilio cargado"}
+                </small>
               </div>
             ) : activeMode === "unidentified" && selectedTransfer ? (
               <div className="transfer-identification-selection">

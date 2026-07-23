@@ -584,21 +584,21 @@ body {
 
 .transfer-identification-card .loan-card-header-info {
   grid-template-columns:
-    minmax(180px, 1.1fr)
-    minmax(140px, 0.85fr)
-    minmax(150px, 0.85fr)
-    minmax(240px, 1.35fr)
-    minmax(130px, 0.75fr);
+    minmax(0, 1.1fr)
+    minmax(0, 0.85fr)
+    minmax(0, 0.85fr)
+    minmax(0, 1.35fr)
+    minmax(0, 0.75fr);
   column-gap: 22px;
   row-gap: 8px;
 }
 
 .transfer-identification-card--identified .loan-card-header-info {
   grid-template-columns:
-    minmax(170px, 0.95fr)
-    minmax(130px, 0.65fr)
-    minmax(150px, 0.7fr)
-    minmax(520px, 2.6fr);
+    minmax(0, 0.95fr)
+    minmax(0, 0.65fr)
+    minmax(0, 0.7fr)
+    minmax(0, 2.1fr);
 }
 
 .transfer-identification-card {
@@ -614,6 +614,9 @@ body {
 
 .transfer-identification-card .loan-card-header-item {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .transfer-identification-card .loan-card-header-item--numeric {
@@ -623,11 +626,10 @@ body {
 
 .transfer-identification-card__account {
   font-family: "Roboto Mono", "Consolas", monospace;
-  overflow-wrap: anywhere;
 }
 
 .transfer-identification-card__address {
-  overflow-wrap: anywhere;
+  font-size: 0.82rem;
 }
 
 .transfer-identification-card__assign {
@@ -675,6 +677,17 @@ body {
 
 .transfer-identification-selection small {
   color: #6b7280;
+}
+
+.transfer-identification-selection__address {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.74rem;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .transfer-assign-modal {
@@ -799,7 +812,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 440px;
+  max-height: 340px;
   overflow-y: auto;
   padding: 10px 2px 18px 0;
 }
@@ -863,6 +876,11 @@ body {
 .transfer-identified-modal__selected-bill:disabled {
   cursor: default;
   opacity: 1;
+}
+
+.transfer-identified-modal__receipt-date {
+  margin-top: 3px;
+  font-size: 0.82rem;
 }
 
 .transfer-identified-modal__accumulated {

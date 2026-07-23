@@ -401,6 +401,7 @@ export interface ApplyTransferPaymentResult {
     tipo_comprobante_cobro: string
     prefijo_recibo: number
     numero_recibo: number
+    fecha_recibo?: string
     cod_cliente: number
     nro_lugar_entrega: number
   }

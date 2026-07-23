@@ -1715,6 +1715,7 @@ def apply_transfer_payment(
             "details": "transfer_id must be greater than zero.",
         }
 
+    receipt_date = datetime.now().replace(microsecond=0)
     selected_keys: List[Tuple[str, int, int]] = []
     seen_keys = set()
     for venta in selected_ventas:
@@ -1755,7 +1756,9 @@ def apply_transfer_payment(
         if parsed_transfer_id is not None:
             cursor.execute(
                 """
-                SELECT TOP (1) estado
+                SELECT TOP (1)
+                    estado,
+                    fecha
                 FROM dbo.Transferencias WITH (UPDLOCK, HOLDLOCK)
                 WHERE id_transferencia = ?;
                 """,
@@ -1776,6 +1779,18 @@ def apply_transfer_payment(
                     "error": "transferencia_already_loaded",
                     "details": "La transferencia seleccionada ya fue cargada.",
                 }
+            transfer_fecha = getattr(transfer_row, "fecha", None)
+            if isinstance(transfer_fecha, datetime):
+                receipt_date = transfer_fecha.replace(microsecond=0)
+            elif isinstance(transfer_fecha, date):
+                receipt_date = datetime.combine(transfer_fecha, datetime.min.time())
+            elif transfer_fecha:
+                try:
+                    receipt_date = datetime.fromisoformat(
+                        str(transfer_fecha).replace("Z", "")
+                    ).replace(microsecond=0)
+                except ValueError:
+                    pass
 
         cursor.execute(
             """
@@ -1888,7 +1903,7 @@ def apply_transfer_payment(
                 receipt_tipo,
                 receipt_prefijo,
                 receipt_numero,
-                datetime.now().replace(microsecond=0),
+                receipt_date,
                 receipt_cod_cliente,
                 receipt_nro_lugar,
             ),
@@ -1987,6 +2002,7 @@ def apply_transfer_payment(
                 "tipo_comprobante_cobro": receipt_tipo,
                 "prefijo_recibo": receipt_prefijo,
                 "numero_recibo": receipt_numero,
+                "fecha_recibo": receipt_date.isoformat(timespec="seconds"),
                 "cod_cliente": receipt_cod_cliente,
                 "nro_lugar_entrega": receipt_nro_lugar,
             },
