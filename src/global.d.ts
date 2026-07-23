@@ -31,6 +31,51 @@ export interface HojaDeRutaPdfPayload {
   diaRecorrido: string
 }
 
+export interface FacultadFacturasPayload {
+  desde: number | string
+  hasta: number | string
+}
+
+export interface FacultadFacturaItem {
+  tipo_comprobante?: string
+  prefijo?: number
+  numero?: number
+  nro_orden?: number | null
+  cantidad?: string | number | null
+  cod_item?: string | number | null
+  precio?: string | number | null
+  importe?: string | number | null
+  denominacion?: string | null
+}
+
+export interface FacultadFactura {
+  tipo_comprobante?: string
+  prefijo?: number
+  numero?: number
+  cod_cliente?: string | number | null
+  fecha_operacion?: string | null
+  remitos_facturados?: string | null
+  cae?: string | number | null
+  fecha_vencimiento_cae?: string | null
+  razon_social?: string | null
+  dom_fiscal1?: string | null
+  cod_categoria?: string | number | null
+  cuit?: string | null
+  categoria?: string | null
+  items?: FacultadFacturaItem[]
+}
+
+export interface FacultadFacturasResult {
+  columns?: string[]
+  rows?: FacultadFactura[]
+  desde?: number
+  hasta?: number
+  tipo_comprobante?: "FB" | string
+  prefijo?: number
+  error?: string
+  details?: string
+}
+
 export interface EditarRegistroHojaDeRutaPayload {
   motivo: string
   detalle: string
@@ -56,9 +101,20 @@ export interface SavePdfPayload {
   suggestedFileName?: string
 }
 
+export interface SavePdfToDirectoryPayload extends SavePdfPayload {
+  directoryPath: string
+}
+
+export interface SaveFacultadFacturasPdfsPayload {
+  invoices: FacultadFactura[]
+  directoryPath: string
+}
+
 export interface SavePdfResult {
   status?: string
   filePath?: string
+  filePaths?: string[]
+  saved?: number
   error?: string
   details?: string
 }
@@ -66,6 +122,13 @@ export interface SavePdfResult {
 export interface OpenPdfResult {
   status?: string
   filePath?: string
+  error?: string
+  details?: string
+}
+
+export interface SelectDirectoryResult {
+  status?: string
+  directoryPath?: string
   error?: string
   details?: string
 }
@@ -403,7 +466,16 @@ export interface ElectronAPI {
   editarRegistroHojaDeRuta: (payload: EditarRegistroHojaDeRutaPayload) => Promise<PythonResult>
   traer_hoja_de_ruta: () => Promise<PythonResult>
   previewHojaDeRutaPdf: (payload: HojaDeRutaPdfPayload) => Promise<PdfPreviewResult>
+  listFacultadFacturas: (
+    payload: FacultadFacturasPayload
+  ) => Promise<FacultadFacturasResult>
+  previewFacultadFacturasPdf: (
+    payload: FacultadFacturasPayload
+  ) => Promise<PdfPreviewResult & FacultadFacturasResult>
   printHojaDeRutaPdf: (payload: HojaDeRutaPdfPayload) => Promise<PrintResult>
+  selectDirectory: () => Promise<SelectDirectoryResult>
+  saveFacultadFacturasPdfs: (payload: SaveFacultadFacturasPdfsPayload) => Promise<SavePdfResult>
+  savePdfToDirectory: (payload: SavePdfToDirectoryPayload) => Promise<SavePdfResult>
   savePdf: (payload: SavePdfPayload) => Promise<SavePdfResult>
   openPdf: (payload: SavePdfPayload) => Promise<OpenPdfResult>
   listUploadImages: () => Promise<UploadImagesResult>

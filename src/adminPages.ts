@@ -5,8 +5,8 @@ import TestView2 from './components/admin/views/TestView2'
 import FacturasAtrasadasView from './components/admin/views/FacturasAtrasadasView'
 import HojaDeRutaView from './components/admin/views/HojaDeRutaView'
 import ComprobantesView from './components/admin/views/ComprobantesView'
-import TransferTablesView from './components/admin/views/TransferTablesView'
 import TransferenciasView from './components/admin/views/TransferenciasView'
+import FacultadView from './components/admin/views/FacultadView'
 
 export type AdminPageId =
   | 'test'
@@ -40,16 +40,16 @@ export const ADMIN_PAGES: AdminPageDefinition[] = [
     component: ComprobantesView
   },
   {
-    id: 'transferTables',
-    label: 'Tablas Transferencias',
-    permissionKey: 'View6',
-    component: TransferTablesView
-  },
-  {
     id: 'transferencias',
     label: 'Transferencias',
     permissionKey: 'View7',
     component: TransferenciasView
+  },
+  {
+    id: 'transferTables',
+    label: 'Facultad',
+    permissionKey: 'View6',
+    component: FacultadView
   },
   {
     id: 'hojaRuta',

@@ -358,11 +358,12 @@ def update_user_permissions(
     View5 = 1 if bool(permissions.get("View5")) else 0
     View6 = 1 if bool(permissions.get("View6")) else 0
     View7 = 1 if bool(permissions.get("View7")) else 0
+    View8 = 1 if bool(permissions.get("View8")) else 0
 
     result = run_procedure(
         pool,
-        "{CALL update_user_permission (?, ?, ?, ?, ?, ?, ?, ?)}",
-        (parsed_user_id, test_view, test_view2, View3, View4, View5, View6, View7),
+        "{CALL update_user_permission (?, ?, ?, ?, ?, ?, ?, ?, ?)}",
+        (parsed_user_id, test_view, test_view2, View3, View4, View5, View6, View7, View8),
     )
 
     if result.get("error") == "db_execute_failed":
@@ -370,8 +371,8 @@ def update_user_permissions(
         if "too many" in details or "arguments" in details:
             result = run_procedure(
                 pool,
-                "{CALL update_user_permission (?, ?, ?, ?, ?, ?, ?)}",
-                (parsed_user_id, test_view, test_view2, View3, View4, View5, View6),
+                "{CALL update_user_permission (?, ?, ?, ?, ?, ?, ?, ?)}",
+                (parsed_user_id, test_view, test_view2, View3, View4, View5, View6, View7),
             )
             if result.get("error") != "db_execute_failed":
                 return result
@@ -380,8 +381,8 @@ def update_user_permissions(
             if "too many" in details or "arguments" in details:
                 result = run_procedure(
                     pool,
-                    "{CALL update_user_permission (?, ?, ?, ?, ?, ?)}",
-                    (parsed_user_id, test_view, test_view2, View3, View4, View5),
+                    "{CALL update_user_permission (?, ?, ?, ?, ?, ?, ?)}",
+                    (parsed_user_id, test_view, test_view2, View3, View4, View5, View6),
                 )
                 if result.get("error") != "db_execute_failed":
                     return result
@@ -390,19 +391,29 @@ def update_user_permissions(
                 if "too many" in details or "arguments" in details:
                     result = run_procedure(
                         pool,
-                        "{CALL update_user_permission (?, ?, ?, ?, ?)}",
-                        (parsed_user_id, test_view, test_view2, View3, View4),
+                        "{CALL update_user_permission (?, ?, ?, ?, ?, ?)}",
+                        (parsed_user_id, test_view, test_view2, View3, View4, View5),
                     )
                     if result.get("error") != "db_execute_failed":
                         return result
 
                     details = str(result.get("details", "")).lower()
                     if "too many" in details or "arguments" in details:
-                        return run_procedure(
+                        result = run_procedure(
                             pool,
-                            "{CALL update_user_permission (?, ?, ?, ?)}",
-                            (parsed_user_id, test_view, test_view2, View3),
+                            "{CALL update_user_permission (?, ?, ?, ?, ?)}",
+                            (parsed_user_id, test_view, test_view2, View3, View4),
                         )
+                        if result.get("error") != "db_execute_failed":
+                            return result
+
+                        details = str(result.get("details", "")).lower()
+                        if "too many" in details or "arguments" in details:
+                            return run_procedure(
+                                pool,
+                                "{CALL update_user_permission (?, ?, ?, ?)}",
+                                (parsed_user_id, test_view, test_view2, View3),
+                            )
 
     return result
 
@@ -801,6 +812,224 @@ def _serialize_db_row(columns: Sequence[str], row: Sequence[Any]) -> Dict[str, A
         column: _serialize_db_value(value)
         for column, value in zip(columns, row)
     }
+
+
+def _quote_identifier(identifier: str) -> str:
+    return "[" + identifier.replace("]", "]]") + "]"
+
+
+def _get_table_columns(cursor: 'pyodbc.Cursor', table_name: str) -> Dict[str, str]:
+    cursor.execute(
+        """
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'dbo'
+          AND TABLE_NAME = ?;
+        """,
+        (table_name,),
+    )
+    return {str(row[0]).lower(): str(row[0]) for row in cursor.fetchall()}
+
+
+def _pick_column(columns: Dict[str, str], *candidates: str) -> Optional[str]:
+    for candidate in candidates:
+        match = columns.get(candidate.lower())
+        if match:
+            return match
+    return None
+
+
+def _select_column(
+    table_alias: str,
+    columns: Dict[str, str],
+    alias: str,
+    *candidates: str,
+) -> str:
+    column = _pick_column(columns, *candidates)
+    if not column:
+        return f"CAST(NULL AS nvarchar(max)) AS {_quote_identifier(alias)}"
+    return f"{table_alias}.{_quote_identifier(column)} AS {_quote_identifier(alias)}"
+
+
+def _column_ref(
+    table_alias: str,
+    columns: Dict[str, str],
+    required_alias: str,
+    *candidates: str,
+) -> str:
+    column = _pick_column(columns, *candidates)
+    if not column:
+        raise ValueError(f"Missing required column {required_alias}")
+    return f"{table_alias}.{_quote_identifier(column)}"
+
+
+def _to_int_range_value(value: Any, field_name: str) -> int:
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be an integer.") from exc
+    if parsed <= 0:
+        raise ValueError(f"{field_name} must be greater than zero.")
+    return parsed
+
+
+def traer_facultad_facturas(
+    pool: ConnectionPool,
+    desde: Any,
+    hasta: Any,
+) -> Dict[str, Any]:
+    try:
+        desde_numero = _to_int_range_value(desde, "desde")
+        hasta_numero = _to_int_range_value(hasta, "hasta")
+    except ValueError as exc:
+        return {"error": "invalid_params", "details": str(exc)}
+
+    if desde_numero > hasta_numero:
+        return {
+            "error": "invalid_params",
+            "details": "desde must be less than or equal to hasta.",
+        }
+
+    try:
+        conn = pool.acquire()
+    except ConnectionAcquireError as exc:
+        return {"error": "connection_failed", "details": exc.details}
+
+    cursor: Optional['pyodbc.Cursor'] = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SET LOCK_TIMEOUT 5000;")
+
+        ventas_columns = _get_table_columns(cursor, "Ventas")
+        ventas_items_columns = _get_table_columns(cursor, "VentasItems")
+        cliente_columns = _get_table_columns(cursor, "Cliente")
+        item_columns = _get_table_columns(cursor, "Item")
+        categoria_iva_columns = _get_table_columns(cursor, "CategoriaIva")
+
+        ventas_tipo = _column_ref("v", ventas_columns, "tipo_comprobante", "tipo_comprobante")
+        ventas_prefijo = _column_ref("v", ventas_columns, "prefijo", "prefijo")
+        ventas_numero = _column_ref("v", ventas_columns, "numero", "numero")
+        ventas_cod_cliente = _column_ref("v", ventas_columns, "cod_cliente", "cod_cliente")
+        cliente_cod_cliente = _column_ref("c", cliente_columns, "cod_cliente", "cod_cliente")
+        cliente_cod_categoria = _column_ref("c", cliente_columns, "cod_categoria", "cod_categoria")
+        categoria_cod_categoria = _column_ref("ci", categoria_iva_columns, "cod_categoria", "cod_categoria")
+
+        cursor.execute(
+            f"""
+            SELECT
+                LTRIM(RTRIM({ventas_tipo})) AS tipo_comprobante,
+                {ventas_prefijo} AS prefijo,
+                {ventas_numero} AS numero,
+                {ventas_cod_cliente} AS cod_cliente,
+                {_select_column("v", ventas_columns, "fecha_operacion", "fecha_operacion", "fecha", "fecha_emision")},
+                {_select_column("v", ventas_columns, "remitos_facturados", "remitos_facturados", "remitos", "remitos_fac")},
+                {_select_column("v", ventas_columns, "cae", "cae", "CAE")},
+                {_select_column("v", ventas_columns, "fecha_vencimiento_cae", "fecha_vencimiento_cae", "fecha_vencimiento_cae", "fecha_vto_cae", "vencimiento_cae")},
+                {_select_column("c", cliente_columns, "razon_social", "razon_social")},
+                {_select_column("c", cliente_columns, "dom_fiscal1", "dom_fiscal1", "dom_fiscal")},
+                {_select_column("c", cliente_columns, "cod_categoria", "cod_categoria")},
+                {_select_column("c", cliente_columns, "cuit", "cuit")},
+                {_select_column("ci", categoria_iva_columns, "categoria", "categoria")}
+            FROM dbo.Ventas AS v
+            LEFT JOIN dbo.Cliente AS c
+                ON {cliente_cod_cliente} = {ventas_cod_cliente}
+            LEFT JOIN dbo.CategoriaIva AS ci
+                ON {categoria_cod_categoria} = {cliente_cod_categoria}
+            WHERE LTRIM(RTRIM({ventas_tipo})) = 'FB'
+              AND {ventas_prefijo} = 7
+              AND {ventas_numero} BETWEEN ? AND ?
+            ORDER BY {ventas_numero};
+            """,
+            (desde_numero, hasta_numero),
+        )
+        columns = [column[0] for column in cursor.description]
+        venta_rows = [
+            _serialize_db_row(columns, row)
+            for row in cursor.fetchall()
+        ]
+
+        items_by_key: Dict[Tuple[str, int, int], List[Dict[str, Any]]] = {}
+        if venta_rows:
+            items_tipo = _column_ref("vi", ventas_items_columns, "tipo_comprobante", "tipo_comprobante")
+            items_prefijo = _column_ref("vi", ventas_items_columns, "prefijo", "prefijo")
+            items_numero = _column_ref("vi", ventas_items_columns, "numero", "numero")
+            items_cod_item = _column_ref("vi", ventas_items_columns, "cod_item", "cod_item")
+            item_cod_item = _column_ref("i", item_columns, "cod_item", "cod_item")
+            order_column = _pick_column(ventas_items_columns, "nro_orden", "orden")
+            order_expression = (
+                f", vi.{_quote_identifier(order_column)} AS nro_orden"
+                if order_column
+                else ", CAST(NULL AS int) AS nro_orden"
+            )
+            order_by_expression = (
+                f"vi.{_quote_identifier(order_column)}, "
+                if order_column
+                else ""
+            )
+
+            cursor.execute(
+                f"""
+                SELECT
+                    LTRIM(RTRIM({items_tipo})) AS tipo_comprobante,
+                    {items_prefijo} AS prefijo,
+                    {items_numero} AS numero
+                    {order_expression},
+                    {_select_column("vi", ventas_items_columns, "cantidad", "cantidad")},
+                    {items_cod_item} AS cod_item,
+                    {_select_column("vi", ventas_items_columns, "precio", "precio", "precio_unitario")},
+                    {_select_column("vi", ventas_items_columns, "importe", "importe")},
+                    {_select_column("i", item_columns, "denominacion", "denominacion", "descripcion")}
+                FROM dbo.VentasItems AS vi
+                LEFT JOIN dbo.Item AS i
+                    ON {item_cod_item} = {items_cod_item}
+                WHERE LTRIM(RTRIM({items_tipo})) = 'FB'
+                  AND {items_prefijo} = 7
+                  AND {items_numero} BETWEEN ? AND ?
+                ORDER BY {items_numero}, {order_by_expression}{items_cod_item};
+                """,
+                (desde_numero, hasta_numero),
+            )
+            item_columns_result = [column[0] for column in cursor.description]
+            for row in cursor.fetchall():
+                item = _serialize_db_row(item_columns_result, row)
+                key = (
+                    str(item.get("tipo_comprobante") or "").strip(),
+                    int(item.get("prefijo") or 0),
+                    int(item.get("numero") or 0),
+                )
+                items_by_key.setdefault(key, []).append(item)
+
+        invoices: List[Dict[str, Any]] = []
+        for venta in venta_rows:
+            key = (
+                str(venta.get("tipo_comprobante") or "").strip(),
+                int(venta.get("prefijo") or 0),
+                int(venta.get("numero") or 0),
+            )
+            invoices.append(
+                {
+                    **venta,
+                    "items": items_by_key.get(key, []),
+                }
+            )
+
+        return {
+            "columns": columns,
+            "rows": invoices,
+            "desde": desde_numero,
+            "hasta": hasta_numero,
+            "tipo_comprobante": "FB",
+            "prefijo": 7,
+        }
+    except ValueError as exc:
+        return {"error": "schema_error", "details": str(exc)}
+    except pyodbc.Error as exc:
+        pool.discard(conn)
+        conn = None
+        return {"error": "db_execute_failed", "details": str(exc)}
+    finally:
+        _close_cursor(cursor)
+        pool.release(conn)
 
 
 TRANSFER_TABLE_QUERIES = {
@@ -2538,6 +2767,18 @@ def _handle_assign_transferencia_account(
     return assign_transferencia_account(pool, params[0], params[1], params[2])
 
 
+def _handle_traer_facultad_facturas(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+) -> Dict[str, Any]:
+    if len(params) != 2:
+        return {
+            "error": "invalid_params",
+            "details": "traer_facultad_facturas expects desde and hasta",
+        }
+    return traer_facultad_facturas(pool, params[0], params[1])
+
+
 COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, Any]]] = {
     "get_app_user": _handle_get_app_user,
     "get_app_users": _handle_get_app_users,
@@ -2565,6 +2806,7 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "check_cobro_comprobante": _handle_check_cobro_comprobante,
     "apply_transfer_payment": _handle_apply_transfer_payment,
     "assign_transferencia_account": _handle_assign_transferencia_account,
+    "traer_facultad_facturas": _handle_traer_facultad_facturas,
     "ingresar_registro_hoja_de_ruta": _handle_ingresar_registro_hoja_de_ruta,
     "traer_hoja_de_ruta_por_dia": _handle_traer_hoja_de_ruta_por_dia,
     "traer_hoja_de_ruta": _handle_traer_hoja_de_ruta,

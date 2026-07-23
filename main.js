@@ -364,6 +364,250 @@ const buildHojaDeRutaHtml = ({ pages }) => {
 </html>`
 }
 
+const FACULTAD_TIPO_COMPROBANTE = 'FB'
+const FACULTAD_PREFIJO = 7
+
+const formatFacultadDate = value => {
+  const raw = String(value ?? '').trim()
+  if (!raw) {
+    return ''
+  }
+
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw)
+  if (isoMatch) {
+    return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`
+  }
+
+  const date = new Date(raw)
+  if (!Number.isNaN(date.getTime())) {
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const year = String(date.getFullYear())
+    return `${day}/${month}/${year}`
+  }
+
+  return raw
+}
+
+const formatFacultadNumber = value => {
+  const number = Number(value)
+  if (!Number.isFinite(number)) {
+    return String(value ?? '')
+  }
+  return new Intl.NumberFormat('es-AR', {
+    minimumFractionDigits: Number.isInteger(number) ? 0 : 2,
+    maximumFractionDigits: 2
+  }).format(number)
+}
+
+const formatFacultadMoney = value => {
+  const number = Number(value)
+  if (!Number.isFinite(number)) {
+    return ''
+  }
+  return `$ ${formatFacultadMoneyAmount(number)}`
+}
+
+const formatFacultadMoneyAmount = value => {
+  const number = Number(value)
+  if (!Number.isFinite(number)) {
+    return ''
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(number)
+}
+
+const renderFacultadItemMoney = value => {
+  const amount = formatFacultadMoneyAmount(value)
+  if (!amount) {
+    return ''
+  }
+
+  return `<span class="money-symbol">$</span><span class="money-value">${escapeHtml(amount)}</span>`
+}
+
+const toFacultadNumber = value => {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : 0
+}
+
+const formatFacultadBillNumber = (prefijo, numero) =>
+  `${String(Number(prefijo) || 0).padStart(4, '0')}-${String(Number(numero) || 0).padStart(8, '0')}`
+
+const formatFacultadInvoiceFileBaseName = invoice => {
+  const tipo = String(invoice?.tipo_comprobante ?? FACULTAD_TIPO_COMPROBANTE).trim() || FACULTAD_TIPO_COMPROBANTE
+  return `${tipo} ${formatFacultadBillNumber(invoice?.prefijo ?? FACULTAD_PREFIJO, invoice?.numero)}_CONTADO`
+}
+
+const formatFacultadRemitos = value => {
+  const raw = String(value ?? '').trim()
+  if (!raw) {
+    return ''
+  }
+  return raw.replace(/^remitos:\s*/i, '')
+}
+
+const getFacultadTemplateDataUrl = () => {
+  const templatePath = resolveResourcePath('src', 'assets', 'facultad', 'fb-template.png')
+  const template = fs.readFileSync(templatePath)
+  return `data:image/png;base64,${template.toString('base64')}`
+}
+
+const buildFacultadFacturasHtml = ({ invoices }) => {
+  const templateDataUrl = getFacultadTemplateDataUrl()
+
+  const renderItemRows = invoice => {
+    const items = Array.isArray(invoice?.items) ? invoice.items : []
+    const visibleItems = items.length > 0 ? items : [{}]
+    return visibleItems
+      .map(item => {
+        const description = String(item.denominacion ?? item.cod_item ?? '').trim()
+        return `
+            <div class="item-row">
+              <div class="item-qty">${escapeHtml(formatFacultadNumber(item.cantidad ?? ''))}</div>
+              <div class="item-description">${escapeHtml(description)}</div>
+              <div class="item-price">${renderFacultadItemMoney(item.precio)}</div>
+              <div class="item-total">${renderFacultadItemMoney(item.importe)}</div>
+            </div>
+        `
+      })
+      .join('')
+  }
+
+  const renderInvoice = invoice => {
+    const items = Array.isArray(invoice?.items) ? invoice.items : []
+    const total = items.reduce((sum, item) => sum + toFacultadNumber(item?.importe), 0)
+    return `
+      <section class="invoice-page">
+        <img class="template" src="${templateDataUrl}" alt="" />
+        <div class="erase bill-number-erase"></div>
+        <div class="erase date-erase"></div>
+        <div class="erase client-name-erase"></div>
+        <div class="erase client-address-erase"></div>
+        <div class="erase client-iva-erase"></div>
+        <div class="erase client-cuit-erase"></div>
+        <div class="erase payment-condition-erase"></div>
+        <div class="erase item-price-currency-erase"></div>
+        <div class="erase item-total-currency-erase"></div>
+        <div class="erase total-erase"></div>
+
+        <div class="field bill-number">${escapeHtml(formatFacultadBillNumber(invoice.prefijo, invoice.numero))}</div>
+        <div class="field date">${escapeHtml(formatFacultadDate(invoice.fecha_operacion))}</div>
+        <div class="field client-name">${escapeHtml(invoice.razon_social ?? '')}</div>
+        <div class="field client-address">${escapeHtml(invoice.dom_fiscal1 ?? '')}</div>
+        <div class="field client-address-extra">-</div>
+        <div class="field client-iva">${escapeHtml(invoice.categoria ?? '')}</div>
+        <div class="field client-cuit">${escapeHtml(invoice.cuit ?? '')}</div>
+        <div class="field payment-condition">Contado</div>
+        <div class="items">${renderItemRows(invoice)}</div>
+        <div class="field remitos">${escapeHtml(formatFacultadRemitos(invoice.remitos_facturados))}</div>
+        <div class="field total">${escapeHtml(formatFacultadMoney(total).replace('$ ', ''))}</div>
+        <div class="field cae-number">${escapeHtml(invoice.cae ?? '')}</div>
+        <div class="field cae-date">${escapeHtml(formatFacultadDate(invoice.fecha_vencimiento_cae))}</div>
+      </section>
+    `
+  }
+
+  const pageMarkup = (Array.isArray(invoices) ? invoices : []).map(renderInvoice).join('')
+
+  return `<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Facultad FB ${FACULTAD_PREFIJO}</title>
+    <style>
+      @page { size: A5 landscape; margin: 0; }
+      html, body { margin: 0; padding: 0; background: #fff; color: #111; }
+      body { font-family: Arial, Helvetica, sans-serif; }
+      * { box-sizing: border-box; }
+      .invoice-page {
+        position: relative;
+        width: 210mm;
+        height: 148mm;
+        page-break-after: always;
+        overflow: hidden;
+        background: #fff;
+        font-size: 8.6pt;
+      }
+      .invoice-page:last-child { page-break-after: auto; }
+      .template {
+        position: absolute;
+        inset: 0;
+        width: 210mm;
+        height: 148mm;
+        display: block;
+      }
+      .erase { position: absolute; background: #fff; }
+      .field {
+        position: absolute;
+        font-size: 8.8pt;
+        line-height: 1.15;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .bill-number-erase { left: 153.9mm; top: 15.8mm; width: 25.8mm; height: 4.3mm; }
+      .date-erase { left: 153.9mm; top: 21.3mm; width: 18.6mm; height: 4.3mm; }
+      .client-name-erase { left: 30.6mm; top: 44.2mm; width: 54.6mm; height: 3.8mm; }
+      .client-address-erase { left: 30.6mm; top: 48.5mm; width: 22.2mm; height: 3.8mm; }
+      .client-iva-erase { left: 156.4mm; top: 44.2mm; width: 9.8mm; height: 3.8mm; }
+      .client-cuit-erase { left: 156.4mm; top: 48.2mm; width: 20mm; height: 3.8mm; }
+      .payment-condition-erase { left: 156.4mm; top: 52.35mm; width: 22.5mm; height: 3.8mm; }
+      .total-erase { left: 172.8mm; top: 130.1mm; width: 17mm; height: 4.4mm; }
+      .bill-number { left: 154.33mm; top: 16.09mm; width: 25mm; font-size: 10.1pt; font-weight: 400; }
+      .date { left: 154.33mm; top: 21.58mm; width: 18mm; font-size: 10.1pt; font-weight: 400; }
+      .client-name { left: 31mm; top: 44.29mm; width: 54mm; font-size: 7.6pt; font-weight: 400; }
+      .client-address { left: 31mm; top: 48.82mm; width: 22mm; font-size: 7.6pt; font-weight: 400; }
+      .client-address-extra { left: 31mm; top: 53.08mm; width: 4mm; font-size: 7.6pt; font-weight: 400; }
+      .client-iva { left: 156.96mm; top: 44.22mm; width: 10mm; font-size: 7.6pt; font-weight: 400; }
+      .client-cuit { left: 156.96mm; top: 48.19mm; width: 20mm; font-size: 7.6pt; font-weight: 400; }
+      .payment-condition { left: 156.96mm; top: 52.37mm; width: 18mm; font-size: 7.6pt; font-weight: 400; }
+      .item-price-currency-erase { left: 150.4mm; top: 65.9mm; width: 15.6mm; height: 4.2mm; }
+      .item-total-currency-erase { left: 172.5mm; top: 65.9mm; width: 18.8mm; height: 4.2mm; }
+      .items { position: absolute; left: 0; top: 66.45mm; width: 210mm; font-size: 7.6pt; }
+      .item-row { position: relative; height: 5.2mm; }
+      .item-row > div { position: absolute; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .item-qty { left: 21.35mm; width: 3.4mm; text-align: right; }
+      .item-description { left: 25.41mm; width: 115mm; }
+      .item-price { left: 150.95mm; width: 15mm; text-align: left; }
+      .item-total { left: 173.05mm; width: 18mm; text-align: left; }
+      .money-symbol, .money-value { display: inline-block; }
+      .money-value { margin-left: 2.26mm; }
+      .remitos { left: 12.67mm; top: 114.15mm; width: 132mm; font-size: 5.85pt; white-space: normal; overflow-wrap: anywhere; }
+      .total { left: 173.14mm; top: 130.5mm; width: 17mm; text-align: left; font-size: 9pt; font-weight: 700; }
+      .cae-number { left: 52.3mm; top: 140.22mm; width: 50mm; font-size: 9.8pt; font-weight: 700; }
+      .cae-date { left: 146.9mm; top: 140.22mm; width: 32mm; font-size: 9.8pt; font-weight: 700; }
+    </style>
+  </head>
+  <body>${pageMarkup}</body>
+</html>`
+}
+
+const printFacultadHtmlToPdfBuffer = async html => {
+  const pdfWindow = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  })
+
+  try {
+    await loadHtmlInWindow(pdfWindow, html)
+    return await pdfWindow.webContents.printToPDF({
+      printBackground: true,
+      pageSize: 'A5',
+      landscape: true,
+      preferCSSPageSize: true
+    })
+  } finally {
+    pdfWindow.destroy()
+  }
+}
+
 // Polls the renderer dev server until it responds so Electron can load it without failing.
 const waitForRenderer = async (targetUrl, { timeout = 30000, interval = 250 } = {}) => {
   const deadline = Date.now() + timeout
@@ -720,6 +964,72 @@ const buildHojaDeRutaHtmlForDia = async diaRecorrido => {
   return { html }
 }
 
+const parseFacultadRange = payload => {
+  const desde = Number(payload?.desde)
+  const hasta = Number(payload?.hasta)
+  if (!Number.isInteger(desde) || !Number.isInteger(hasta) || desde <= 0 || hasta <= 0) {
+    return {
+      error: 'invalid_params',
+      details: 'Desde y Hasta deben ser numeros enteros positivos.'
+    }
+  }
+  if (desde > hasta) {
+    return {
+      error: 'invalid_params',
+      details: 'Desde debe ser menor o igual a Hasta.'
+    }
+  }
+  return { desde, hasta }
+}
+
+const fetchFacultadFacturas = async payload => {
+  const range = parseFacultadRange(payload)
+  if (range.error) {
+    return range
+  }
+
+  const result = await getPythonBridge().call('traer_facultad_facturas', [
+    range.desde,
+    range.hasta
+  ])
+  if (result?.error) {
+    return result
+  }
+  return {
+    ...result,
+    rows: Array.isArray(result?.rows) ? result.rows : []
+  }
+}
+
+const buildFacultadFacturasHtmlForRange = async payload => {
+  const fetchResult = await fetchFacultadFacturas(payload)
+  if (fetchResult?.error) {
+    return fetchResult
+  }
+
+  const invoices = fetchResult.rows ?? []
+  if (invoices.length === 0) {
+    return {
+      error: 'not_found',
+      details: 'No se encontraron facturas FB prefijo 7 en el rango indicado.'
+    }
+  }
+
+  return { html: buildFacultadFacturasHtml({ invoices }), rows: invoices }
+}
+
+ipcMain.handle('facultad:list_facturas', async (_event, payload) => {
+  try {
+    return await fetchFacultadFacturas(payload)
+  } catch (error) {
+    console.error('Failed to fetch Facultad facturas:', error)
+    return {
+      error: 'fetch_failed',
+      details: error instanceof Error ? error.message : 'No se pudieron consultar las facturas.'
+    }
+  }
+})
+
 ipcMain.handle('pdf:preview_hoja_de_ruta', async (_event, payload) => {
   try {
     const diaRecorrido = payload?.diaRecorrido
@@ -752,6 +1062,92 @@ ipcMain.handle('pdf:preview_hoja_de_ruta', async (_event, payload) => {
     return {
       error: 'pdf_generation_failed',
       details: error instanceof Error ? error.message : 'No se pudo generar el PDF.'
+    }
+  }
+})
+
+ipcMain.handle('pdf:preview_facultad_facturas', async (_event, payload) => {
+  try {
+    const htmlResult = await buildFacultadFacturasHtmlForRange(payload)
+    if (htmlResult?.error) {
+      return htmlResult
+    }
+
+    const buffer = await printFacultadHtmlToPdfBuffer(htmlResult.html)
+    return {
+      base64: buffer.toString('base64'),
+      rows: htmlResult.rows
+    }
+  } catch (error) {
+    console.error('Failed to generate Facultad PDF preview:', error)
+    return {
+      error: 'pdf_generation_failed',
+      details: error instanceof Error ? error.message : 'No se pudo generar el PDF.'
+    }
+  }
+})
+
+ipcMain.handle('dialog:select_directory', async () => {
+  try {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'Guardar en',
+      properties: ['openDirectory', 'createDirectory']
+    })
+
+    if (canceled || !filePaths?.[0]) {
+      return { status: 'canceled' }
+    }
+
+    return { status: 'ok', directoryPath: filePaths[0] }
+  } catch (error) {
+    console.error('Failed to select directory:', error)
+    return {
+      error: 'select_directory_failed',
+      details: error instanceof Error ? error.message : 'No se pudo seleccionar la carpeta.'
+    }
+  }
+})
+
+ipcMain.handle('pdf:save_facultad_facturas_to_directory', async (_event, payload) => {
+  try {
+    const invoices = Array.isArray(payload?.invoices) ? payload.invoices : []
+    if (invoices.length === 0) {
+      return { error: 'invalid_params', details: 'invoices is required' }
+    }
+
+    const directoryPath =
+      typeof payload?.directoryPath === 'string' && payload.directoryPath.trim()
+        ? payload.directoryPath.trim()
+        : ''
+    if (!directoryPath) {
+      return { error: 'invalid_params', details: 'directoryPath is required' }
+    }
+
+    const stats = await fs.promises.stat(directoryPath)
+    if (!stats.isDirectory()) {
+      return { error: 'invalid_params', details: 'directoryPath must be a directory' }
+    }
+
+    const filePaths = []
+    for (const invoice of invoices) {
+      const html = buildFacultadFacturasHtml({ invoices: [invoice] })
+      const buffer = await printFacultadHtmlToPdfBuffer(html)
+      const fileName = `${sanitizePdfBaseName(formatFacultadInvoiceFileBaseName(invoice))}.pdf`
+      const filePath = path.join(directoryPath, fileName)
+      await fs.promises.writeFile(filePath, buffer)
+      filePaths.push(filePath)
+    }
+
+    return {
+      status: 'ok',
+      saved: filePaths.length,
+      filePaths
+    }
+  } catch (error) {
+    console.error('Failed to save Facultad PDFs:', error)
+    return {
+      error: 'save_failed',
+      details: error instanceof Error ? error.message : 'No se pudieron guardar los PDFs.'
     }
   }
 })
@@ -794,6 +1190,45 @@ ipcMain.handle('pdf:print_hoja_de_ruta', async (_event, payload) => {
     return {
       error: 'print_failed',
       details: error instanceof Error ? error.message : 'No se pudo imprimir el documento.'
+    }
+  }
+})
+
+ipcMain.handle('pdf:save_pdf_to_directory', async (_event, payload) => {
+  try {
+    const base64 = typeof payload?.base64 === 'string' ? payload.base64 : ''
+    if (!base64) {
+      return { error: 'invalid_params', details: 'base64 is required' }
+    }
+
+    const directoryPath =
+      typeof payload?.directoryPath === 'string' && payload.directoryPath.trim()
+        ? payload.directoryPath.trim()
+        : ''
+    if (!directoryPath) {
+      return { error: 'invalid_params', details: 'directoryPath is required' }
+    }
+
+    const stats = await fs.promises.stat(directoryPath)
+    if (!stats.isDirectory()) {
+      return { error: 'invalid_params', details: 'directoryPath must be a directory' }
+    }
+
+    const suggestedFileName =
+      typeof payload?.suggestedFileName === 'string' && payload.suggestedFileName.trim()
+        ? payload.suggestedFileName.trim()
+        : 'documento.pdf'
+    const fileName = `${sanitizePdfBaseName(suggestedFileName)}.pdf`
+    const filePath = path.join(directoryPath, fileName)
+
+    const buffer = Buffer.from(base64, 'base64')
+    await fs.promises.writeFile(filePath, buffer)
+    return { status: 'ok', filePath }
+  } catch (error) {
+    console.error('Failed to save PDF to directory:', error)
+    return {
+      error: 'save_failed',
+      details: error instanceof Error ? error.message : 'No se pudo guardar el PDF.'
     }
   }
 })

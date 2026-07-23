@@ -2628,6 +2628,157 @@ body {
   gap: 24px;
 }
 
+.content.facultad-layout {
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.facultad-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.facultad-panel {
+  margin-top: 30px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px 26px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fafafa;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  box-sizing: border-box;
+}
+
+.facultad-panel--results {
+  margin-top: 0;
+}
+
+.facultad-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.facultad-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.facultad-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 220px)) minmax(130px, max-content);
+  align-items: end;
+  gap: 14px;
+}
+
+.facultad-form__button {
+  width: auto;
+  min-width: 130px;
+  height: 35px;
+  align-self: end;
+  margin: 0;
+  padding: 0 14px;
+  box-sizing: border-box;
+}
+
+.facultad-panel .client-table-container {
+  margin-left: 0;
+}
+
+.facultad-panel .client-table-scroll {
+  padding: 10px 8px 14px;
+  min-width: 0;
+  max-width: 100%;
+  max-height: 72vh;
+}
+
+.facultad-panel .client-table {
+  min-width: 0;
+  font-size: calc(0.85rem - 1px);
+}
+
+.facultad-panel .client-table__header-cell {
+  font-size: calc(0.72rem - 1px);
+}
+
+.facultad-panel .client-table__cell {
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: calc(0.85rem - 1px);
+}
+
+.facultad-save-field {
+  width: 100%;
+}
+
+.facultad-save-path {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #111827;
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  box-sizing: border-box;
+  cursor: pointer;
+  appearance: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.facultad-save-path:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.facultad-save-path:focus-visible {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+@media (max-width: 1100px) {
+  .content.facultad-layout {
+    flex-direction: column;
+  }
+
+  .content.facultad-layout .sidebar.facultad-actions {
+    position: static;
+    top: auto;
+    width: 100%;
+    border-right: none;
+    padding-right: 0;
+  }
+
+  .facultad-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .facultad-form__button {
+    grid-column: 1 / -1;
+  }
+}
+
 .hoja-ruta-main-column {
   flex: 1;
   min-width: 0;
@@ -2958,7 +3109,8 @@ body {
 
 .content.test-view2-layout .sidebar.loan-actions,
 .content.transfer-view-layout .sidebar.loan-actions,
-.content.hoja-ruta-layout .sidebar.loan-actions {
+.content.hoja-ruta-layout .sidebar.loan-actions,
+.content.facultad-layout .sidebar.loan-actions {
   width: 210px;
   flex: 0 0 210px;
   margin-left: 20px;
@@ -2976,7 +3128,8 @@ body {
 }
 
 .content.transfer-view-layout .sidebar.loan-actions,
-.content.hoja-ruta-layout .sidebar.loan-actions {
+.content.hoja-ruta-layout .sidebar.loan-actions,
+.content.facultad-layout .sidebar.loan-actions {
   margin-left: 0;
   margin-top: 30px;
 }
@@ -2987,7 +3140,8 @@ body {
 
 .content.test-view2-layout .sidebar.loan-actions .loan-actions__button-group,
 .content.transfer-view-layout .sidebar.loan-actions .loan-actions__button-group,
-.content.hoja-ruta-layout .sidebar.loan-actions .loan-actions__button-group {
+.content.hoja-ruta-layout .sidebar.loan-actions .loan-actions__button-group,
+.content.facultad-layout .sidebar.loan-actions .loan-actions__button-group {
   align-items: stretch;
   gap: 10px;
   padding-top: 20px;
@@ -3026,7 +3180,8 @@ body {
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button,
 .content.transfer-view-layout .sidebar.loan-actions .edit-button,
 .content.transfer-view-layout .sidebar.loan-actions .irregularidades-button,
-.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button {
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button,
+.content.facultad-layout .sidebar.loan-actions .fetch-button {
   width: 100%;
   align-self: stretch;
   margin: 6px 0;
@@ -3062,7 +3217,8 @@ body {
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button:hover:not(:disabled),
 .content.transfer-view-layout .sidebar.loan-actions .edit-button:hover:not(:disabled),
 .content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:hover:not(:disabled),
-.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:hover:not(:disabled) {
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:hover:not(:disabled),
+.content.facultad-layout .sidebar.loan-actions .fetch-button:hover:not(:disabled) {
   background: #f4f4f5;
   border-color: rgba(0, 0, 0, 0.45);
   color: #000;
@@ -3077,7 +3233,8 @@ body {
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button:active:not(:disabled),
 .content.transfer-view-layout .sidebar.loan-actions .edit-button:active:not(:disabled),
 .content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:active:not(:disabled),
-.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:active:not(:disabled) {
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:active:not(:disabled),
+.content.facultad-layout .sidebar.loan-actions .fetch-button:active:not(:disabled) {
   background: #ebebed;
   border-color: rgba(0, 0, 0, 0.5);
   color: #000;
@@ -3092,7 +3249,8 @@ body {
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button:focus-visible,
 .content.transfer-view-layout .sidebar.loan-actions .edit-button:focus-visible,
 .content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:focus-visible,
-.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:focus-visible {
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:focus-visible,
+.content.facultad-layout .sidebar.loan-actions .fetch-button:focus-visible {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
@@ -3107,7 +3265,8 @@ body {
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button:disabled,
 .content.transfer-view-layout .sidebar.loan-actions .edit-button:disabled,
 .content.transfer-view-layout .sidebar.loan-actions .irregularidades-button:disabled,
-.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:disabled {
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button:disabled,
+.content.facultad-layout .sidebar.loan-actions .fetch-button:disabled {
   background: #fff;
   border-color: #e5e7eb;
   color: #9ca3af;
@@ -3118,7 +3277,8 @@ body {
 .content.test-view-layout .sidebar .fetch-button.fetch-button--active:not(:disabled),
 .content.test-view2-layout .sidebar.loan-actions .fetch-button.fetch-button--active:not(:disabled),
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button.fetch-button--active:not(:disabled),
-.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--active:not(:disabled) {
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--active:not(:disabled),
+.content.facultad-layout .sidebar.loan-actions .fetch-button.fetch-button--active:not(:disabled) {
   background: #111827;
   border-color: #111827;
   color: #fff;
@@ -3127,7 +3287,8 @@ body {
 .content.test-view-layout .sidebar .fetch-button.fetch-button--active:hover:not(:disabled),
 .content.test-view2-layout .sidebar.loan-actions .fetch-button.fetch-button--active:hover:not(:disabled),
 .content.transfer-view-layout .sidebar.loan-actions .fetch-button.fetch-button--active:hover:not(:disabled),
-.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--active:hover:not(:disabled) {
+.content.hoja-ruta-layout .sidebar.loan-actions .fetch-button.fetch-button--active:hover:not(:disabled),
+.content.facultad-layout .sidebar.loan-actions .fetch-button.fetch-button--active:hover:not(:disabled) {
   background: #0f172a;
   border-color: #0f172a;
   color: #fff;

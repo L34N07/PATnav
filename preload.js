@@ -26,7 +26,14 @@ const electronAPI = Object.freeze({
   editarRegistroHojaDeRuta: payload => ipcRenderer.invoke('python:editar_registro_hdr', payload),
   traer_hoja_de_ruta: () => ipcRenderer.invoke('python:traer_hoja_de_ruta'),
   previewHojaDeRutaPdf: payload => ipcRenderer.invoke('pdf:preview_hoja_de_ruta', payload),
+  listFacultadFacturas: payload => ipcRenderer.invoke('facultad:list_facturas', payload),
+  previewFacultadFacturasPdf: payload =>
+    ipcRenderer.invoke('pdf:preview_facultad_facturas', payload),
   printHojaDeRutaPdf: payload => ipcRenderer.invoke('pdf:print_hoja_de_ruta', payload),
+  selectDirectory: () => ipcRenderer.invoke('dialog:select_directory'),
+  saveFacultadFacturasPdfs: payload =>
+    ipcRenderer.invoke('pdf:save_facultad_facturas_to_directory', payload),
+  savePdfToDirectory: payload => ipcRenderer.invoke('pdf:save_pdf_to_directory', payload),
   savePdf: payload => ipcRenderer.invoke('pdf:save_pdf', payload),
   openPdf: payload => ipcRenderer.invoke('pdf:open_pdf', payload),
   listUploadImages: () => ipcRenderer.invoke('uploads:list_images'),

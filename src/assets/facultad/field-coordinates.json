@@ -1,0 +1,96 @@
+{
+  "page": {
+    "size": "A5 landscape",
+    "widthMm": 210,
+    "heightMm": 148,
+    "referencePdfWidthPt": 595,
+    "referencePdfHeightPt": 420,
+    "xMmPerPt": 0.3529411765,
+    "yMmPerPt": 0.3523809524
+  },
+  "source": {
+    "filledReferencePdf": "/home/bbl34n/Downloads/FB_000700048755_CTACTE.PDF",
+    "blankBasePdf": "src/assets/facultad/fb-template.pdf",
+    "blankBasePng": "src/assets/facultad/fb-template.png"
+  },
+  "eraseBoxesMm": {
+    "billNumber": { "left": 153.9, "top": 15.8, "width": 25.8, "height": 4.3 },
+    "date": { "left": 153.9, "top": 21.3, "width": 18.6, "height": 4.3 },
+    "clientName": { "left": 30.6, "top": 44.2, "width": 54.6, "height": 3.8 },
+    "clientAddress": { "left": 30.6, "top": 48.5, "width": 22.2, "height": 3.8 },
+    "clientIva": { "left": 156.4, "top": 44.2, "width": 9.8, "height": 3.8 },
+    "clientCuit": { "left": 156.4, "top": 48.2, "width": 20.0, "height": 3.8 },
+    "paymentCondition": { "left": 156.4, "top": 52.35, "width": 22.5, "height": 3.8 },
+    "itemUnitPrice": { "left": 150.4, "top": 65.9, "width": 15.6, "height": 4.2 },
+    "itemTotal": { "left": 172.5, "top": 65.9, "width": 18.8, "height": 4.2 },
+    "totalAmount": { "left": 172.8, "top": 130.1, "width": 17.0, "height": 4.4 }
+  },
+  "fieldsMm": {
+    "billNumber": {
+      "referenceText": { "left": 154.33, "top": 16.09, "width": 24.92, "height": 3.27 },
+      "css": { "left": 154.33, "top": 16.09, "width": 25.0, "fontSizePt": 10.1, "fontWeight": 400 }
+    },
+    "date": {
+      "referenceText": { "left": 154.33, "top": 21.58, "width": 17.80, "height": 3.27 },
+      "css": { "left": 154.33, "top": 21.58, "width": 18.0, "fontSizePt": 10.1, "fontWeight": 400 }
+    },
+    "clientName": {
+      "referenceText": { "left": 31.00, "top": 44.59, "width": 53.58, "height": 2.57 },
+      "css": { "left": 31.0, "top": 44.29, "width": 54.0, "fontSizePt": 7.6, "fontWeight": 400 }
+    },
+    "clientAddress": {
+      "referenceText": { "left": 31.00, "top": 48.82, "width": 21.28, "height": 2.57 },
+      "css": { "left": 31.0, "top": 48.82, "width": 22.0, "fontSizePt": 7.6, "fontWeight": 400 }
+    },
+    "clientAddressExtraDash": {
+      "referenceText": { "left": 31.00, "top": 53.08 },
+      "css": { "left": 31.0, "top": 53.08, "width": 4.0, "fontSizePt": 7.6, "fontWeight": 400 }
+    },
+    "clientIva": {
+      "referenceText": { "left": 156.96, "top": 44.59, "width": 8.70, "height": 2.57 },
+      "css": { "left": 156.96, "top": 44.22, "width": 10.0, "fontSizePt": 7.6, "fontWeight": 400 }
+    },
+    "clientCuit": {
+      "referenceText": { "left": 156.96, "top": 48.56, "width": 18.66, "height": 2.57 },
+      "css": { "left": 156.96, "top": 48.19, "width": 20.0, "fontSizePt": 7.6, "fontWeight": 400 }
+    },
+    "paymentCondition": {
+      "referenceText": { "left": 156.96, "top": 52.55, "width": 21.28, "height": 2.57, "text": "Cuenta Corriente" },
+      "css": { "left": 156.96, "top": 52.37, "width": 18.0, "fontSizePt": 7.6, "fontWeight": 400, "text": "Contado" }
+    },
+    "itemQuantity": {
+      "referenceText": { "left": 21.35, "top": 66.24, "width": 3.08, "height": 2.57 },
+      "css": { "left": 21.35, "top": 66.45, "width": 3.4, "fontSizePt": 7.6, "textAlign": "right" }
+    },
+    "itemDescription": {
+      "referenceText": { "left": 25.41, "top": 66.24, "width": 24.85, "height": 2.57 },
+      "css": { "left": 25.41, "top": 66.45, "width": 115.0, "fontSizePt": 7.6 }
+    },
+    "itemUnitPrice": {
+      "referenceSymbol": { "left": 150.95, "top": 66.24 },
+      "referenceValue": { "left": 154.76, "top": 66.24 },
+      "css": { "left": 150.95, "top": 66.45, "width": 15.0, "fontSizePt": 7.6, "moneyValueMarginLeft": 2.26 }
+    },
+    "itemTotal": {
+      "referenceSymbol": { "left": 173.05, "top": 66.24 },
+      "referenceValue": { "left": 176.87, "top": 66.24 },
+      "css": { "left": 173.05, "top": 66.45, "width": 18.0, "fontSizePt": 7.6, "moneyValueMarginLeft": 2.26 }
+    },
+    "remitos": {
+      "referenceTextAfterLabel": { "left": 12.67, "top": 113.99, "width": 41.32, "height": 2.30 },
+      "css": { "left": 12.67, "top": 114.15, "width": 132.0, "fontSizePt": 5.85 }
+    },
+    "totalAmount": {
+      "referenceText": { "left": 173.14, "top": 130.46, "width": 16.11, "height": 3.16 },
+      "css": { "left": 173.14, "top": 130.5, "width": 17.0, "fontSizePt": 9.0, "fontWeight": 700 }
+    },
+    "caeNumber": {
+      "referenceText": { "left": 51.58, "top": 140.77, "width": 27.69, "height": 3.49 },
+      "css": { "left": 52.3, "top": 140.22, "width": 50.0, "fontSizePt": 9.8, "fontWeight": 700 }
+    },
+    "caeDueDate": {
+      "referenceText": { "left": 146.14, "top": 140.77, "width": 17.11, "height": 3.49 },
+      "css": { "left": 146.9, "top": 140.22, "width": 32.0, "fontSizePt": 9.8, "fontWeight": 700 }
+    }
+  }
+}

@@ -21,6 +21,7 @@ pip install -r requirements.txt
 npm run db:start
 npm run db:migrate:transfer-tables-permission
 npm run db:migrate:transfer-identification-permission
+npm run db:migrate:facultad-permission
 npm run db:migrate:transferencias
 npm run dev:linux
 ```
@@ -42,6 +43,9 @@ a receipt to a client and delivery location.
 
 `npm run db:migrate:transfer-identification-permission` adds the `View7`
 permission used by the employee-facing transfer identification view.
+
+`npm run db:migrate:facultad-permission` adds the `View8` permission used by the
+Facultad invoice PDF view.
 
 `UsuariosTransferencia` links accounts to `LugarEntrega` through the existing
 composite key `cod_cliente` + `nro_lugar_entrega`. `Transferencias` stores the
