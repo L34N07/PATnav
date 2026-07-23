@@ -8,6 +8,14 @@ const { pathToFileURL } = require('url')
 
 const getResourcesRoot = () => (app.isPackaged ? process.resourcesPath : path.resolve(__dirname))
 const resolveResourcePath = (...segments) => path.join(getResourcesRoot(), ...segments)
+const resolveBundledResourcePath = (...segments) => {
+  const candidates = [
+    path.join(app.getAppPath(), ...segments),
+    path.join(__dirname, ...segments),
+    resolveResourcePath(...segments)
+  ]
+  return candidates.find(candidate => fs.existsSync(candidate)) ?? candidates[0]
+}
 
 const isDev = process.env.NODE_ENV === 'development'
 const DEV_URL = 'http://localhost:5173'
@@ -451,7 +459,7 @@ const formatFacultadRemitos = value => {
 }
 
 const getFacultadTemplateDataUrl = () => {
-  const templatePath = resolveResourcePath('src', 'assets', 'facultad', 'fb-template.png')
+  const templatePath = resolveBundledResourcePath('src', 'assets', 'facultad', 'fb-template.png')
   const template = fs.readFileSync(templatePath)
   return `data:image/png;base64,${template.toString('base64')}`
 }

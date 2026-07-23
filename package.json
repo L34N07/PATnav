@@ -54,6 +54,13 @@
         ]
       },
       {
+        "from": "src/assets",
+        "to": "src/assets",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
         "from": "release/script.exe",
         "to": "script.exe"
       },
