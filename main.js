@@ -445,6 +445,15 @@ const toFacultadNumber = value => {
 const formatFacultadBillNumber = (prefijo, numero) =>
   `${String(Number(prefijo) || 0).padStart(4, '0')}-${String(Number(numero) || 0).padStart(8, '0')}`
 
+const formatFacultadCuit = value => {
+  const raw = String(value ?? '').trim()
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length !== 11) {
+    return raw
+  }
+  return `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}`
+}
+
 const formatFacultadInvoiceFileBaseName = invoice => {
   const tipo = String(invoice?.tipo_comprobante ?? FACULTAD_TIPO_COMPROBANTE).trim() || FACULTAD_TIPO_COMPROBANTE
   return `${tipo} ${formatFacultadBillNumber(invoice?.prefijo ?? FACULTAD_PREFIJO, invoice?.numero)}_FACULTAD`
@@ -508,7 +517,7 @@ const buildFacultadFacturasHtml = ({ invoices }) => {
         <div class="field client-address">${escapeHtml(invoice.dom_fiscal1 ?? '')}</div>
         <div class="field client-address-extra">-</div>
         <div class="field client-iva">${escapeHtml(invoice.categoria ?? '')}</div>
-        <div class="field client-cuit">${escapeHtml(invoice.cuit ?? '')}</div>
+        <div class="field client-cuit">${escapeHtml(formatFacultadCuit(invoice.cuit))}</div>
         <div class="field payment-condition">Contado</div>
         <div class="items">${renderItemRows(invoice)}</div>
         <div class="field remitos">${escapeHtml(formatFacultadRemitos(invoice.remitos_facturados))}</div>

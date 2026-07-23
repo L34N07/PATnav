@@ -80,6 +80,23 @@ type DuplicateReview = {
 }
 
 const STATUS_DURATION_MS = 4000
+const OCR_FIELD_LABELS: Record<string, string> = {
+  account: "CBU/CVU",
+  amount: "monto",
+  payment_date: "fecha",
+  payer_name: "titular"
+}
+
+function formatProcessError(image: UploadImage, response: ProcessImageResponse) {
+  const details = response.details || response.error || "error desconocido"
+  const missingFields = response.missing_fields
+    ?.map(field => OCR_FIELD_LABELS[field] ?? field)
+    .join(", ")
+
+  return missingFields
+    ? `${image.fileName}: ${details} (${missingFields})`
+    : `${image.fileName}: ${details}`
+}
 
 type UploadsGridItemProps = {
   image: UploadImage
@@ -484,7 +501,7 @@ export default function ComprobantesView() {
           if (response.error) {
             stats = {
               ...stats,
-              errors: [...stats.errors, `${image.fileName}: ${response.details || response.error}`]
+              errors: [...stats.errors, formatProcessError(image, response)]
             }
             continue
           }
@@ -600,7 +617,7 @@ export default function ComprobantesView() {
       if (response.error || response.status !== "stored") {
         stats = {
           ...stats,
-          errors: [...stats.errors, `${image.fileName}: ${response.details || response.error || "no se pudo guardar"}`]
+          errors: [...stats.errors, formatProcessError(image, response)]
         }
       } else {
         stats = { ...stats, stored: stats.stored + 1 }

@@ -2167,13 +2167,23 @@ def process_upload_image(
         "account": account.get("value"),
         "amount": amount.get("value"),
         "payment_date": payment_date.get("value"),
-        "payer_name": payer.get("value"),
     }
     missing = [name for name, value in required_values.items() if not value]
     if missing:
+        missing_labels = {
+            "account": "CBU/CVU",
+            "amount": "monto",
+            "payment_date": "fecha",
+        }
+        missing_display = ", ".join(
+            missing_labels.get(name, name) for name in missing
+        )
         return {
             "error": "ocr_fields_missing",
-            "details": "No se puede guardar el comprobante porque faltan datos OCR requeridos.",
+            "details": (
+                "No se puede guardar el comprobante porque faltan datos OCR "
+                f"requeridos: {missing_display}."
+            ),
             "missing_fields": missing,
             "analysis": analysis,
         }
@@ -2191,7 +2201,8 @@ def process_upload_image(
         }
 
     account_value = str(required_values["account"])
-    associated_name = str(required_values["payer_name"]).strip()[:160]
+    payer_name = payer.get("value")
+    associated_name = str(payer_name).strip()[:160] if payer_name else None
     allow_duplicate_value = bool(allow_duplicate)
 
     try:

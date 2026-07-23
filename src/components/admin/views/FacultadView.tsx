@@ -72,6 +72,15 @@ const formatBill = (invoice: FacultadFactura) => {
   return `${toDisplay(invoice.tipo_comprobante) || "FB"} ${prefijo}-${numero}`
 }
 
+const formatCuit = (value: unknown) => {
+  const raw = toDisplay(value)
+  const digits = raw.replace(/\D/g, "")
+  if (digits.length !== 11) {
+    return raw
+  }
+  return `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}`
+}
+
 const getInvoiceTotal = (invoice: FacultadFactura) =>
   (invoice.items ?? []).reduce((sum, item) => sum + toNumber(item.importe), 0)
 
@@ -80,7 +89,7 @@ const toTableRow = (invoice: FacultadFactura): DataRow => ({
   Fecha: formatDate(invoice.fecha_operacion),
   Cliente: toDisplay(invoice.cod_cliente) || "-",
   "Razon Social": toDisplay(invoice.razon_social) || "-",
-  CUIT: toDisplay(invoice.cuit) || "-",
+  CUIT: formatCuit(invoice.cuit) || "-",
   IVA: toDisplay(invoice.categoria) || "-",
   Items: String(invoice.items?.length ?? 0),
   Total: formatMoney(getInvoiceTotal(invoice)),
