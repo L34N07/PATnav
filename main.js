@@ -439,7 +439,7 @@ const formatFacultadBillNumber = (prefijo, numero) =>
 
 const formatFacultadInvoiceFileBaseName = invoice => {
   const tipo = String(invoice?.tipo_comprobante ?? FACULTAD_TIPO_COMPROBANTE).trim() || FACULTAD_TIPO_COMPROBANTE
-  return `${tipo} ${formatFacultadBillNumber(invoice?.prefijo ?? FACULTAD_PREFIJO, invoice?.numero)}_CONTADO`
+  return `${tipo} ${formatFacultadBillNumber(invoice?.prefijo ?? FACULTAD_PREFIJO, invoice?.numero)}_FACULTAD`
 }
 
 const formatFacultadRemitos = value => {
