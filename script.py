@@ -10,7 +10,13 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import pyodbc
 
-from comprobante_ocr import merge_ocr_attempts, ocr_data_to_lines
+from comprobante_ocr import (
+    merge_ocr_attempts,
+    normalize_account_digits,
+    ocr_data_to_lines,
+    parse_amount,
+    parse_mercado_pago_text,
+)
 
 try:
     from PIL import Image, ImageOps
@@ -2148,12 +2154,145 @@ def assign_transferencia_account(
         pool.release(conn)
 
 
+def _analysis_matches_image_path(analysis: Any, image_path: Any) -> bool:
+    if not isinstance(analysis, dict):
+        return False
+    analysis_file = analysis.get("file")
+    if not isinstance(analysis_file, dict):
+        return False
+    analyzed_path = analysis_file.get("path")
+    if not analyzed_path:
+        return False
+    try:
+        return os.path.abspath(str(analyzed_path)) == os.path.abspath(str(image_path))
+    except (TypeError, ValueError):
+        return False
+
+
+def _first_ocr_text(*values: Any) -> Optional[str]:
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
+def _ocr_account_value(analysis: Dict[str, Any], account: Dict[str, Any]) -> Optional[str]:
+    match = analysis.get("match") if isinstance(analysis.get("match"), dict) else {}
+    for raw_value in (
+        account.get("value"),
+        account.get("formatted"),
+        match.get("number"),
+    ):
+        digits = normalize_account_digits(str(raw_value or ""))
+        if len(digits) >= 22:
+            return digits[:22]
+    return None
+
+
+def _ocr_amount_value(analysis: Dict[str, Any], amount: Dict[str, Any]) -> Optional[Decimal]:
+    for raw_value in (
+        amount.get("value"),
+        analysis.get("amount"),
+        amount.get("display"),
+        amount.get("raw"),
+    ):
+        text = _first_ocr_text(raw_value)
+        if not text:
+            continue
+        try:
+            parsed_decimal = Decimal(text)
+        except InvalidOperation:
+            amount_text = re.sub(r"(?i)\bARS\b|[$§]", "", text).strip()
+            parsed = parse_amount(amount_text)
+            if parsed is None:
+                continue
+            parsed_decimal = parsed["decimal"]
+        if parsed_decimal > 0:
+            return parsed_decimal.quantize(Decimal("0.01"))
+    return None
+
+
+def _parse_ocr_datetime_text(value: Any) -> Optional[datetime]:
+    if isinstance(value, datetime):
+        return value.replace(microsecond=0)
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+
+    raw = _first_ocr_text(value)
+    if not raw:
+        return None
+
+    normalized = (
+        raw.replace("–", "-")
+        .replace("—", "-")
+        .replace(",", " ")
+        .strip()
+    )
+    normalized = re.sub(r"\s*(?:hs?\.?|horas?)\b\.?", "", normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
+    iso_candidate = normalized.replace("Z", "")
+    try:
+        return datetime.fromisoformat(iso_candidate).replace(microsecond=0)
+    except ValueError:
+        pass
+
+    for date_format in (
+        "%d/%m/%Y - %H:%M",
+        "%d/%m/%Y %H:%M",
+        "%d/%m/%Y",
+        "%d-%m-%Y - %H:%M",
+        "%d-%m-%Y %H:%M",
+        "%d-%m-%Y",
+        "%d.%m.%Y - %H:%M",
+        "%d.%m.%Y %H:%M",
+        "%d.%m.%Y",
+    ):
+        try:
+            return datetime.strptime(normalized, date_format).replace(microsecond=0)
+        except ValueError:
+            continue
+
+    parsed = parse_mercado_pago_text(normalized)
+    parsed_date = parsed.get("fields", {}).get("payment_date", {})
+    for parsed_value in (parsed_date.get("datetime"), parsed_date.get("value")):
+        if parsed_value and parsed_value != raw:
+            reparsed = _parse_ocr_datetime_text(parsed_value)
+            if reparsed is not None:
+                return reparsed
+    return None
+
+
+def _ocr_payment_datetime(
+    analysis: Dict[str, Any],
+    payment_date: Dict[str, Any],
+) -> Optional[datetime]:
+    for raw_value in (
+        payment_date.get("datetime"),
+        payment_date.get("value"),
+        payment_date.get("display"),
+        analysis.get("created"),
+        payment_date.get("raw"),
+    ):
+        parsed = _parse_ocr_datetime_text(raw_value)
+        if parsed is not None:
+            return parsed
+    return None
+
+
 def process_upload_image(
     pool: ConnectionPool,
     image_path: Any,
     allow_duplicate: Any = False,
+    analysis_override: Any = None,
 ) -> Dict[str, Any]:
-    analysis = analyze_upload_image(pool, image_path)
+    if _analysis_matches_image_path(analysis_override, image_path):
+        analysis = analysis_override
+    else:
+        analysis = analyze_upload_image(pool, image_path)
     if analysis.get("error"):
         return analysis
 
@@ -2163,10 +2302,14 @@ def process_upload_image(
     payment_date = fields.get("payment_date") or {}
     payer = fields.get("payer_name") or {}
 
+    account_value = _ocr_account_value(analysis, account)
+    amount_value = _ocr_amount_value(analysis, amount)
+    transfer_date = _ocr_payment_datetime(analysis, payment_date)
+
     required_values = {
-        "account": account.get("value"),
-        "amount": amount.get("value"),
-        "payment_date": payment_date.get("value"),
+        "account": account_value,
+        "amount": amount_value,
+        "payment_date": transfer_date,
     }
     missing = [name for name, value in required_values.items() if not value]
     if missing:
@@ -2188,19 +2331,9 @@ def process_upload_image(
             "analysis": analysis,
         }
 
-    try:
-        amount_value = Decimal(str(required_values["amount"]))
-        transfer_date = datetime.fromisoformat(
-            str(payment_date.get("datetime") or payment_date.get("value"))
-        )
-    except (InvalidOperation, ValueError) as exc:
-        return {
-            "error": "invalid_ocr_fields",
-            "details": f"Los datos OCR no se pueden guardar: {exc}",
-            "analysis": analysis,
-        }
-
     account_value = str(required_values["account"])
+    amount_value = required_values["amount"]
+    transfer_date = required_values["payment_date"]
     payer_name = payer.get("value")
     associated_name = str(payer_name).strip()[:160] if payer_name else None
     allow_duplicate_value = bool(allow_duplicate)

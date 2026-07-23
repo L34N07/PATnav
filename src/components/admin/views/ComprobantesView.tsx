@@ -366,6 +366,9 @@ export default function ComprobantesView() {
   const [analysisImage, setAnalysisImage] = useState<UploadImage | null>(null)
   const [imageModalMode, setImageModalMode] = useState<"view" | "analyze">("view")
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
+  const [analysisResultsByPath, setAnalysisResultsByPath] = useState<
+    Record<string, AnalyzeUploadImageResult>
+  >({})
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDeletingProcessed, setIsDeletingProcessed] = useState(false)
@@ -440,6 +443,10 @@ export default function ComprobantesView() {
         }
 
         setAnalysisResult(mapAnalysisResult(response))
+        setAnalysisResultsByPath(prev => ({
+          ...prev,
+          [image.filePath]: response
+        }))
 
         if (!response?.match && !response?.amount && !response?.created) {
           setStatusMessage("No se detectaron CVU, CBU, fecha ni monto en la imagen seleccionada.")
@@ -495,7 +502,8 @@ export default function ComprobantesView() {
         try {
           const response = (await electronAPI.processUploadImage(
             image.filePath,
-            false
+            false,
+            analysisResultsByPath[image.filePath]
           )) as ProcessImageResponse
 
           if (response.error) {
@@ -538,7 +546,7 @@ export default function ComprobantesView() {
 
       await finishProcessingBatch(stats)
     },
-    [electronAPI, finishProcessingBatch]
+    [analysisResultsByPath, electronAPI, finishProcessingBatch]
   )
 
   const handleProcessImages = useCallback(() => {
@@ -612,7 +620,8 @@ export default function ComprobantesView() {
     try {
       const response = (await electronAPI.processUploadImage(
         image.filePath,
-        true
+        true,
+        analysisResultsByPath[image.filePath]
       )) as ProcessImageResponse
       if (response.error || response.status !== "stored") {
         stats = {
@@ -635,7 +644,7 @@ export default function ComprobantesView() {
     setDuplicateReview(null)
     setIsDuplicateActionRunning(false)
     await processImageQueue(remaining, stats)
-  }, [duplicateReview, electronAPI, processImageQueue])
+  }, [analysisResultsByPath, duplicateReview, electronAPI, processImageQueue])
 
   const handleSkipDuplicate = useCallback(async () => {
     if (!duplicateReview || !electronAPI?.markUploadProcessed) {

@@ -39,8 +39,8 @@ const electronAPI = Object.freeze({
   listUploadImages: () => ipcRenderer.invoke('uploads:list_images'),
   deleteProcessedUploadImages: () => ipcRenderer.invoke('uploads:delete_processed_images'),
   analyzeUploadImage: filePath => ipcRenderer.invoke('python:analyze_upload_image', { filePath }),
-  processUploadImage: (filePath, allowDuplicate = false) =>
-    ipcRenderer.invoke('python:process_upload_image', { filePath, allowDuplicate }),
+  processUploadImage: (filePath, allowDuplicate = false, analysis = undefined) =>
+    ipcRenderer.invoke('python:process_upload_image', { filePath, allowDuplicate, analysis }),
   markUploadProcessed: filePath =>
     ipcRenderer.invoke('python:mark_upload_processed', { filePath }),
   listTransferTable: tableName =>

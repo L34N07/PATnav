@@ -483,7 +483,8 @@ export interface ElectronAPI {
   analyzeUploadImage: (filePath: string) => Promise<AnalyzeUploadImageResult>
   processUploadImage: (
     filePath: string,
-    allowDuplicate?: boolean
+    allowDuplicate?: boolean,
+    analysis?: AnalyzeUploadImageResult
   ) => Promise<ProcessUploadImageResult>
   markUploadProcessed: (filePath: string) => Promise<MarkUploadProcessedResult>
   listTransferTable: (tableName: TransferTableName) => Promise<TransferTableResult>

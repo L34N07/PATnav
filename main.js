@@ -1549,7 +1549,7 @@ registerPythonHandler('python:process_upload_image', 'process_upload_image', {
     }
     return undefined
   },
-  mapPayload: payload => [payload.filePath, payload.allowDuplicate === true]
+  mapPayload: payload => [payload.filePath, payload.allowDuplicate === true, payload.analysis]
 })
 
 registerPythonHandler('python:mark_upload_processed', 'mark_upload_processed', {
