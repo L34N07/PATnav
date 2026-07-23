@@ -2780,13 +2780,14 @@ def _handle_process_upload_image(
     pool: ConnectionPool,
     params: Sequence[Any],
 ) -> Dict[str, Any]:
-    if not 1 <= len(params) <= 2:
+    if not 1 <= len(params) <= 3:
         return {
             "error": "invalid_params",
-            "details": "process_upload_image expects image_path and optional allow_duplicate",
+            "details": "process_upload_image expects image_path, optional allow_duplicate and optional analysis",
         }
-    allow_duplicate = params[1] if len(params) == 2 else False
-    return process_upload_image(pool, params[0], allow_duplicate)
+    allow_duplicate = params[1] if len(params) >= 2 else False
+    analysis_override = params[2] if len(params) == 3 else None
+    return process_upload_image(pool, params[0], allow_duplicate, analysis_override)
 
 
 def _handle_mark_upload_processed(
