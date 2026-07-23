@@ -47,6 +47,8 @@ const electronAPI = Object.freeze({
     ipcRenderer.invoke('python:list_transfer_table', { tableName }),
   deleteTransferTableRow: (tableName, rowId) =>
     ipcRenderer.invoke('python:delete_transfer_table_row', { tableName, rowId }),
+  addUsuarioTransferencia: payload =>
+    ipcRenderer.invoke('python:add_usuario_transferencia', payload),
   listUnidentifiedTransferencias: () =>
     ipcRenderer.invoke('python:list_unidentified_transferencias'),
   listIdentifiedTransferencias: () =>

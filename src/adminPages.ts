@@ -15,6 +15,7 @@ export type AdminPageId =
   | 'comprobantes'
   | 'transferTables'
   | 'transferencias'
+  | 'facultad'
   | 'hojaRuta'
 
 export type AdminPageDefinition = {
@@ -46,9 +47,9 @@ export const ADMIN_PAGES: AdminPageDefinition[] = [
     component: TransferenciasView
   },
   {
-    id: 'transferTables',
+    id: 'facultad',
     label: 'Facultad',
-    permissionKey: 'View6',
+    permissionKey: 'View8',
     component: FacultadView
   },
   {

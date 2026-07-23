@@ -46,7 +46,7 @@ BEGIN
     CREATE UNIQUE INDEX UX_UsuariosTransferencia_ClienteLugarOrden
         ON dbo.UsuariosTransferencia (cod_cliente, nro_lugar_entrega, orden);
 
-    CREATE UNIQUE INDEX UX_UsuariosTransferencia_CvuCbu
+    CREATE INDEX IX_UsuariosTransferencia_CvuCbu
         ON dbo.UsuariosTransferencia (cvu_cbu)
         WHERE cvu_cbu IS NOT NULL;
 END;
@@ -149,7 +149,7 @@ BEGIN
 END;
 GO
 
-IF NOT EXISTS
+IF EXISTS
 (
     SELECT 1
     FROM sys.indexes
@@ -157,7 +157,20 @@ IF NOT EXISTS
       AND name = N'UX_UsuariosTransferencia_CvuCbu'
 )
 BEGIN
-    CREATE UNIQUE INDEX UX_UsuariosTransferencia_CvuCbu
+    DROP INDEX UX_UsuariosTransferencia_CvuCbu
+    ON dbo.UsuariosTransferencia;
+END;
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'dbo.UsuariosTransferencia')
+      AND name = N'IX_UsuariosTransferencia_CvuCbu'
+)
+BEGIN
+    CREATE INDEX IX_UsuariosTransferencia_CvuCbu
         ON dbo.UsuariosTransferencia (cvu_cbu)
         WHERE cvu_cbu IS NOT NULL;
 END;

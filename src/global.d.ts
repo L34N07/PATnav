@@ -253,9 +253,10 @@ export interface ProcessUploadImageResult {
 }
 
 export interface MarkUploadProcessedResult {
-  status?: "processed" | "already_processed"
+  status?: "processed"
   file_path?: string
   file_name?: string
+  deleted?: boolean
   error?: string
   details?: string
 }
@@ -275,6 +276,20 @@ export interface TransferTableResult {
 export interface DeleteTransferTableRowResult {
   status?: "deleted" | "not_deleted"
   deleted?: number
+  error?: string
+  details?: string
+}
+
+export interface AddUsuarioTransferenciaPayload {
+  codCliente: number | string
+  nroLugarEntrega: number | string
+  cvuCbu: string
+  orden?: number | string
+}
+
+export interface AddUsuarioTransferenciaResult {
+  status?: "inserted"
+  row?: Record<string, unknown>
   error?: string
   details?: string
 }
@@ -493,6 +508,9 @@ export interface ElectronAPI {
     tableName: TransferTableName,
     rowId: number | string
   ) => Promise<DeleteTransferTableRowResult>
+  addUsuarioTransferencia: (
+    payload: AddUsuarioTransferenciaPayload
+  ) => Promise<AddUsuarioTransferenciaResult>
   listUnidentifiedTransferencias: () => Promise<UnidentifiedTransferenciasResult>
   listIdentifiedTransferencias: () => Promise<UnidentifiedTransferenciasResult>
   listTransferAddressCandidates: () => Promise<TransferAddressCandidatesResult>

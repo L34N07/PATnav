@@ -1582,6 +1582,16 @@ registerPythonHandler('python:delete_transfer_table_row', 'delete_transfer_table
   mapPayload: payload => [payload.tableName, payload.rowId]
 })
 
+registerPythonHandler('python:add_usuario_transferencia', 'add_usuario_transferencia', {
+  validate: payload => {
+    if (!payload || typeof payload !== 'object') {
+      return { error: 'invalid_params', details: 'payload is required' }
+    }
+    return undefined
+  },
+  mapPayload: payload => [payload]
+})
+
 registerPythonHandler(
   'python:list_unidentified_transferencias',
   'list_unidentified_transferencias'

@@ -750,19 +750,6 @@ def analyze_upload_image(
     return result
 
 
-def _processed_upload_path(file_path: str) -> str:
-    directory, file_name = os.path.split(file_path)
-    if file_name.lower().startswith("procesada_"):
-        return file_path
-
-    candidate = os.path.join(directory, f"Procesada_{file_name}")
-    suffix = 2
-    while os.path.exists(candidate):
-        candidate = os.path.join(directory, f"Procesada_{suffix}_{file_name}")
-        suffix += 1
-    return candidate
-
-
 def mark_upload_processed(image_path: Any) -> Dict[str, Any]:
     if not image_path:
         return {"error": "invalid_params", "details": "image_path is required"}
@@ -771,23 +758,16 @@ def mark_upload_processed(image_path: Any) -> Dict[str, Any]:
     if not os.path.isfile(file_path):
         return {"error": "not_found", "details": f"No file found at {file_path}"}
 
-    processed_path = _processed_upload_path(file_path)
-    if processed_path == file_path:
-        return {
-            "status": "already_processed",
-            "file_path": file_path,
-            "file_name": os.path.basename(file_path),
-        }
-
     try:
-        os.rename(file_path, processed_path)
+        os.remove(file_path)
     except OSError as exc:
-        return {"error": "rename_failed", "details": str(exc)}
+        return {"error": "delete_failed", "details": str(exc)}
 
     return {
         "status": "processed",
-        "file_path": processed_path,
-        "file_name": os.path.basename(processed_path),
+        "file_path": file_path,
+        "file_name": os.path.basename(file_path),
+        "deleted": True,
     }
 
 
@@ -1189,6 +1169,145 @@ def delete_transfer_table_row(
         pool.release(conn)
 
 
+def add_usuario_transferencia(
+    pool: ConnectionPool,
+    payload: Any,
+) -> Dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {
+            "error": "invalid_params",
+            "details": "payload must be an object.",
+        }
+
+    account_value = str(payload.get("cvuCbu") or payload.get("cvu_cbu") or "").strip()
+    if not re.fullmatch(r"\d{22}", account_value):
+        return {
+            "error": "invalid_params",
+            "details": "cvu_cbu must contain 22 digits.",
+        }
+
+    try:
+        parsed_cod_cliente = int(payload.get("codCliente") or payload.get("cod_cliente"))
+        parsed_nro_lugar = int(payload.get("nroLugarEntrega") or payload.get("nro_lugar_entrega"))
+    except (TypeError, ValueError):
+        return {
+            "error": "invalid_params",
+            "details": "cod_cliente and nro_lugar_entrega must be integers.",
+        }
+
+    requested_order = payload.get("orden")
+    try:
+        parsed_order = int(requested_order) if requested_order not in (None, "") else None
+    except (TypeError, ValueError):
+        return {
+            "error": "invalid_params",
+            "details": "orden must be an integer.",
+        }
+
+    if parsed_order is not None and parsed_order <= 0:
+        return {
+            "error": "invalid_params",
+            "details": "orden must be greater than zero.",
+        }
+
+    try:
+        conn = pool.acquire()
+    except ConnectionAcquireError as exc:
+        return {"error": "connection_failed", "details": exc.details}
+
+    cursor: Optional['pyodbc.Cursor'] = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SET XACT_ABORT ON; SET LOCK_TIMEOUT 5000;")
+        cursor.execute(
+            """
+            SELECT TOP (1) 1
+            FROM dbo.LugarEntrega WITH (HOLDLOCK)
+            WHERE cod_cliente = ?
+              AND nro_lugar_entrega = ?;
+            """,
+            (parsed_cod_cliente, parsed_nro_lugar),
+        )
+        if cursor.fetchone() is None:
+            conn.rollback()
+            return {
+                "error": "not_found",
+                "details": "No existe ese cliente/lugar de entrega.",
+            }
+
+        if parsed_order is None:
+            cursor.execute(
+                """
+                SELECT COALESCE(MAX(orden), 0) + 1
+                FROM dbo.UsuariosTransferencia WITH (UPDLOCK, HOLDLOCK)
+                WHERE cod_cliente = ?
+                  AND nro_lugar_entrega = ?;
+                """,
+                (parsed_cod_cliente, parsed_nro_lugar),
+            )
+            parsed_order = int(cursor.fetchone()[0])
+        else:
+            cursor.execute(
+                """
+                SELECT TOP (1) 1
+                FROM dbo.UsuariosTransferencia WITH (UPDLOCK, HOLDLOCK)
+                WHERE cod_cliente = ?
+                  AND nro_lugar_entrega = ?
+                  AND orden = ?;
+                """,
+                (parsed_cod_cliente, parsed_nro_lugar, parsed_order),
+            )
+            if cursor.fetchone() is not None:
+                conn.rollback()
+                return {
+                    "error": "duplicate_order",
+                    "details": "Ese cliente/lugar ya tiene un usuario con ese orden.",
+                }
+
+        cursor.execute(
+            """
+            INSERT INTO dbo.UsuariosTransferencia
+            (
+                cod_cliente,
+                nro_lugar_entrega,
+                cvu_cbu,
+                orden
+            )
+            OUTPUT
+                INSERTED.id_usuario_transferencia,
+                INSERTED.cod_cliente,
+                INSERTED.nro_lugar_entrega,
+                INSERTED.cvu_cbu,
+                INSERTED.orden
+            VALUES (?, ?, ?, ?);
+            """,
+            (
+                parsed_cod_cliente,
+                parsed_nro_lugar,
+                account_value,
+                parsed_order,
+            ),
+        )
+        columns = [column[0] for column in cursor.description]
+        inserted = _serialize_db_row(columns, cursor.fetchone())
+        conn.commit()
+        return {
+            "status": "inserted",
+            "row": inserted,
+        }
+    except pyodbc.Error as exc:
+        try:
+            conn.rollback()
+        except pyodbc.Error:
+            pass
+        pool.discard(conn)
+        conn = None
+        return {"error": "db_execute_failed", "details": str(exc)}
+    finally:
+        _close_cursor(cursor)
+        pool.release(conn)
+
+
 def list_unidentified_transferencias(pool: ConnectionPool) -> Dict[str, Any]:
     try:
         conn = pool.acquire()
@@ -1361,6 +1480,7 @@ def list_transfer_address_candidates(pool: ConnectionPool) -> Dict[str, Any]:
                AND ca.cod_calle = le.cod_calle
             LEFT JOIN dbo.Municipio AS m
                 ON m.cod_municipio = le.cod_municipio
+            WHERE NULLIF(LTRIM(RTRIM(CONVERT(varchar(40), le.fecha_fin_contrato))), '') IS NOT NULL
             ORDER BY direccion, razon_social, le.cod_cliente, le.nro_lugar_entrega;
             """
         )
@@ -2501,7 +2621,7 @@ def process_upload_image(
         _close_cursor(cursor)
         pool.release(conn)
 
-    renamed = mark_upload_processed(image_path)
+    cleanup = mark_upload_processed(image_path)
     result = {
         "status": "stored",
         "analysis": analysis,
@@ -2509,10 +2629,10 @@ def process_upload_image(
         "owner": owner,
         "duplicate_override": bool(duplicate_rows),
     }
-    if renamed.get("error"):
-        result["rename_warning"] = renamed
+    if cleanup.get("error"):
+        result["cleanup_warning"] = cleanup
     else:
-        result["processed_file"] = renamed
+        result["processed_file"] = cleanup
     return result
 
 def _handle_get_app_user(pool: ConnectionPool, params: Sequence[Any]) -> Dict[str, Any]:
@@ -2842,6 +2962,18 @@ def _handle_delete_transfer_table_row(
     return delete_transfer_table_row(pool, params[0], params[1])
 
 
+def _handle_add_usuario_transferencia(
+    pool: ConnectionPool,
+    params: Sequence[Any],
+) -> Dict[str, Any]:
+    if len(params) != 1:
+        return {
+            "error": "invalid_params",
+            "details": "add_usuario_transferencia expects payload",
+        }
+    return add_usuario_transferencia(pool, params[0])
+
+
 def _handle_list_unidentified_transferencias(
     pool: ConnectionPool,
     params: Sequence[Any],
@@ -2960,6 +3092,7 @@ COMMAND_HANDLERS: Dict[str, Callable[[ConnectionPool, Sequence[Any]], Dict[str, 
     "mark_upload_processed": _handle_mark_upload_processed,
     "list_transfer_table": _handle_list_transfer_table,
     "delete_transfer_table_row": _handle_delete_transfer_table_row,
+    "add_usuario_transferencia": _handle_add_usuario_transferencia,
     "list_unidentified_transferencias": _handle_list_unidentified_transferencias,
     "list_identified_transferencias": _handle_list_identified_transferencias,
     "list_transfer_address_candidates": _handle_list_transfer_address_candidates,

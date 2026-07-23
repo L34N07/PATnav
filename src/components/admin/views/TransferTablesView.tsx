@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type {
+  AddUsuarioTransferenciaPayload,
+  AddUsuarioTransferenciaResult,
   DeleteTransferTableRowResult,
   TransferTableName,
   TransferTableResult
@@ -16,6 +18,13 @@ type TransferTableDefinition = {
 type PendingDelete = {
   row: Record<string, unknown>
   rowId: string | number
+}
+
+type AddUsuarioForm = {
+  codCliente: string
+  nroLugarEntrega: string
+  cvuCbu: string
+  orden: string
 }
 
 const TABLES: TransferTableDefinition[] = [
@@ -64,7 +73,14 @@ export default function TransferTablesView() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isAdding, setIsAdding] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+  const [addForm, setAddForm] = useState<AddUsuarioForm>({
+    codCliente: "",
+    nroLugarEntrega: "",
+    cvuCbu: "",
+    orden: ""
+  })
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -158,9 +174,67 @@ export default function TransferTablesView() {
     setRows([])
     setSelectedIndex(null)
     setPendingDelete(null)
+    setAddForm({
+      codCliente: "",
+      nroLugarEntrega: "",
+      cvuCbu: "",
+      orden: ""
+    })
     setStatusMessage(null)
     setErrorMessage(null)
   }, [activeTable])
+
+  const handleAddFormChange = useCallback((field: keyof AddUsuarioForm, value: string) => {
+    setAddForm(prev => ({
+      ...prev,
+      [field]: field === "cvuCbu" ? value.replace(/\D/g, "").slice(0, 22) : value.replace(/\D/g, "")
+    }))
+  }, [])
+
+  const handleAddUsuarioTransferencia = useCallback(async () => {
+    if (activeTable !== "usuarios_transferencia") {
+      return
+    }
+
+    if (!electronAPI?.addUsuarioTransferencia) {
+      setErrorMessage("No se encuentra disponible el alta de usuarios de transferencia.")
+      return
+    }
+
+    const payload: AddUsuarioTransferenciaPayload = {
+      codCliente: addForm.codCliente,
+      nroLugarEntrega: addForm.nroLugarEntrega,
+      cvuCbu: addForm.cvuCbu,
+      orden: addForm.orden || undefined
+    }
+
+    setIsAdding(true)
+    setErrorMessage(null)
+
+    try {
+      const result: AddUsuarioTransferenciaResult =
+        await electronAPI.addUsuarioTransferencia(payload)
+      if (result.error) {
+        throw new Error(result.details || result.error)
+      }
+
+      setStatusMessage("Usuario de transferencia agregado.")
+      setAddForm({
+        codCliente: "",
+        nroLugarEntrega: "",
+        cvuCbu: "",
+        orden: ""
+      })
+      await loadTable("usuarios_transferencia")
+    } catch (error) {
+      console.error("No se pudo agregar el usuario de transferencia:", error)
+      setErrorMessage(
+        error instanceof Error ? error.message : "Error desconocido al agregar la fila."
+      )
+    } finally {
+      setIsAdding(false)
+    }
+  }, [activeTable, addForm, electronAPI, loadTable])
 
   const handleDeleteSelected = useCallback(async () => {
     if (!selectedRow || selectedId == null || deleteDisabledReason) {
@@ -240,22 +314,22 @@ export default function TransferTablesView() {
             <div>
               <h2 className="uploads-browser__title">Tablas de Transferencias</h2>
               <p className="transfer-tables-panel__subtitle">
-                Vista de prueba para consultar y eliminar filas.
+                Administracion de transferencias y usuarios de transferencia.
               </p>
             </div>
-            <div className="transfer-tables-tabs" role="tablist" aria-label="Tablas">
-              {TABLES.map(table => (
-                <button
-                  key={table.id}
-                  type="button"
-                  className={`transfer-tables-tab${activeTable === table.id ? " active" : ""}`}
-                  onClick={() => handleTableChange(table.id)}
-                  disabled={isLoading || isDeleting}
-                >
-                  {table.label}
-                </button>
-              ))}
-            </div>
+	            <div className="transfer-tables-tabs" role="tablist" aria-label="Tablas">
+	              {TABLES.map(table => (
+	                <button
+	                  key={table.id}
+	                  type="button"
+	                  className={`transfer-tables-tab${activeTable === table.id ? " active" : ""}`}
+	                  onClick={() => handleTableChange(table.id)}
+	                  disabled={isLoading || isDeleting || isAdding}
+	                >
+	                  {table.label}
+	                </button>
+	              ))}
+	            </div>
           </div>
 
           <div className="transfer-tables-scroll">
@@ -300,38 +374,97 @@ export default function TransferTablesView() {
         </section>
 
         <aside className="sidebar loan-actions transfer-tables-actions">
-          <div className="loan-actions__button-group">
-            <span className="loan-actions__section-title">Tabla</span>
-            <button
-              className="fetch-button"
-              type="button"
-              onClick={() => loadTable()}
-              disabled={isLoading || isDeleting}
-            >
-              {isLoading ? "Cargando..." : "Actualizar"}
-            </button>
-          </div>
+	          <div className="loan-actions__button-group">
+	            <span className="loan-actions__section-title">Tabla</span>
+	            <button
+	              className="fetch-button"
+	              type="button"
+	              onClick={() => loadTable()}
+	              disabled={isLoading || isDeleting || isAdding}
+	            >
+	              {isLoading ? "Cargando..." : "Actualizar"}
+	            </button>
+	          </div>
           <div className="loan-actions__divider" aria-hidden="true" />
           <div className="loan-actions__button-group">
-            <span className="loan-actions__section-title">Pruebas</span>
-            <div className="transfer-tables-actions__selection">
-              {selectedRow
-                ? `${tableDefinition.primaryKey}: ${toDisplayValue(selectedId)}`
-                : "Sin fila seleccionada"}
-            </div>
-            <button
-              className="fetch-button transfer-tables-actions__delete"
-              type="button"
-              onClick={handleDeleteSelected}
-              disabled={isLoading || isDeleting || Boolean(deleteDisabledReason)}
-              title={deleteDisabledReason ?? "Eliminar fila seleccionada"}
-            >
-              {isDeleting ? "Eliminando..." : "Eliminar fila"}
-            </button>
-            {deleteDisabledReason ? (
-              <span className="transfer-tables-actions__hint">{deleteDisabledReason}</span>
-            ) : null}
-          </div>
+            <span className="loan-actions__section-title">Filas</span>
+	            <div className="transfer-tables-actions__selection">
+	              {selectedRow
+	                ? `${tableDefinition.primaryKey}: ${toDisplayValue(selectedId)}`
+	                : "Sin fila seleccionada"}
+	            </div>
+	            <button
+	              className="fetch-button transfer-tables-actions__delete"
+	              type="button"
+	              onClick={handleDeleteSelected}
+	              disabled={isLoading || isDeleting || isAdding || Boolean(deleteDisabledReason)}
+	              title={deleteDisabledReason ?? "Eliminar fila seleccionada"}
+	            >
+	              {isDeleting ? "Eliminando..." : "Eliminar fila"}
+	            </button>
+	            {deleteDisabledReason ? (
+	              <span className="transfer-tables-actions__hint">{deleteDisabledReason}</span>
+	            ) : null}
+	          </div>
+          {activeTable === "usuarios_transferencia" ? (
+            <>
+              <div className="loan-actions__divider" aria-hidden="true" />
+              <div className="loan-actions__button-group">
+                <span className="loan-actions__section-title">Agregar Usuario</span>
+                <label className="transfer-tables-add-field">
+                  <span>Cliente</span>
+                  <input
+                    value={addForm.codCliente}
+                    onChange={event => handleAddFormChange("codCliente", event.target.value)}
+                    inputMode="numeric"
+                    disabled={isAdding}
+                  />
+                </label>
+                <label className="transfer-tables-add-field">
+                  <span>Lugar</span>
+                  <input
+                    value={addForm.nroLugarEntrega}
+                    onChange={event => handleAddFormChange("nroLugarEntrega", event.target.value)}
+                    inputMode="numeric"
+                    disabled={isAdding}
+                  />
+                </label>
+                <label className="transfer-tables-add-field">
+                  <span>CBU/CVU</span>
+                  <input
+                    value={addForm.cvuCbu}
+                    onChange={event => handleAddFormChange("cvuCbu", event.target.value)}
+                    inputMode="numeric"
+                    maxLength={22}
+                    disabled={isAdding}
+                  />
+                </label>
+                <label className="transfer-tables-add-field">
+                  <span>Orden</span>
+                  <input
+                    value={addForm.orden}
+                    onChange={event => handleAddFormChange("orden", event.target.value)}
+                    inputMode="numeric"
+                    placeholder="Auto"
+                    disabled={isAdding}
+                  />
+                </label>
+                <button
+                  className="fetch-button"
+                  type="button"
+                  onClick={handleAddUsuarioTransferencia}
+                  disabled={
+                    isAdding ||
+                    !addForm.codCliente ||
+                    !addForm.nroLugarEntrega ||
+                    addForm.cvuCbu.length !== 22
+                  }
+                >
+                  {isAdding ? "Agregando..." : "Agregar fila"}
+                </button>
+              </div>
+            </>
+          ) : null}
         </aside>
       </div>
       {pendingDelete ? (

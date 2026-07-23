@@ -325,7 +325,7 @@ function DuplicateTransferModal({
             onClick={onSkip}
             disabled={isWorking}
           >
-            Omitir y marcar procesada
+            Omitir y eliminar imagen
           </button>
           <button
             className="fetch-button action-button--confirm"
