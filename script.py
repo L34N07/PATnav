@@ -1480,7 +1480,7 @@ def list_transfer_address_candidates(pool: ConnectionPool) -> Dict[str, Any]:
                AND ca.cod_calle = le.cod_calle
             LEFT JOIN dbo.Municipio AS m
                 ON m.cod_municipio = le.cod_municipio
-            WHERE NULLIF(LTRIM(RTRIM(CONVERT(varchar(40), le.fecha_fin_contrato))), '') IS NOT NULL
+            WHERE NULLIF(LTRIM(RTRIM(CONVERT(varchar(40), le.fecha_fin_contrato))), '') IS NULL
             ORDER BY direccion, razon_social, le.cod_cliente, le.nro_lugar_entrega;
             """
         )
