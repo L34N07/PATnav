@@ -1538,23 +1538,18 @@ def list_transfer_ventas(
                     CAST(? AS numeric(18, 0)) AS nro_lugar_entrega
             ),
             expanded_locations AS (
-                SELECT
-                    cod_cliente,
-                    nro_lugar_entrega
-                FROM linked_locations
-
-                UNION
-
-                SELECT
-                    le_all.cod_cliente,
-                    le_all.nro_lugar_entrega
+                SELECT DISTINCT
+                    target.cod_cliente,
+                    target.nro_lugar_entrega
                 FROM linked_locations AS linked
-                INNER JOIN dbo.LugarEntrega AS le_linked
-                    ON le_linked.cod_cliente = linked.cod_cliente
-                   AND le_linked.nro_lugar_entrega = linked.nro_lugar_entrega
-                INNER JOIN dbo.LugarEntrega AS le_all
-                    ON le_all.cod_cliente = linked.cod_cliente
-                WHERE UPPER(LTRIM(RTRIM(COALESCE(le_linked.tipo_lugar, '')))) = 'C'
+                INNER JOIN dbo.Cliente AS c
+                    ON c.cod_cliente = linked.cod_cliente
+                INNER JOIN dbo.LugarEntrega AS target
+                    ON target.cod_cliente = linked.cod_cliente
+                   AND (
+                       UPPER(LTRIM(RTRIM(COALESCE(c.tipo_cobro, '')))) = 'U'
+                       OR target.nro_lugar_entrega = linked.nro_lugar_entrega
+                   )
             )
     """
 
