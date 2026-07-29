@@ -391,6 +391,15 @@ export interface CobroComprobanteCheckResult {
   details?: string
 }
 
+export interface ApplyTransferPaymentReceiptAssignment {
+  receiptComprobante: CobroComprobantePayload
+  receiptClient: {
+    codCliente: number | string
+    nroLugarEntrega: number | string
+  }
+  selectedVentas: CobroComprobantePayload[]
+}
+
 export interface ApplyTransferPaymentPayload {
   transferId?: number | string
   receiptComprobante: CobroComprobantePayload
@@ -400,6 +409,7 @@ export interface ApplyTransferPaymentPayload {
   }
   transferAmount: number | string
   selectedVentas: CobroComprobantePayload[]
+  receiptAssignments?: ApplyTransferPaymentReceiptAssignment[]
 }
 
 export interface AppliedCobroVentaResult {
@@ -420,6 +430,14 @@ export interface ApplyTransferPaymentResult {
     cod_cliente: number
     nro_lugar_entrega: number
   }
+  cobros?: Array<{
+    tipo_comprobante_cobro: string
+    prefijo_recibo: number
+    numero_recibo: number
+    fecha_recibo?: string
+    cod_cliente: number
+    nro_lugar_entrega: number
+  }>
   cobros_aplicados?: AppliedCobroVentaResult[]
   inserted_cobros?: number
   inserted_cobros_aplicados?: number

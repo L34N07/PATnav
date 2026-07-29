@@ -1635,7 +1635,12 @@ registerPythonHandler('python:check_cobro_comprobante', 'check_cobro_comprobante
 
 registerPythonHandler('python:apply_transfer_payment', 'apply_transfer_payment', {
   validate: payload => {
-    if (!payload?.receiptComprobante || !payload?.receiptClient || payload.transferAmount === undefined || !Array.isArray(payload.selectedVentas)) {
+    const hasAssignments = Array.isArray(payload?.receiptAssignments) && payload.receiptAssignments.length > 0
+    if (
+      payload.transferAmount === undefined ||
+      !Array.isArray(payload.selectedVentas) ||
+      (!hasAssignments && (!payload?.receiptComprobante || !payload?.receiptClient))
+    ) {
       return {
         error: 'invalid_params',
         details: 'receiptComprobante, receiptClient, transferAmount and selectedVentas are required'
@@ -1648,7 +1653,8 @@ registerPythonHandler('python:apply_transfer_payment', 'apply_transfer_payment',
     payload.receiptClient,
     payload.transferAmount,
     payload.selectedVentas,
-    payload.transferId
+    payload.transferId,
+    payload.receiptAssignments || []
   ]
 })
 

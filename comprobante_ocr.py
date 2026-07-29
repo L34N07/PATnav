@@ -107,11 +107,16 @@ NOISE_NAME_WORDS = {
     "cvu",
     "alias",
     "banco",
+    "bbva",
+    "coelsa",
     "creada",
     "creado",
+    "destino",
     "pagaste",
     "pago",
+    "aprobado",
     "identificacion",
+    "origen",
 }
 
 
@@ -645,7 +650,15 @@ def group_account_number(value: str) -> Optional[str]:
 def clean_name(value: str) -> Optional[str]:
     cleaned = re.sub(r"^[^\w]+", "", str(value or "").strip())
     cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" .:-")
-    if len(cleaned) < 3 or "$" in cleaned or len(re.findall(r"\d", cleaned)) > 1:
+    if len(cleaned) < 3 or "$" in cleaned:
+        return None
+    if re.search(r"\d{5,}", cleaned):
+        return None
+    if (
+        DISPLAYED_DATE_PATTERN.search(cleaned)
+        or NUMERIC_DATE_PATTERN.search(cleaned)
+        or SPANISH_DATE_PATTERN.search(normalize_text_for_matching(cleaned))
+    ):
         return None
     comparable = strip_accents(cleaned).lower()
     if any(word in comparable for word in NOISE_NAME_WORDS):

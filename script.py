@@ -345,7 +345,7 @@ def update_user_permissions(
 ) -> Dict[str, Any]:
     try:
         parsed_user_id = int(user_id)
-    except (TypeError, ValueError):
+    except TypeError:
         return {
             "error": "invalid_params",
             "details": "user_id must be an integer",
@@ -1783,36 +1783,152 @@ def apply_transfer_payment(
     transfer_amount: Any,
     selected_ventas: Any,
     transfer_id: Any = None,
+    receipt_assignments: Any = None,
 ) -> Dict[str, Any]:
-    if not isinstance(receipt_comprobante, dict):
-        return {
-            "error": "invalid_params",
-            "details": "receipt_comprobante must be an object.",
-        }
-    if not isinstance(receipt_client, dict):
-        return {
-            "error": "invalid_params",
-            "details": "receipt_client must be an object.",
-        }
     if not isinstance(selected_ventas, list) or len(selected_ventas) == 0:
         return {
             "error": "invalid_params",
             "details": "selected_ventas must contain at least one venta.",
         }
 
+    has_receipt_assignments = (
+        isinstance(receipt_assignments, list) and len(receipt_assignments) > 0
+    )
+    raw_receipt_assignments = (
+        receipt_assignments
+        if has_receipt_assignments
+        else [
+            {
+                "receiptComprobante": receipt_comprobante,
+                "receiptClient": receipt_client,
+                "selectedVentas": selected_ventas,
+            }
+        ]
+    )
+
     try:
-        receipt_tipo, receipt_prefijo, receipt_numero = _parse_comprobante_parts(
-            receipt_comprobante.get("tipoComprobante"),
-            receipt_comprobante.get("prefijo"),
-            receipt_comprobante.get("numero"),
-        )
-        receipt_cod_cliente = int(receipt_client.get("codCliente"))
-        receipt_nro_lugar = int(receipt_client.get("nroLugarEntrega"))
         wire_amount = _decimal_from_any(transfer_amount, "transfer_amount")
         parsed_transfer_id = int(transfer_id) if transfer_id not in (None, "") else None
+
+        assignment_records: List[Dict[str, Any]] = []
+        selected_keys: List[Tuple[str, int, int]] = []
+        seen_receipts = set()
+        seen_receipt_clients = set()
+        seen_selected_keys = set()
+
+        for assignment in raw_receipt_assignments:
+            if not isinstance(assignment, dict):
+                return {
+                    "error": "invalid_params",
+                    "details": "Each receipt assignment must be an object.",
+                }
+
+            assignment_comprobante = assignment.get("receiptComprobante")
+            assignment_client = assignment.get("receiptClient")
+            assignment_ventas = assignment.get("selectedVentas")
+            if not isinstance(assignment_comprobante, dict):
+                return {
+                    "error": "invalid_params",
+                    "details": "receipt_comprobante must be an object.",
+                }
+            if not isinstance(assignment_client, dict):
+                return {
+                    "error": "invalid_params",
+                    "details": "receipt_client must be an object.",
+                }
+            if not isinstance(assignment_ventas, list) or len(assignment_ventas) == 0:
+                return {
+                    "error": "invalid_params",
+                    "details": "Each receipt assignment needs selected ventas.",
+                }
+
+            receipt_tipo, receipt_prefijo, receipt_numero = _parse_comprobante_parts(
+                assignment_comprobante.get("tipoComprobante"),
+                assignment_comprobante.get("prefijo"),
+                assignment_comprobante.get("numero"),
+            )
+            receipt_cod_cliente = int(assignment_client.get("codCliente"))
+            receipt_nro_lugar = int(assignment_client.get("nroLugarEntrega"))
+            receipt_key = (receipt_tipo, receipt_prefijo, receipt_numero)
+            receipt_client_key = (receipt_cod_cliente, receipt_nro_lugar)
+            if receipt_key in seen_receipts:
+                return {
+                    "error": "invalid_params",
+                    "details": f"El comprobante {receipt_tipo} {receipt_prefijo} {receipt_numero} esta repetido.",
+                }
+            seen_receipts.add(receipt_key)
+            if receipt_client_key in seen_receipt_clients:
+                return {
+                    "error": "invalid_params",
+                    "details": f"El cliente {receipt_cod_cliente}-{receipt_nro_lugar} tiene mas de un comprobante de cobro.",
+                }
+            seen_receipt_clients.add(receipt_client_key)
+
+            assignment_keys: List[Tuple[str, int, int]] = []
+            seen_assignment_keys = set()
+            for venta in assignment_ventas:
+                if not isinstance(venta, dict):
+                    return {
+                        "error": "invalid_params",
+                        "details": "Each selected venta must be an object.",
+                    }
+                key = _parse_comprobante_parts(
+                    venta.get("tipoComprobante"),
+                    venta.get("prefijo"),
+                    venta.get("numero"),
+                )
+                if key in seen_assignment_keys:
+                    continue
+                if key in seen_selected_keys:
+                    return {
+                        "error": "invalid_params",
+                        "details": f"La venta {key[0]} {key[1]} {key[2]} esta repetida.",
+                    }
+                seen_assignment_keys.add(key)
+                seen_selected_keys.add(key)
+                assignment_keys.append(key)
+                selected_keys.append(key)
+
+            if not assignment_keys:
+                return {
+                    "error": "invalid_params",
+                    "details": "selected_ventas does not contain valid comprobantes.",
+                }
+
+            assignment_records.append(
+                {
+                    "receipt_tipo": receipt_tipo,
+                    "receipt_prefijo": receipt_prefijo,
+                    "receipt_numero": receipt_numero,
+                    "receipt_cod_cliente": receipt_cod_cliente,
+                    "receipt_nro_lugar": receipt_nro_lugar,
+                    "selected_keys": assignment_keys,
+                }
+            )
+
+        requested_selected_keys = set()
+        for venta in selected_ventas:
+            if not isinstance(venta, dict):
+                return {
+                    "error": "invalid_params",
+                    "details": "Each selected venta must be an object.",
+                }
+            requested_selected_keys.add(
+                _parse_comprobante_parts(
+                    venta.get("tipoComprobante"),
+                    venta.get("prefijo"),
+                    venta.get("numero"),
+                )
+            )
+
+        if requested_selected_keys != seen_selected_keys:
+            return {
+                "error": "invalid_params",
+                "details": "receipt_assignments must cover the selected ventas.",
+            }
     except ValueError as exc:
         return {"error": "invalid_params", "details": str(exc)}
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError):
         return {
             "error": "invalid_params",
             "details": "receipt client codCliente and nroLugarEntrega must be integers.",
@@ -1831,32 +1947,6 @@ def apply_transfer_payment(
         }
 
     receipt_date = datetime.now().replace(microsecond=0)
-    selected_keys: List[Tuple[str, int, int]] = []
-    seen_keys = set()
-    for venta in selected_ventas:
-        if not isinstance(venta, dict):
-            return {
-                "error": "invalid_params",
-                "details": "Each selected venta must be an object.",
-            }
-        try:
-            key = _parse_comprobante_parts(
-                venta.get("tipoComprobante"),
-                venta.get("prefijo"),
-                venta.get("numero"),
-            )
-        except ValueError as exc:
-            return {"error": "invalid_params", "details": str(exc)}
-        if key in seen_keys:
-            continue
-        seen_keys.add(key)
-        selected_keys.append(key)
-
-    if not selected_keys:
-        return {
-            "error": "invalid_params",
-            "details": "selected_ventas does not contain valid comprobantes.",
-        }
 
     try:
         conn = pool.acquire()
@@ -1907,22 +1997,31 @@ def apply_transfer_payment(
                 except ValueError:
                     pass
 
-        cursor.execute(
-            """
-            SELECT TOP (1) 1
-            FROM dbo.Cobros WITH (UPDLOCK, HOLDLOCK)
-            WHERE LTRIM(RTRIM(tipo_comprobante_cobro)) = ?
-              AND prefijo_recibo = ?
-              AND numero_recibo = ?;
-            """,
-            (receipt_tipo, receipt_prefijo, receipt_numero),
-        )
-        if cursor.fetchone() is not None:
-            conn.rollback()
-            return {
-                "error": "comprobante_exists",
-                "details": "El comprobante de cobro ya existe en Cobros.",
-            }
+        for assignment in assignment_records:
+            cursor.execute(
+                """
+                SELECT TOP (1) 1
+                FROM dbo.Cobros WITH (UPDLOCK, HOLDLOCK)
+                WHERE LTRIM(RTRIM(tipo_comprobante_cobro)) = ?
+                  AND prefijo_recibo = ?
+                  AND numero_recibo = ?;
+                """,
+                (
+                    assignment["receipt_tipo"],
+                    assignment["receipt_prefijo"],
+                    assignment["receipt_numero"],
+                ),
+            )
+            if cursor.fetchone() is not None:
+                conn.rollback()
+                return {
+                    "error": "comprobante_exists",
+                    "details": (
+                        "El comprobante de cobro "
+                        f"{assignment['receipt_tipo']} {assignment['receipt_prefijo']} "
+                        f"{assignment['receipt_numero']} ya existe en Cobros."
+                    ),
+                }
 
         venta_records: List[Dict[str, Any]] = []
         for tipo, prefijo, numero in selected_keys:
@@ -1932,6 +2031,8 @@ def apply_transfer_payment(
                     LTRIM(RTRIM(v.tipo_comprobante)) AS tipo_comprobante,
                     v.prefijo,
                     v.numero,
+                    v.cod_cliente,
+                    v.nro_lugar_entrega,
                     v.fecha_vencimiento,
                     v.Mcampo_control,
                     COALESCE((
@@ -1986,53 +2087,108 @@ def apply_transfer_payment(
                     "tipo_comprobante": tipo,
                     "prefijo": prefijo,
                     "numero": numero,
+                    "key": (tipo, prefijo, numero),
+                    "cod_cliente": int(row.cod_cliente),
+                    "nro_lugar_entrega": int(row.nro_lugar_entrega),
                     "fecha_vencimiento": row.fecha_vencimiento,
                     "deuda": deuda,
                 }
             )
 
-        venta_records.sort(
+        venta_records_by_key = {record["key"]: record for record in venta_records}
+        for assignment in assignment_records:
+            assignment_venta_records: List[Dict[str, Any]] = []
+            for key in assignment["selected_keys"]:
+                record = venta_records_by_key[key]
+                if (
+                    record["cod_cliente"] != assignment["receipt_cod_cliente"]
+                    or record["nro_lugar_entrega"] != assignment["receipt_nro_lugar"]
+                ):
+                    conn.rollback()
+                    return {
+                        "error": "receipt_client_mismatch",
+                        "details": (
+                            "El comprobante de cobro "
+                            f"{assignment['receipt_tipo']} {assignment['receipt_prefijo']} "
+                            f"{assignment['receipt_numero']} no corresponde al cliente "
+                            f"{record['cod_cliente']}-{record['nro_lugar_entrega']}."
+                        ),
+                    }
+                assignment_venta_records.append(record)
+
+            assignment_venta_records.sort(
+                key=lambda record: (
+                    str(record["fecha_vencimiento"] or ""),
+                    record["tipo_comprobante"],
+                    record["prefijo"],
+                    record["numero"],
+                )
+            )
+            for record in assignment_venta_records:
+                record["assignment"] = assignment
+            assignment["venta_records"] = assignment_venta_records
+
+        remaining = wire_amount
+        applied_rows: List[Dict[str, Any]] = []
+        inserted_cobros: List[Dict[str, Any]] = []
+        paid_updates = 0
+
+        ordered_venta_records = sorted(
+            (
+                record
+                for assignment in assignment_records
+                for record in assignment["venta_records"]
+            ),
             key=lambda record: (
                 str(record["fecha_vencimiento"] or ""),
                 record["tipo_comprobante"],
                 record["prefijo"],
                 record["numero"],
-            )
-        )
-
-        cursor.execute(
-            """
-            INSERT INTO dbo.Cobros
-            (
-                tipo_comprobante_cobro,
-                prefijo_recibo,
-                numero_recibo,
-                fecha_recibo,
-                cod_cliente,
-                nro_lugar_entrega,
-                saca_c
-            )
-            VALUES (?, ?, ?, ?, ?, ?, NULL);
-            """,
-            (
-                receipt_tipo,
-                receipt_prefijo,
-                receipt_numero,
-                receipt_date,
-                receipt_cod_cliente,
-                receipt_nro_lugar,
             ),
         )
-
-        remaining = wire_amount
-        applied_rows: List[Dict[str, Any]] = []
-        paid_updates = 0
-        for record in venta_records:
+        for record in ordered_venta_records:
             if remaining <= 0:
                 break
             apply_amount = record["deuda"] if record["deuda"] <= remaining else remaining
             if apply_amount <= 0:
                 continue
+
+            assignment = record["assignment"]
+            if not assignment.get("inserted_cobro"):
+                cursor.execute(
+                    """
+                    INSERT INTO dbo.Cobros
+                    (
+                        tipo_comprobante_cobro,
+                        prefijo_recibo,
+                        numero_recibo,
+                        fecha_recibo,
+                        cod_cliente,
+                        nro_lugar_entrega,
+                        saca_c
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, NULL);
+                    """,
+                    (
+                        assignment["receipt_tipo"],
+                        assignment["receipt_prefijo"],
+                        assignment["receipt_numero"],
+                        receipt_date,
+                        assignment["receipt_cod_cliente"],
+                        assignment["receipt_nro_lugar"],
+                    ),
+                )
+                assignment["inserted_cobro"] = True
+                inserted_cobros.append(
+                    {
+                        "tipo_comprobante_cobro": assignment["receipt_tipo"],
+                        "prefijo_recibo": assignment["receipt_prefijo"],
+                        "numero_recibo": assignment["receipt_numero"],
+                        "fecha_recibo": receipt_date.isoformat(timespec="seconds"),
+                        "cod_cliente": assignment["receipt_cod_cliente"],
+                        "nro_lugar_entrega": assignment["receipt_nro_lugar"],
+                    }
+                )
 
             cursor.execute(
                 """
@@ -2051,9 +2207,9 @@ def apply_transfer_payment(
                 VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL);
                 """,
                 (
-                    receipt_tipo,
-                    receipt_prefijo,
-                    receipt_numero,
+                    assignment["receipt_tipo"],
+                    assignment["receipt_prefijo"],
+                    assignment["receipt_numero"],
                     record["tipo_comprobante"],
                     record["prefijo"],
                     record["numero"],
@@ -2081,6 +2237,9 @@ def apply_transfer_payment(
 
             applied_rows.append(
                 {
+                    "tipo_comprobante_cobro": assignment["receipt_tipo"],
+                    "prefijo_recibo": assignment["receipt_prefijo"],
+                    "numero_recibo": assignment["receipt_numero"],
                     "tipo_comprobante": record["tipo_comprobante"],
                     "prefijo": record["prefijo"],
                     "numero": record["numero"],
@@ -2113,16 +2272,10 @@ def apply_transfer_payment(
         conn.commit()
         return {
             "status": "saved",
-            "cobro": {
-                "tipo_comprobante_cobro": receipt_tipo,
-                "prefijo_recibo": receipt_prefijo,
-                "numero_recibo": receipt_numero,
-                "fecha_recibo": receipt_date.isoformat(timespec="seconds"),
-                "cod_cliente": receipt_cod_cliente,
-                "nro_lugar_entrega": receipt_nro_lugar,
-            },
+            "cobro": inserted_cobros[0] if inserted_cobros else None,
+            "cobros": inserted_cobros,
             "cobros_aplicados": applied_rows,
-            "inserted_cobros": 1,
+            "inserted_cobros": len(inserted_cobros),
             "inserted_cobros_aplicados": len(applied_rows),
             "updated_ventas": paid_updates,
             "updated_transferencias": transferencias_updated,
@@ -3034,13 +3187,22 @@ def _handle_apply_transfer_payment(
     pool: ConnectionPool,
     params: Sequence[Any],
 ) -> Dict[str, Any]:
-    if not 4 <= len(params) <= 5:
+    if not 4 <= len(params) <= 6:
         return {
             "error": "invalid_params",
-            "details": "apply_transfer_payment expects receipt_comprobante, receipt_client, transfer_amount, selected_ventas and optional transfer_id",
+            "details": "apply_transfer_payment expects receipt_comprobante, receipt_client, transfer_amount, selected_ventas, optional transfer_id and optional receipt_assignments",
         }
-    transfer_id = params[4] if len(params) == 5 else None
-    return apply_transfer_payment(pool, params[0], params[1], params[2], params[3], transfer_id)
+    transfer_id = params[4] if len(params) >= 5 else None
+    receipt_assignments = params[5] if len(params) == 6 else None
+    return apply_transfer_payment(
+        pool,
+        params[0],
+        params[1],
+        params[2],
+        params[3],
+        transfer_id,
+        receipt_assignments,
+    )
 
 
 def _handle_assign_transferencia_account(

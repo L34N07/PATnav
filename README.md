@@ -32,6 +32,17 @@ the `patnav-sql` container, copies those files into the SQL Server data volume,
 attaches them as the `NAVIERA` database, and creates the local `navexe` login
 used by `script.py`.
 
+For manual test snapshots of the local SQL Server database:
+
+```bash
+npm run db:backup
+npm run db:restore
+```
+
+`db:backup` replaces `nav_data/NAVIERA_manual_backup.bak` with the current
+`NAVIERA` state. `db:restore` loads that backup back into `NAVIERA`, closing
+active local database connections while the restore runs.
+
 `npm run db:migrate:transferencias` is idempotent. It creates the
 `UsuariosTransferencia` account-owner mapping and the `Transferencias` history
 table, including the unidentified owner placeholder used until a worker assigns

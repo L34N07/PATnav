@@ -50,6 +50,34 @@ class MercadoPagoParserTests(unittest.TestCase):
             {warning["code"] for warning in result["warnings"]},
         )
 
+    def test_prefers_holder_line_with_number_over_origin_bank(self):
+        result = parse_mercado_pago_text(
+            """
+            $ 36.000 Vv Detalle
+            Consorcio Propiet Del Edif Laprida 691
+            Transferencia recibida
+            27/jul - 12:31
+            @ Aprobado
+            Origen y destino
+            A BBVA
+            CBU: 0170475820000000137296 * CUIT: 30715655957
+            B Coelsa
+            < Mercado Pago >
+            vos | Dinero disponible
+            """,
+            today=date(2026, 7, 29),
+        )
+
+        fields = result["fields"]
+        self.assertEqual(
+            fields["payer_name"]["value"],
+            "Consorcio Propiet Del Edif Laprida 691",
+        )
+        self.assertEqual(fields["account"]["type"], "CBU")
+        self.assertEqual(fields["account"]["value"], "0170475820000000137296")
+        self.assertEqual(fields["amount"]["value"], "36000.00")
+        self.assertEqual(fields["payment_date"]["value"], "2026-07-27")
+
     def test_uses_previous_year_across_year_boundary(self):
         result = parse_mercado_pago_text(
             "Creada el 28 de diciembre - 09:10",
