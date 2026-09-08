@@ -79,12 +79,129 @@ Mercado Pago receipt layout. Its parser tests can be run with:
 npm run test:ocr
 ```
 
+## ARCA CAE homologation dry-run
+
+PATNav can build a first-pass ARCA invoice authorization payload from the local
+legacy `NAVIERA` database without calling ARCA and without writing any database
+changes. This is for homologation only.
+
+The dry-run reads the local Docker SQL Server container created by
+`npm run db:start`; it does not use the production SQL Server connection from
+`script.py`. The script reads `Ventas`, `VentasItems`, `Cliente`, `Item`,
+`LugarEntrega`, `CategoriaIva`, and `Talonario`, then prints the JSON that would
+be sent to:
+
+```text
+POST https://arca.api.com.ar/api/wsfe/facturas
+```
+
+Configure the represented CUIT outside git, for example in your shell or an
+ignored `.env` file:
+
+```bash
+export ARCA_REPRESENTADA_CUIT="<CUIT_EMISOR>"
+```
+
+Run a dry-run against an existing local invoice:
+
+```bash
+npm run db:start
+npm run arca:dry-run -- --tipo FB --prefijo 7 --numero 48954 --fecha-homologacion 2026-09-02
+```
+
+Useful optional settings:
+
+```bash
+PATNAV_ARCA_HOMOLOGACION_PTO_VTA=6
+PATNAV_ARCA_LEGACY_PRICE_MODE=gross
+```
+
+`PATNAV_ARCA_HOMOLOGACION_PTO_VTA` defaults to `6` and is intentionally separate
+from the legacy `Ventas.prefijo`. `PATNAV_ARCA_LEGACY_PRICE_MODE=gross` treats
+legacy item prices/importes as totals with IVA included and converts them to the
+net `precioUnitario` expected by arca.api. Use `net` only after confirming the
+legacy values are already net amounts.
+
+Safety notes:
+
+- The dry-run does not read or print `ARCA_API_KEY` unless
+  `--consultar-ultimo-arca` is used.
+- The dry-run does not make invoice HTTP requests.
+- The dry-run does not execute `INSERT`, `UPDATE`, or `DELETE`.
+- `PATNAV_ARCA_ENVIRONMENT` is blocked unless it is `homologacion`.
+- Future live homologation calls should read the API key only from
+  `ARCA_API_KEY` and use an explicit stable `Idempotency-Key`.
+
+To query only the latest authorized number in homologation, add
+`--consultar-ultimo-arca`. This reads `ARCA_API_KEY` from the environment and
+calls `/api/wsfe/ultimo-comprobante`; it still does not emit an invoice or write
+to the database.
+
+### Abono generation flow
+
+New electronic abonos should be authorized before they are inserted in NAVIERA.
+The preview command reuses the legacy abono rules stored in the `NAVIERA`
+database:
+
+- candidate clients come from the same shape as `sp_traer_lugares_entrega_abono`,
+  with the new rule `Cliente.tipo_cliente <> 2`, active client, active
+  `LugarEntrega`;
+- active assigned dispensers are read through `Dispenser.MControl2 = 'S'`;
+- `Dispenser.cod_abono_o_alquiler` maps to `Item.cod_item`;
+- dispensers with the same item are grouped into one `VentasItems` line;
+- `cantidad` is the grouped dispenser count;
+- `importe` is `cantidad * Item.precio`;
+- `litros_abonados` is `cantidad * Item.litros_abonados`;
+- `Ventas.fecha_vencimiento` is the abono period date:
+  `YYYY-MM-dia_facturacion_abono`.
+
+Preview a production range without issuing a CAE and without writing to the
+database:
+
+```bash
+npm run arca:abonos -- --environment produccion --desde 2026-09-01 --hasta 2026-09-07 --representada 20220334857
+```
+
+The preview classifies `CategoriaIva.tipofactura` as `A -> FA/7` electronic,
+`B -> FB/7` electronic, and `C -> FC/4` internal. Electronic abonos use
+`concepto = 2`, service dates for the whole month, and net unit prices
+calculated from the legacy gross prices.
+
+After validating a preview, generation requires the explicit confirmation token
+for the selected environment:
+
+```bash
+ARCA_API_KEY_PROD="<secret>" npm run arca:abonos -- --environment produccion --desde 2026-09-01 --hasta 2026-09-07 --representada 20220334857 --confirmar CONFIRMAR_ABONOS_PRODUCCION
+```
+
+If ARCA returns `resultado = "A"`, the script inserts `Ventas` and
+`VentasItems` in one SQL transaction using the ARCA `cbteNro`, `cae`, and
+`fecha_vencimiento_cae`. Internal `FC/4` abonos use `Talonario FC/4` and never
+call ARCA.
+
 Production Mode: Build and start
 
 ```bash
 npm run build
 npm start
 ```
+
+Production DB over Tailscale:
+
+```bash
+npm run start:prod-db
+```
+
+For reopening the last built UI without rebuilding:
+
+```bash
+npm run start:prod-db:fast
+```
+
+These commands point the app at the DBeaver `NAVIERA 2` Tailscale connection,
+`100.115.224.40,1433` / `NAVIERA`, and keep the local Docker database out of
+the path. They load the built production UI while forcing the local Python
+bridge with `PATNAV_USE_PYTHON_BRIDGE=1`.
 
 Executable App: Run to build the executable and uncompressed folder.
 

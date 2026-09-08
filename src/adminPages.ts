@@ -7,6 +7,8 @@ import HojaDeRutaView from './components/admin/views/HojaDeRutaView'
 import ComprobantesView from './components/admin/views/ComprobantesView'
 import TransferenciasView from './components/admin/views/TransferenciasView'
 import FacultadView from './components/admin/views/FacultadView'
+import AbonosView from './components/admin/views/AbonosView'
+import MovimientosView from './components/admin/views/MovimientosView'
 
 export type AdminPageId =
   | 'test'
@@ -16,6 +18,8 @@ export type AdminPageId =
   | 'transferTables'
   | 'transferencias'
   | 'facultad'
+  | 'abonos'
+  | 'movimientos'
   | 'hojaRuta'
 
 export type AdminPageDefinition = {
@@ -51,6 +55,18 @@ export const ADMIN_PAGES: AdminPageDefinition[] = [
     label: 'Facultad',
     permissionKey: 'View8',
     component: FacultadView
+  },
+  {
+    id: 'abonos',
+    label: 'Abonos',
+    permissionKey: 'View9',
+    component: AbonosView
+  },
+  {
+    id: 'movimientos',
+    label: 'Movimientos',
+    permissionKey: 'View9',
+    component: MovimientosView
   },
   {
     id: 'hojaRuta',

@@ -468,6 +468,134 @@ export interface AssignTransferenciaAccountResult {
   details?: string
 }
 
+export interface AbonosPayload {
+  environment: "produccion"
+  desde: string
+  hasta: string
+  fechaEmision?: string
+  representada?: string
+  limit?: number | string
+}
+
+export interface AbonosGeneratePayload extends AbonosPayload {
+  confirmation: string
+}
+
+export interface AbonosGroupSummary {
+  count: number
+  total: number
+}
+
+export interface AbonosPreviewCandidate {
+  cliente: number
+  punto: number
+  razon_social?: string | null
+  tipo: "FA" | "FB" | "FC" | string
+  prefijo: number
+  destino: "arca" | "interno" | string
+  total: number
+  dispensers: number
+  items: number
+  periodo: string
+  estado?: "listo" | "descartado" | string
+  motivo?: string | null
+  idempotencyKey?: string
+  warnings?: string[]
+}
+
+export interface AbonosPreviewSummary {
+  total_candidatos: number
+  FA_electronicas: AbonosGroupSummary
+  FB_electronicas: AbonosGroupSummary
+  FC4_internas: AbonosGroupSummary
+  total_monetario_por_grupo?: Record<string, number>
+  descartados: number
+  duplicados_en_rango: number
+  total_bruto_no_positivo: number
+  listos_para_generar: number
+  tipofactura_desconocida: number
+  ignorados_manuales?: number
+  descartados_por_motivo?: Array<{ motivo: string; cantidad: number }>
+}
+
+export interface AbonosPreviewResult {
+  modo?: "PREVIEW"
+  environment?: string
+  escribe_db?: boolean
+  llama_arca?: boolean
+  confirmacion_requerida_para_generar?: string
+  resumen?: AbonosPreviewSummary
+  candidatos?: AbonosPreviewCandidate[]
+  descartes?: Array<Record<string, unknown>>
+  error?: string
+  details?: string
+}
+
+export interface AbonosGenerateResult {
+  modo?: "CONFIRMADO_PRODUCCION"
+  environment?: string
+  resumen?: Record<string, unknown>
+  resultados?: Array<Record<string, unknown>>
+  error?: string
+  details?: string
+}
+
+export interface MovimientosApiResult<T = unknown> {
+  environment?: string
+  db?: Record<string, unknown>
+  result?: T
+  error?: string
+  details?: string
+}
+
+export interface MovimientosLocation {
+  cod_cliente: number
+  nro_lugar_entrega: number
+  razon_social?: string | null
+  direccion?: string | null
+  label?: string | null
+  cuit?: string | number | null
+  cod_categoria?: string | null
+  tipofactura?: string | null
+  categoria_iva?: string | null
+}
+
+export interface MovimientosItem {
+  cod_item: number
+  denominacion?: string | null
+  denom_corto?: string | null
+  precio?: number | string | null
+  tasa_iva?: number | string | null
+  litros_abonados?: number | string | null
+}
+
+export interface MovimientosAccountState {
+  cliente?: MovimientosLocation
+  ventas?: Array<Record<string, unknown>>
+  movimientos?: Array<Record<string, unknown>>
+  cobros?: Array<Record<string, unknown>>
+}
+
+export interface MovimientosPayload {
+  environment?: "produccion" | string
+  mode?: string
+  codCliente?: number | string
+  nroLugarEntrega?: number | string
+  fecha?: string
+  fechaReferencia?: string
+  tipoComprobante?: string
+  prefijo?: number | string
+  numero?: number | string
+  numeroCi?: number | string
+  numeroRecibo?: number | string
+  importe?: number | string
+  venta?: Record<string, unknown>
+  items?: Array<Record<string, unknown>>
+  movItems?: Array<Record<string, unknown>>
+  confirmation?: string
+  representada?: string
+}
+
 export interface ElectronAPI {
   getClientes: () => Promise<PythonResult>
   getAppUser: (username: string) => Promise<AppUserResult>
@@ -544,6 +672,30 @@ export interface ElectronAPI {
   assignTransferenciaAccount: (
     payload: AssignTransferenciaAccountPayload
   ) => Promise<AssignTransferenciaAccountResult>
+  previewAbonos: (payload: AbonosPayload) => Promise<AbonosPreviewResult>
+  generateAbonos: (payload: AbonosGeneratePayload) => Promise<AbonosGenerateResult>
+  movimientosInitialData: (payload?: MovimientosPayload) => Promise<MovimientosApiResult>
+  movimientosSearchLocations: (
+    payload: { environment?: string; query?: string; limit?: number | string }
+  ) => Promise<MovimientosApiResult<MovimientosLocation[]>>
+  movimientosAccountState: (
+    payload: MovimientosPayload
+  ) => Promise<MovimientosApiResult<MovimientosAccountState>>
+  movimientosAvailableAbonos: (
+    payload: MovimientosPayload
+  ) => Promise<MovimientosApiResult<Array<Record<string, unknown>>>>
+  movimientosPendingVentas: (
+    payload: MovimientosPayload
+  ) => Promise<MovimientosApiResult<Array<Record<string, unknown>>>>
+  movimientosSuggestedNumber: (
+    payload: MovimientosPayload
+  ) => Promise<MovimientosApiResult<Record<string, unknown>>>
+  movimientosPreview: (payload: MovimientosPayload) => Promise<MovimientosApiResult<Record<string, unknown>>>
+  movimientosSave: (payload: MovimientosPayload) => Promise<MovimientosApiResult<Record<string, unknown>>>
+  movimientosPreviewDelete: (
+    payload: MovimientosPayload
+  ) => Promise<MovimientosApiResult<Record<string, unknown>>>
+  movimientosDelete: (payload: MovimientosPayload) => Promise<MovimientosApiResult<Record<string, unknown>>>
 }
 
 declare global {

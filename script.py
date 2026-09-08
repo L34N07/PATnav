@@ -611,11 +611,29 @@ def _crop_by_ratio(image: Any, left: float, top: float, right: float, bottom: fl
     return image.crop(box)
 
 
+def _mask_dark_receipt_text(image: Any) -> Any:
+    rgb_image = image.convert("RGB")
+    masked = Image.new("L", rgb_image.size, 255)
+    source = rgb_image.load()
+    target = masked.load()
+
+    for y in range(rgb_image.height):
+        for x in range(rgb_image.width):
+            red, green, blue = source[x, y]
+            if green > 150 and red < 150 and blue < 150:
+                target[x, y] = 255
+            elif red < 155 and green < 155 and blue < 190:
+                target[x, y] = 0
+
+    return masked
+
+
 def _build_ocr_attempts(pil_image: Any) -> List[Tuple[str, Any, str]]:
     base = pil_image.convert("RGB")
     gray = base.convert("L")
     scaled = _autocontrast_image(_scale_image(gray, 2))
     top_region = _crop_by_ratio(base, 0.05, 0.05, 0.70, 0.30).convert("L")
+    date_region = _crop_by_ratio(base, 0.02, 0.46, 0.32, 0.61)
     account_region = _crop_by_ratio(base, 0.05, 0.33, 0.78, 0.56).convert("L")
 
     return [
@@ -623,6 +641,16 @@ def _build_ocr_attempts(pil_image: Any) -> List[Tuple[str, Any, str]]:
         ("full_default", gray, ""),
         ("full_scaled_sparse", scaled, "--psm 11"),
         ("top_scaled", _autocontrast_image(_scale_image(top_region, 3)), "--psm 6"),
+        (
+            "date_scaled",
+            _autocontrast_image(_scale_image(date_region.convert("L"), 3)),
+            "--psm 6",
+        ),
+        (
+            "date_masked",
+            _mask_dark_receipt_text(_scale_image(date_region, 5)),
+            "--psm 6",
+        ),
         ("account_scaled", _autocontrast_image(_scale_image(account_region, 3)), "--psm 6"),
     ]
 

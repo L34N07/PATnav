@@ -86,6 +86,19 @@ class MercadoPagoParserTests(unittest.TestCase):
 
         self.assertEqual(result["fields"]["payment_date"]["value"], "2025-12-28")
 
+    def test_recovers_displayed_date_with_ocr_day_joined_to_month(self):
+        result = parse_mercado_pago_text(
+            """
+            Transferencia recibida
+            1/agel - 10:07
+            """,
+            today=date(2026, 9, 4),
+        )
+
+        fields = result["fields"]
+        self.assertEqual(fields["payment_date"]["value"], "2026-08-11")
+        self.assertEqual(fields["payment_date"]["display"], "11/08/2026 - 10:07")
+
     def test_accepts_common_ocr_misreads(self):
         result = parse_mercado_pago_text(
             "CVU: OOOOOO31OOO123456789O1\nImporte § 1.250,50",

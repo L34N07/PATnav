@@ -73,7 +73,7 @@ SPANISH_DATE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 DISPLAYED_DATE_PATTERN = re.compile(
-    rf"\b(\d{{1,2}})\s*/\s*({MONTH_PATTERN}|[a-záéíóúñ]{{3,10}})\.?"
+    rf"\b([0-9oil|]{{1,2}})\s*/\s*({MONTH_PATTERN}|[a-záéíóúñ]{{3,10}})\.?"
     r"(?:\s*/\s*(\d{2,4}))?\s*[-–,]?\s*(\d{1,2}:\d{2})",
     re.IGNORECASE,
 )
@@ -460,9 +460,15 @@ def extract_payment_date(
             if candidate:
                 candidates.append(candidate)
         for match in DISPLAYED_DATE_PATTERN.finditer(normalized_text):
+            parsed_display_month = parse_displayed_month_token(match.group(2))
+            day = parse_ocr_day(match.group(1))
+            if day is None:
+                continue
+            if parsed_display_month["trailing_one"] and day == 1:
+                day = 11
             candidate = build_date_candidate(
-                day=int(match.group(1)),
-                month=MONTH_MAP.get(match.group(2).lower()),
+                day=day,
+                month=parsed_display_month["month"],
                 year_value=match.group(3),
                 time_value=match.group(4),
                 raw=match.group(0),
@@ -599,6 +605,40 @@ def parse_year(
     except ValueError:
         pass
     return year, True
+
+
+def parse_ocr_day(value: str) -> Optional[int]:
+    translation = str.maketrans(
+        {"o": "0", "O": "0", "i": "1", "I": "1", "l": "1", "|": "1"}
+    )
+    normalized = re.sub(r"\D", "", str(value or "").translate(translation))
+    if not normalized:
+        return None
+    return int(normalized)
+
+
+def parse_displayed_month_token(value: str) -> Dict[str, Any]:
+    token = strip_accents(str(value or "")).lower().strip(". ")
+    if token in MONTH_MAP:
+        return {"month": MONTH_MAP[token], "trailing_one": False}
+
+    if len(token) > 3 and token[-1] in {"l", "i", "|"}:
+        trimmed = token[:-1]
+        parsed = parse_displayed_month_token(trimmed)
+        if parsed["month"] is not None:
+            return {"month": parsed["month"], "trailing_one": True}
+
+    # Short Mercado Pago dates are vulnerable to OCR confusing "ago" as
+    # "age"/"ega", especially when the day is close to the slash.
+    ocr_month_corrections = {
+        "age": "ago",
+        "ega": "ago",
+    }
+    corrected = ocr_month_corrections.get(token)
+    if corrected:
+        return {"month": MONTH_MAP[corrected], "trailing_one": False}
+
+    return {"month": None, "trailing_one": False}
 
 
 def parse_confidence(value: Any) -> Optional[float]:

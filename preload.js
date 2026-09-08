@@ -62,7 +62,19 @@ const electronAPI = Object.freeze({
   applyTransferPayment: payload =>
     ipcRenderer.invoke('python:apply_transfer_payment', payload),
   assignTransferenciaAccount: payload =>
-    ipcRenderer.invoke('python:assign_transferencia_account', payload)
+    ipcRenderer.invoke('python:assign_transferencia_account', payload),
+  previewAbonos: payload => ipcRenderer.invoke('abonos:preview', payload),
+  generateAbonos: payload => ipcRenderer.invoke('abonos:generate', payload),
+  movimientosInitialData: payload => ipcRenderer.invoke('movimientos:initial_data', payload),
+  movimientosSearchLocations: payload => ipcRenderer.invoke('movimientos:search_locations', payload),
+  movimientosAccountState: payload => ipcRenderer.invoke('movimientos:account_state', payload),
+  movimientosAvailableAbonos: payload => ipcRenderer.invoke('movimientos:available_abonos', payload),
+  movimientosPendingVentas: payload => ipcRenderer.invoke('movimientos:pending_ventas', payload),
+  movimientosSuggestedNumber: payload => ipcRenderer.invoke('movimientos:suggested_number', payload),
+  movimientosPreview: payload => ipcRenderer.invoke('movimientos:preview', payload),
+  movimientosSave: payload => ipcRenderer.invoke('movimientos:save', payload),
+  movimientosPreviewDelete: payload => ipcRenderer.invoke('movimientos:preview_delete', payload),
+  movimientosDelete: payload => ipcRenderer.invoke('movimientos:delete', payload)
 })
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

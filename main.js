@@ -5,6 +5,12 @@ const http = require('http')
 const https = require('https')
 const path = require('path')
 const { pathToFileURL } = require('url')
+const { LocalSqlServer, PythonOdbcSqlServer } = require('./scripts/arca/local-sql-server')
+const { AbonoRepository } = require('./scripts/arca/abono-repository')
+const { ArcaApiProvider } = require('./scripts/arca/arca-api-provider')
+const { AbonoAuthorizationService } = require('./scripts/arca/abono-authorization-service')
+const { MovimientosRepository, MovimientosService } = require('./scripts/arca/movimientos-repository')
+const { getArcaRuntimeConfig, assertRuntimeDatabase } = require('./scripts/arca/arca-runtime-config')
 
 const getResourcesRoot = () => (app.isPackaged ? process.resourcesPath : path.resolve(__dirname))
 const resolveResourcePath = (...segments) => path.join(getResourcesRoot(), ...segments)
@@ -29,12 +35,53 @@ const UPLOAD_IMAGE_MIME_TYPES = Object.freeze({
   '.webp': 'image/webp'
 })
 
+const ABONOS_PRODUCTION_CONFIRMATION = 'CONFIRMAR_ABONOS_PRODUCCION'
+
+const loadLocalEnvFile = () => {
+  const envPath = path.join(__dirname, '.env')
+  if (!fs.existsSync(envPath)) {
+    return
+  }
+
+  for (const rawLine of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith('#') || !line.includes('=')) {
+      continue
+    }
+    const [rawKey, ...valueParts] = line.split('=')
+    const key = rawKey.trim()
+    const value = valueParts.join('=').trim().replace(/^['"]|['"]$/g, '')
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value
+    }
+  }
+}
+
+loadLocalEnvFile()
+
 if (process.platform === 'linux' && process.env.PATNAV_ENABLE_GPU !== '1') {
   app.disableHardwareAcceleration()
   app.commandLine.appendSwitch('disable-gpu')
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+const getUserFacingError = (error, fallback) => {
+  const raw = error instanceof Error ? error.message : String(error || '')
+  const sqlServerMatch = raw.match(/\[SQL Server\]([^\r\n]+?)(?:\s+\(\d+\)|\s+\(SQLExecDirectW\)|$)/)
+  if (sqlServerMatch?.[1]) {
+    return sqlServerMatch[1].trim()
+  }
+  const pyodbcMatch = raw.match(/pyodbc\.[^\n]+:\s*(.+)$/m)
+  if (pyodbcMatch?.[1]) {
+    return pyodbcMatch[1].trim()
+  }
+  const firstMeaningfulLine = raw
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .find(line => line && !line.startsWith('File "') && !line.startsWith('Traceback'))
+  return firstMeaningfulLine || fallback
+}
 
 const ensureUploadsDir = () => {
   if (!fs.existsSync(UPLOADS_DIR)) {
@@ -825,7 +872,8 @@ class PythonBridge {
 let pythonBridge = null
 
 const resolveDevPythonBridge = () => {
-  if (!isDev || process.platform === 'win32') {
+  const forcePythonBridge = process.env.PATNAV_USE_PYTHON_BRIDGE === '1'
+  if ((!isDev && !forcePythonBridge) || process.platform === 'win32') {
     return null
   }
 
@@ -910,6 +958,175 @@ const registerPythonHandler = (channel, command, options = {}) => {
     return getPythonBridge().call(command, params)
   })
 }
+
+const normalizeAbonosDate = (value, fieldName) => {
+  const raw = String(value ?? '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    throw new Error(`${fieldName} debe usar formato YYYY-MM-DD.`)
+  }
+  return raw
+}
+
+const normalizeAbonosLimit = value => {
+  const parsed = Number.parseInt(String(value ?? '25'), 10)
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 1000) {
+    throw new Error('El limite debe estar entre 1 y 1000.')
+  }
+  return parsed
+}
+
+const buildAbonosRuntime = payload => {
+  const runtime = getArcaRuntimeConfig(payload?.environment || 'produccion')
+  const sql = runtime.sqlMode === 'python-odbc'
+    ? new PythonOdbcSqlServer({ database: runtime.sql.database })
+    : new LocalSqlServer()
+
+  assertRuntimeDatabase({ runtime, sqlSummary: sql.getConnectionSummary() })
+
+  const repository = new AbonoRepository(sql)
+  const provider = new ArcaApiProvider({
+    environment: runtime.environment,
+    representada: payload?.representada || process.env.ARCA_REPRESENTADA_CUIT || '20220334857',
+    ptoVta: runtime.ptoVtaElectronico,
+    concepto: 2,
+    fechaHomologacion: payload?.fechaEmision,
+    legacyPriceMode: 'gross'
+  })
+  const service = new AbonoAuthorizationService({ repository, provider })
+
+  return { runtime, sql, service }
+}
+
+const buildAbonosPayload = payload => ({
+  desde: normalizeAbonosDate(payload?.desde, 'Desde'),
+  hasta: normalizeAbonosDate(payload?.hasta, 'Hasta'),
+  limit: normalizeAbonosLimit(payload?.limit),
+  fechaHomologacion: payload?.fechaEmision ? normalizeAbonosDate(payload.fechaEmision, 'Fecha emision') : undefined
+})
+
+const buildMovimientosRuntime = payload => {
+  const runtime = getArcaRuntimeConfig(payload?.environment || 'produccion')
+  const sql = runtime.sqlMode === 'python-odbc'
+    ? new PythonOdbcSqlServer({ database: runtime.sql.database })
+    : new LocalSqlServer()
+
+  assertRuntimeDatabase({ runtime, sqlSummary: sql.getConnectionSummary() })
+
+  const repository = new MovimientosRepository(sql)
+  const service = new MovimientosService({ repository })
+
+  return { runtime, sql, service }
+}
+
+const movimientosHandler = (channel, action) => {
+  ipcMain.handle(channel, async (_event, payload) => {
+    try {
+      const { runtime, sql, service } = buildMovimientosRuntime(payload)
+      const result = await service[action](payload || {})
+      return {
+        environment: runtime.environment,
+        db: sql.getConnectionSummary(),
+        result
+      }
+    } catch (error) {
+      console.error(`Failed movimientos handler ${channel}:`, error)
+      return {
+        error: 'movimientos_failed',
+        details: getUserFacingError(error, 'No se pudo completar la operacion.')
+      }
+    }
+  })
+}
+
+movimientosHandler('movimientos:initial_data', 'getInitialData')
+movimientosHandler('movimientos:search_locations', 'searchLocations')
+movimientosHandler('movimientos:account_state', 'getAccountState')
+movimientosHandler('movimientos:available_abonos', 'getAvailableAbonos')
+movimientosHandler('movimientos:pending_ventas', 'getPendingVentas')
+movimientosHandler('movimientos:suggested_number', 'getSuggestedNumber')
+movimientosHandler('movimientos:preview', 'previewOperation')
+movimientosHandler('movimientos:save', 'saveOperation')
+movimientosHandler('movimientos:preview_delete', 'previewDeleteMovement')
+movimientosHandler('movimientos:delete', 'deleteMovement')
+
+ipcMain.handle('abonos:preview', async (_event, payload) => {
+  try {
+    const { runtime, sql, service } = buildAbonosRuntime(payload)
+    const request = buildAbonosPayload(payload)
+    const rangePreview = service.repository.getRangePreview({
+      desde: request.desde,
+      hasta: request.hasta,
+      limit: request.limit,
+      periodoDate: request.desde
+    })
+    const evaluatedCandidates = rangePreview.candidatos || []
+    const preflight = service.buildPendingFiscalPreflight().buildPreview({
+      targetDate: request.fechaHomologacion || request.desde
+    })
+
+    return {
+      modo: 'PREVIEW',
+      environment: runtime.environment,
+      escribe_db: false,
+      llama_arca: false,
+      confirmacion_requerida_para_generar:
+        runtime.environment === 'produccion' ? ABONOS_PRODUCTION_CONFIRMATION : 'CONFIRMAR_ABONOS_HOMOLOGACION',
+      db: sql.getConnectionSummary(),
+      preflight,
+      resumen: service.buildPreviewSummaryFromRange(rangePreview.resumen || {}),
+      candidatos: evaluatedCandidates.map(candidate => ({
+        cliente: candidate.cod_cliente,
+        punto: candidate.nro_lugar_entrega,
+        razon_social: candidate.razon_social,
+        tipo: candidate.tipo_comprobante,
+        prefijo: candidate.prefijo_destino,
+        destino: candidate.destino_facturacion,
+        total: candidate.total_bruto,
+        dispensers: candidate.dispensers,
+        items: candidate.items,
+        periodo: candidate.periodo,
+        estado: candidate.estado_preview,
+        motivo: candidate.motivo_preview,
+        warnings: candidate.motivo_preview ? [candidate.motivo_preview] : []
+      })),
+      descartes: []
+    }
+  } catch (error) {
+    console.error('Failed to preview abonos:', error)
+    return {
+      error: 'abonos_preview_failed',
+      details: getUserFacingError(error, 'No se pudo generar el preview de abonos.')
+    }
+  }
+})
+
+ipcMain.handle('abonos:generate', async (_event, payload) => {
+  try {
+    if (payload?.environment !== 'produccion') {
+      return { error: 'invalid_environment', details: 'La generacion desde UI esta habilitada solo para produccion.' }
+    }
+    if (payload?.confirmation !== ABONOS_PRODUCTION_CONFIRMATION) {
+      return { error: 'confirmation_required', details: 'Confirmacion explicita invalida.' }
+    }
+
+    const { runtime, service } = buildAbonosRuntime(payload)
+    const request = buildAbonosPayload(payload)
+    const result = await service.processBatch(request)
+
+    return {
+      modo: 'CONFIRMADO_PRODUCCION',
+      environment: runtime.environment,
+      resumen: result.summary,
+      resultados: result.results
+    }
+  } catch (error) {
+    console.error('Failed to generate abonos:', error)
+    return {
+      error: 'abonos_generate_failed',
+      details: getUserFacingError(error, 'No se pudo generar el lote de abonos.')
+    }
+  }
+})
 
 const createWindow = async () => {
   const win = new BrowserWindow({
