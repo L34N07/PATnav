@@ -2,6 +2,16 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 const electronAPI = Object.freeze({
   getClientes: () => ipcRenderer.invoke('python:get_clientes'),
+  clientOnboardingInitialData: () => ipcRenderer.invoke('clientes:onboarding_initial_data'),
+  createOnboardingClient: payload => ipcRenderer.invoke('clientes:onboarding_create', payload),
+  clientOnboardingDeliveryContext: payload => ipcRenderer.invoke('clientes:onboarding_delivery_context', payload),
+  clientOnboardingBillingClientContext: payload => ipcRenderer.invoke('clientes:onboarding_billing_client_context', payload),
+  clientOnboardingSearchStreets: payload => ipcRenderer.invoke('clientes:onboarding_search_streets', payload),
+  createOnboardingDelivery: payload => ipcRenderer.invoke('clientes:onboarding_create_delivery', payload),
+  clientOnboardingSearchRouteReferences: payload => ipcRenderer.invoke('clientes:onboarding_search_route_references', payload),
+  clientOnboardingReferenceRoutes: payload => ipcRenderer.invoke('clientes:onboarding_reference_routes', payload),
+  clientOnboardingPreviewRoute: payload => ipcRenderer.invoke('clientes:onboarding_preview_route', payload),
+  createOnboardingRoute: payload => ipcRenderer.invoke('clientes:onboarding_create_route', payload),
   getAppUser: username => ipcRenderer.invoke('python:get_app_user', { username }),
   getAppUsers: userType => ipcRenderer.invoke('python:get_app_users', { userType }),
   traerIncongruencias: () => ipcRenderer.invoke('python:traer_incongruencias'),
@@ -65,16 +75,28 @@ const electronAPI = Object.freeze({
     ipcRenderer.invoke('python:assign_transferencia_account', payload),
   previewAbonos: payload => ipcRenderer.invoke('abonos:preview', payload),
   generateAbonos: payload => ipcRenderer.invoke('abonos:generate', payload),
+  previewCuentaCorriente: payload => ipcRenderer.invoke('cc:preview', payload),
+  generateCuentaCorriente: payload => ipcRenderer.invoke('cc:generate', payload),
   movimientosInitialData: payload => ipcRenderer.invoke('movimientos:initial_data', payload),
   movimientosSearchLocations: payload => ipcRenderer.invoke('movimientos:search_locations', payload),
   movimientosAccountState: payload => ipcRenderer.invoke('movimientos:account_state', payload),
+  movimientosVentaItems: payload => ipcRenderer.invoke('movimientos:venta_items', payload),
+  movimientosCreditInvoices: payload => ipcRenderer.invoke('movimientos:credit_invoices', payload),
   movimientosAvailableAbonos: payload => ipcRenderer.invoke('movimientos:available_abonos', payload),
   movimientosPendingVentas: payload => ipcRenderer.invoke('movimientos:pending_ventas', payload),
   movimientosSuggestedNumber: payload => ipcRenderer.invoke('movimientos:suggested_number', payload),
   movimientosPreview: payload => ipcRenderer.invoke('movimientos:preview', payload),
   movimientosSave: payload => ipcRenderer.invoke('movimientos:save', payload),
   movimientosPreviewDelete: payload => ipcRenderer.invoke('movimientos:preview_delete', payload),
-  movimientosDelete: payload => ipcRenderer.invoke('movimientos:delete', payload)
+  movimientosDelete: payload => ipcRenderer.invoke('movimientos:delete', payload),
+  previewFiscalBacklog: payload => ipcRenderer.invoke('fiscal:preview_backlog', payload),
+  authorizeFiscalBacklog: payload => ipcRenderer.invoke('fiscal:authorize_backlog', payload),
+  dispensersInitialData: payload => ipcRenderer.invoke('dispensers:initial_data', payload),
+  dispensersSearchLocations: payload => ipcRenderer.invoke('dispensers:search_locations', payload),
+  dispensersClientDispensers: payload => ipcRenderer.invoke('dispensers:client_dispensers', payload),
+  dispensersDispenser: payload => ipcRenderer.invoke('dispensers:dispenser', payload),
+  dispensersPreview: payload => ipcRenderer.invoke('dispensers:preview', payload),
+  dispensersSave: payload => ipcRenderer.invoke('dispensers:save', payload)
 })
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

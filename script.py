@@ -2093,11 +2093,14 @@ def apply_transfer_payment(
                 }
 
             control = str(row.Mcampo_control or "").strip().upper()
-            if control == "P":
+            if control:
                 conn.rollback()
                 return {
-                    "error": "venta_already_paid",
-                    "details": f"La venta {tipo} {prefijo} {numero} ya esta pagada.",
+                    "error": "venta_not_available_for_payment",
+                    "details": (
+                        f"La venta {tipo} {prefijo} {numero} no esta disponible para cobrar "
+                        f"(Mcampo_control={control})."
+                    ),
                 }
 
             monto = Decimal(str(row.monto or 0))

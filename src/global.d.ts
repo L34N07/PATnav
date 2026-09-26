@@ -6,6 +6,142 @@ export interface PythonResult<Row = Record<string, unknown>> {
   details?: string
 }
 
+export interface ClientOnboardingInitialData {
+  proximo_codigo?: number
+  ultimo_codigo?: number
+  categorias?: Array<{
+    codigo: string
+    descripcion: string
+    tipo_factura: string
+  }>
+  listas?: Array<{
+    codigo: number
+    descripcion: string
+  }>
+  municipios?: Array<{
+    codigo: number
+    nombre: string
+    sigla: string
+  }>
+  ultimo_punto?: {
+    cod_cliente: number
+    nro_lugar_entrega: number
+    fecha_inicio_contrato: string
+  } | null
+  error?: string
+  details?: string
+}
+
+export interface CreateOnboardingClientPayload {
+  razonSocial: string
+  domFiscal1: string
+  cuit: string
+  tipoCliente: string | number
+  tipoFactCtaCte: string | number | null
+  codLista: string | number | null
+  limiteCredito: string | number | null
+  codCategoria: string
+  tipoCobro: string
+  limiteFacturacion: string | number | null
+}
+
+export interface CreateOnboardingClientResult {
+  cod_cliente?: number
+  razon_social?: string
+  tipo_cliente?: number
+  tipo_fact_ctacte?: number | null
+  cod_lista?: number | null
+  cod_categoria?: string
+  error?: string
+  details?: string
+}
+
+export interface ClientOnboardingDeliveryContext {
+  cod_cliente?: number
+  razon_social?: string
+  proximo_lugar?: number
+  error?: string
+  details?: string
+}
+
+export interface ClientOnboardingStreet {
+  codigo: number
+  nombre: string
+}
+
+export interface CreateOnboardingDeliveryPayload {
+  codCliente: string | number
+  codMunicipio: string | number
+  codCalle: string | number
+  numeroPuerta: string | number
+  observDomicilio?: string
+  fechaInicioContrato: string
+  codLista: string | number
+  cantOptEnvases: string | number
+  esLugarCobro: string
+  telefonos?: string
+  frecuenciaVisita: string | number
+  email?: string
+  minfExtra: string
+}
+
+export interface CreateOnboardingDeliveryResult {
+  cod_cliente?: number
+  nro_lugar_entrega?: number
+  dia_facturacion_abono?: number
+  fecha_inicio_contrato?: string
+  error?: string
+  details?: string
+}
+
+export interface ClientOnboardingRouteReference {
+  cod_cliente: number
+  nro_lugar_entrega: number
+  razon_social: string
+  direccion: string
+}
+
+export interface ClientOnboardingRouteOption {
+  cod_ruta: string
+  ruta_descripcion: string
+  orden_circuito: number
+  l_entrega?: string
+  l_cobro?: string
+}
+
+export interface OnboardingRoutePayload {
+  codRuta: string
+  referenciaCliente: number | string
+  referenciaPunto: number | string
+  referenciaOrden: number | string
+  codCliente: number | string
+  nroLugarEntrega: number | string
+  lEntrega: string
+  lCobro: string
+}
+
+export interface OnboardingRoutePreview {
+  cod_ruta?: string
+  posicion_referencia?: number
+  orden_referencia_normalizado?: number
+  orden_nuevo?: number
+  clientes_a_espaciar?: number
+  error?: string
+  details?: string
+}
+
+export interface OnboardingRouteResult {
+  cod_ruta?: string
+  orden_circuito?: number
+  cod_cliente?: number
+  nro_lugar_entrega?: number
+  l_entrega?: string
+  l_cobro?: string
+  clientes_espaciados?: number
+  error?: string
+  details?: string
+}
+
 export type AppUserResult = PythonResult<Record<string, unknown>>
 
 export interface UpdateClientePayload {
@@ -479,6 +615,10 @@ export interface AbonosPayload {
 
 export interface AbonosGeneratePayload extends AbonosPayload {
   confirmation: string
+  selectedCandidates?: Array<{
+    codCliente: number
+    nroLugarEntrega: number
+  }>
 }
 
 export interface AbonosGroupSummary {
@@ -497,6 +637,7 @@ export interface AbonosPreviewCandidate {
   dispensers: number
   items: number
   periodo: string
+  fecha_vencimiento?: string | null
   estado?: "listo" | "descartado" | string
   motivo?: string | null
   idempotencyKey?: string
@@ -536,6 +677,67 @@ export interface AbonosGenerateResult {
   environment?: string
   resumen?: Record<string, unknown>
   resultados?: Array<Record<string, unknown>>
+  error?: string
+  details?: string
+}
+
+export interface CuentaCorrientePayload {
+  environment: "produccion"
+  periodo: string
+  fechaEmision: string
+  representada?: string
+  limit?: number | string
+}
+
+export interface CuentaCorrienteGeneratePayload extends CuentaCorrientePayload {
+  confirmation: string
+  selectedCandidates: Array<{ codCliente: number; nroLugarEntrega: number }>
+}
+
+export interface CuentaCorrientePreviewCandidate {
+  cliente: number
+  punto: number
+  razon_social?: string | null
+  tipo: "FA" | "FB" | "REVISAR" | string
+  prefijo: number | null
+  periodo: string
+  facturacionCompartida?: boolean
+  puntosOrigen?: number
+  remitos: number
+  contenidos20: number
+  contenidos10: number
+  consumoTotal: number
+  consumoBajo: boolean
+  alquileres: number
+  total: number
+  estado: "listo" | "revisar" | string
+  warnings: string[]
+}
+
+export interface CuentaCorrientePreviewResult {
+  modo?: "PREVIEW"
+  environment?: string
+  escribe_db?: boolean
+  llama_arca?: boolean
+  minimoConsumo?: number
+  resumen?: {
+    total: number
+    listos: number
+    consumo_bajo: number
+    revisar: number
+    FA: { count: number; total: number }
+    FB: { count: number; total: number }
+  }
+  candidatos?: CuentaCorrientePreviewCandidate[]
+  error?: string
+  details?: string
+}
+
+export interface CuentaCorrienteGenerateResult {
+  modo?: "CONFIRMADO_PRODUCCION"
+  environment?: string
+  summary?: Record<string, unknown>
+  results?: Array<Record<string, unknown>>
   error?: string
   details?: string
 }
@@ -582,6 +784,7 @@ export interface MovimientosPayload {
   codCliente?: number | string
   nroLugarEntrega?: number | string
   fecha?: string
+  fechaMovimiento?: string
   fechaReferencia?: string
   tipoComprobante?: string
   prefijo?: number | string
@@ -596,8 +799,29 @@ export interface MovimientosPayload {
   representada?: string
 }
 
+export interface DispensersPayload {
+  environment?: "produccion" | string
+  mode?: "instalacion" | "retiro" | "cambio" | string
+  codCliente?: number | string
+  nroLugarEntrega?: number | string
+  codDispenserInstalado?: number | string
+  codDispenserRetirado?: number | string
+  codAbono?: number | string
+  ubicacion?: string
+}
+
 export interface ElectronAPI {
   getClientes: () => Promise<PythonResult>
+  clientOnboardingInitialData: () => Promise<ClientOnboardingInitialData>
+  createOnboardingClient: (payload: CreateOnboardingClientPayload) => Promise<CreateOnboardingClientResult>
+  clientOnboardingDeliveryContext: (payload: { codCliente: string | number }) => Promise<ClientOnboardingDeliveryContext>
+  clientOnboardingBillingClientContext: (payload: { codCliente: string | number }) => Promise<Record<string, unknown> | { error: string; details?: string } | null>
+  clientOnboardingSearchStreets: (payload: { codMunicipio: string | number; query: string }) => Promise<ClientOnboardingStreet[] | { error: string; details?: string }>
+  createOnboardingDelivery: (payload: CreateOnboardingDeliveryPayload) => Promise<CreateOnboardingDeliveryResult>
+  clientOnboardingSearchRouteReferences: (payload: { query: string }) => Promise<ClientOnboardingRouteReference[] | { error: string; details?: string }>
+  clientOnboardingReferenceRoutes: (payload: { codCliente: string | number; nroLugarEntrega: string | number }) => Promise<ClientOnboardingRouteOption[] | { error: string; details?: string }>
+  clientOnboardingPreviewRoute: (payload: OnboardingRoutePayload) => Promise<OnboardingRoutePreview>
+  createOnboardingRoute: (payload: OnboardingRoutePayload) => Promise<OnboardingRouteResult>
   getAppUser: (username: string) => Promise<AppUserResult>
   getAppUsers: (userType?: string) => Promise<AppUserResult>
   traerIncongruencias: () => Promise<PythonResult>
@@ -674,6 +898,8 @@ export interface ElectronAPI {
   ) => Promise<AssignTransferenciaAccountResult>
   previewAbonos: (payload: AbonosPayload) => Promise<AbonosPreviewResult>
   generateAbonos: (payload: AbonosGeneratePayload) => Promise<AbonosGenerateResult>
+  previewCuentaCorriente: (payload: CuentaCorrientePayload) => Promise<CuentaCorrientePreviewResult>
+  generateCuentaCorriente: (payload: CuentaCorrienteGeneratePayload) => Promise<CuentaCorrienteGenerateResult>
   movimientosInitialData: (payload?: MovimientosPayload) => Promise<MovimientosApiResult>
   movimientosSearchLocations: (
     payload: { environment?: string; query?: string; limit?: number | string }
@@ -681,6 +907,12 @@ export interface ElectronAPI {
   movimientosAccountState: (
     payload: MovimientosPayload
   ) => Promise<MovimientosApiResult<MovimientosAccountState>>
+  movimientosVentaItems: (
+    payload: { environment?: string; tipoComprobante: string; prefijo: number | string; numero: number | string }
+  ) => Promise<MovimientosApiResult<Array<Record<string, unknown>>>>
+  movimientosCreditInvoices: (
+    payload: MovimientosPayload
+  ) => Promise<MovimientosApiResult<Array<Record<string, unknown>>>>
   movimientosAvailableAbonos: (
     payload: MovimientosPayload
   ) => Promise<MovimientosApiResult<Array<Record<string, unknown>>>>
@@ -696,6 +928,31 @@ export interface ElectronAPI {
     payload: MovimientosPayload
   ) => Promise<MovimientosApiResult<Record<string, unknown>>>
   movimientosDelete: (payload: MovimientosPayload) => Promise<MovimientosApiResult<Record<string, unknown>>>
+  previewFiscalBacklog: (payload: {
+    environment: "produccion"
+    desde: string
+    hasta: string
+    representada?: string
+  }) => Promise<MovimientosApiResult<Record<string, unknown>>>
+  authorizeFiscalBacklog: (payload: {
+    environment: "produccion"
+    confirmation: "AUTORIZAR_PENDIENTES_FISCALES"
+    desde: string
+    hasta: string
+    representada?: string
+  }) => Promise<MovimientosApiResult<Record<string, unknown>>>
+  dispensersInitialData: (payload?: DispensersPayload) => Promise<MovimientosApiResult<Record<string, unknown>>>
+  dispensersSearchLocations: (
+    payload: { environment?: string; query?: string; limit?: number | string }
+  ) => Promise<MovimientosApiResult<MovimientosLocation[]>>
+  dispensersClientDispensers: (
+    payload: DispensersPayload
+  ) => Promise<MovimientosApiResult<Record<string, unknown>>>
+  dispensersDispenser: (
+    payload: { environment?: string; codDispenser: number | string }
+  ) => Promise<MovimientosApiResult<Record<string, unknown>>>
+  dispensersPreview: (payload: DispensersPayload) => Promise<MovimientosApiResult<Record<string, unknown>>>
+  dispensersSave: (payload: DispensersPayload) => Promise<MovimientosApiResult<Record<string, unknown>>>
 }
 
 declare global {

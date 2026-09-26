@@ -9,6 +9,8 @@ import TransferenciasView from './components/admin/views/TransferenciasView'
 import FacultadView from './components/admin/views/FacultadView'
 import AbonosView from './components/admin/views/AbonosView'
 import MovimientosView from './components/admin/views/MovimientosView'
+import DispensersView from './components/admin/views/DispensersView'
+import ClientOnboardingView from './components/admin/views/ClientOnboardingView'
 
 export type AdminPageId =
   | 'test'
@@ -20,7 +22,9 @@ export type AdminPageId =
   | 'facultad'
   | 'abonos'
   | 'movimientos'
+  | 'dispensers'
   | 'hojaRuta'
+  | 'altaCliente'
 
 export type AdminPageDefinition = {
   id: AdminPageId
@@ -31,6 +35,7 @@ export type AdminPageDefinition = {
 
 export const ADMIN_PAGES: AdminPageDefinition[] = [
   { id: 'test', label: 'Clientes / Pagos', permissionKey: 'testView', component: TestView },
+  { id: 'altaCliente', label: 'Alta de cliente', permissionKey: 'testView', component: ClientOnboardingView },
   { id: 'test2', label: 'Prestamos y Devoluciones', permissionKey: 'testView2', component: TestView2 },
   {
     id: 'transfer',
@@ -67,6 +72,12 @@ export const ADMIN_PAGES: AdminPageDefinition[] = [
     label: 'Movimientos',
     permissionKey: 'View9',
     component: MovimientosView
+  },
+  {
+    id: 'dispensers',
+    label: 'Dispensers',
+    permissionKey: 'View9',
+    component: DispensersView
   },
   {
     id: 'hojaRuta',

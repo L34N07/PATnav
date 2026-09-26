@@ -134,7 +134,10 @@ function groupDispenserItems(dispensers) {
       iva,
       totalReconstruido,
       totalDelta: round(totalReconstruido - importeBruto, 2),
-      litrosAbonados: round(item.cantidad * item.litrosAbonadosPorUnidad, 0)
+      // NAVIERA stores this value per billed unit. The legacy balance procedures
+      // apply the line quantity themselves: litros_abonados * cantidad.
+      litrosAbonados: round(item.litrosAbonadosPorUnidad, 6),
+      litrosAbonoTotal: round(item.cantidad * item.litrosAbonadosPorUnidad, 0)
     }
   })
 }
@@ -147,15 +150,13 @@ class AbonoAuthorizationService {
   }
 
   buildPendingFiscalPreflight() {
-    const ptoVtas =
-      this.provider.environment === 'produccion'
-        ? [8, this.provider.ptoVta]
-        : [this.provider.ptoVta]
     return new PendingFiscalPreflight({
       sql: this.repository.sql,
       representada: this.provider.representada,
       ptoVta: this.provider.ptoVta,
-      ptoVtas,
+      // Punto 8 is the manual-sales series. Its FA/FB sequence is independent
+      // from abonos, so it must never preflight or block a point-7 batch.
+      ptoVtas: [this.provider.ptoVta],
       concepto: this.provider.concepto,
       arcaPostFactura: this.arcaPostFactura
     })
@@ -170,10 +171,24 @@ class AbonoAuthorizationService {
     return batch.previews[0]
   }
 
-  buildBatchPreview({ desde, hasta, limit = 1, fechaHomologacion }) {
+  buildBatchPreview({ desde, hasta, limit = 1, fechaHomologacion, selectedCandidates }) {
     const requestedLimit = Math.min(Math.max(Number.parseInt(String(limit || 1), 10), 1), 1000)
-    const poolLimit = requestedLimit
-    const candidates = this.repository.findCandidatePool({ desde, hasta, limit: poolLimit })
+    const selected = Array.isArray(selectedCandidates) ? selectedCandidates : []
+    const selectedKeys = new Set(
+      selected.map(candidate => {
+        const codCliente = Number.parseInt(String(candidate?.codCliente), 10)
+        const nroLugarEntrega = Number.parseInt(String(candidate?.nroLugarEntrega), 10)
+        if (!Number.isFinite(codCliente) || !Number.isFinite(nroLugarEntrega)) {
+          throw new Error('Seleccion de abonos invalida.')
+        }
+        return `${codCliente}/${nroLugarEntrega}`
+      })
+    )
+    const poolLimit = selectedKeys.size ? 1000 : requestedLimit
+    const pool = this.repository.findCandidatePool({ desde, hasta, limit: poolLimit })
+    const candidates = selectedKeys.size
+      ? pool.filter(candidate => selectedKeys.has(`${candidate.cod_cliente}/${candidate.nro_lugar_entrega}`))
+      : pool
     const rangeSummary = this.repository.getRangeSummary({
       desde,
       hasta,
@@ -331,8 +346,8 @@ class AbonoAuthorizationService {
     return null
   }
 
-  async processBatch({ desde, hasta, limit = 1, fechaHomologacion }) {
-    const batch = this.buildBatchPreview({ desde, hasta, limit, fechaHomologacion })
+  async processBatch({ desde, hasta, limit = 1, fechaHomologacion, selectedCandidates }) {
+    const batch = this.buildBatchPreview({ desde, hasta, limit, fechaHomologacion, selectedCandidates })
     const results = []
     const stoppedArcaSeries = new Set()
     const firstArcaPreview = batch.previews.find(
@@ -745,7 +760,8 @@ class AbonoAuthorizationService {
         groupingRule: 'Agrupar dispensers por cod_abono_o_alquiler/cod_item.',
         quantityRule: 'cantidad = cantidad de dispensers agrupados.',
         amountRule: 'importe = cantidad * Item.precio; Item.precio es bruto con IVA incluido.',
-        litrosRule: 'litros_abonados = cantidad * Item.litros_abonados.',
+        litrosRule:
+          'VentasItems.litros_abonados guarda el valor unitario de Item; el saldo legacy es litros_abonados * cantidad.',
         periodRule:
           'El mes sale del rango --desde/--hasta; la fecha unica legacy del abono es Ventas.fecha_vencimiento = YYYY-MM-dia_facturacion_abono.',
         emissionDateRule:

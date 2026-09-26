@@ -9,7 +9,11 @@ const { LocalSqlServer, PythonOdbcSqlServer } = require('./scripts/arca/local-sq
 const { AbonoRepository } = require('./scripts/arca/abono-repository')
 const { ArcaApiProvider } = require('./scripts/arca/arca-api-provider')
 const { AbonoAuthorizationService } = require('./scripts/arca/abono-authorization-service')
+const { CuentaCorrienteRepository, CuentaCorrienteAuthorizationService } = require('./scripts/arca/cc-billing-service')
 const { MovimientosRepository, MovimientosService } = require('./scripts/arca/movimientos-repository')
+const { DispensersRepository, DispensersService } = require('./scripts/arca/dispensers-repository')
+const { ClientOnboardingRepository } = require('./scripts/arca/client-onboarding-repository')
+const { FiscalBacklogAuthorizationService } = require('./scripts/arca/fiscal-backlog-authorization-service')
 const { getArcaRuntimeConfig, assertRuntimeDatabase } = require('./scripts/arca/arca-runtime-config')
 
 const getResourcesRoot = () => (app.isPackaged ? process.resourcesPath : path.resolve(__dirname))
@@ -36,6 +40,7 @@ const UPLOAD_IMAGE_MIME_TYPES = Object.freeze({
 })
 
 const ABONOS_PRODUCTION_CONFIRMATION = 'CONFIRMAR_ABONOS_PRODUCCION'
+const CC_PRODUCTION_CONFIRMATION = 'CONFIRMAR_CUENTAS_CORRIENTES_PRODUCCION'
 
 const loadLocalEnvFile = () => {
   const envPath = path.join(__dirname, '.env')
@@ -975,6 +980,14 @@ const normalizeAbonosLimit = value => {
   return parsed
 }
 
+const normalizeCuentaCorrientePeriod = value => {
+  const raw = String(value ?? '').trim()
+  if (!/^\d{4}-\d{2}$/.test(raw)) {
+    throw new Error('Periodo debe usar formato YYYY-MM.')
+  }
+  return raw
+}
+
 const buildAbonosRuntime = payload => {
   const runtime = getArcaRuntimeConfig(payload?.environment || 'produccion')
   const sql = runtime.sqlMode === 'python-odbc'
@@ -1001,7 +1014,46 @@ const buildAbonosPayload = payload => ({
   desde: normalizeAbonosDate(payload?.desde, 'Desde'),
   hasta: normalizeAbonosDate(payload?.hasta, 'Hasta'),
   limit: normalizeAbonosLimit(payload?.limit),
-  fechaHomologacion: payload?.fechaEmision ? normalizeAbonosDate(payload.fechaEmision, 'Fecha emision') : undefined
+  fechaHomologacion: payload?.fechaEmision ? normalizeAbonosDate(payload.fechaEmision, 'Fecha emision') : undefined,
+  selectedCandidates: Array.isArray(payload?.selectedCandidates)
+    ? payload.selectedCandidates.map(candidate => ({
+        codCliente: Number(candidate?.codCliente),
+        nroLugarEntrega: Number(candidate?.nroLugarEntrega)
+      }))
+    : undefined
+})
+
+const buildCuentaCorrienteRuntime = payload => {
+  const runtime = getArcaRuntimeConfig(payload?.environment || 'produccion')
+  const sql = runtime.sqlMode === 'python-odbc'
+    ? new PythonOdbcSqlServer({ database: runtime.sql.database })
+    : new LocalSqlServer()
+
+  assertRuntimeDatabase({ runtime, sqlSummary: sql.getConnectionSummary() })
+
+  const provider = new ArcaApiProvider({
+    environment: runtime.environment,
+    representada: payload?.representada || process.env.ARCA_REPRESENTADA_CUIT || '20220334857',
+    ptoVta: runtime.ptoVtaElectronico,
+    concepto: 1,
+    fechaHomologacion: payload?.fechaEmision,
+    legacyPriceMode: 'gross'
+  })
+  const repository = new CuentaCorrienteRepository(sql)
+  const service = new CuentaCorrienteAuthorizationService({ repository, provider })
+  return { runtime, sql, service }
+}
+
+const buildCuentaCorrientePayload = payload => ({
+  periodo: normalizeCuentaCorrientePeriod(payload?.periodo),
+  fechaEmision: normalizeAbonosDate(payload?.fechaEmision, 'Fecha emision'),
+  limit: normalizeAbonosLimit(payload?.limit),
+  selectedCandidates: Array.isArray(payload?.selectedCandidates)
+    ? payload.selectedCandidates.map(candidate => ({
+        codCliente: Number(candidate?.codCliente),
+        nroLugarEntrega: Number(candidate?.nroLugarEntrega)
+      }))
+    : []
 })
 
 const buildMovimientosRuntime = payload => {
@@ -1016,6 +1068,15 @@ const buildMovimientosRuntime = payload => {
   const service = new MovimientosService({ repository })
 
   return { runtime, sql, service }
+}
+
+const buildClientOnboardingRuntime = () => {
+  const runtime = getArcaRuntimeConfig('produccion')
+  const sql = runtime.sqlMode === 'python-odbc'
+    ? new PythonOdbcSqlServer({ database: runtime.sql.database })
+    : new LocalSqlServer()
+  assertRuntimeDatabase({ runtime, sqlSummary: sql.getConnectionSummary() })
+  return new ClientOnboardingRepository(sql)
 }
 
 const movimientosHandler = (channel, action) => {
@@ -1041,6 +1102,8 @@ const movimientosHandler = (channel, action) => {
 movimientosHandler('movimientos:initial_data', 'getInitialData')
 movimientosHandler('movimientos:search_locations', 'searchLocations')
 movimientosHandler('movimientos:account_state', 'getAccountState')
+movimientosHandler('movimientos:venta_items', 'getVentaItems')
+movimientosHandler('movimientos:credit_invoices', 'getCreditInvoices')
 movimientosHandler('movimientos:available_abonos', 'getAvailableAbonos')
 movimientosHandler('movimientos:pending_ventas', 'getPendingVentas')
 movimientosHandler('movimientos:suggested_number', 'getSuggestedNumber')
@@ -1048,6 +1111,91 @@ movimientosHandler('movimientos:preview', 'previewOperation')
 movimientosHandler('movimientos:save', 'saveOperation')
 movimientosHandler('movimientos:preview_delete', 'previewDeleteMovement')
 movimientosHandler('movimientos:delete', 'deleteMovement')
+
+ipcMain.handle('fiscal:preview_backlog', async (_event, payload) => {
+  try {
+    if (payload?.environment !== 'produccion') {
+      return { error: 'invalid_environment', details: 'La previsualizacion fiscal solo esta habilitada en produccion.' }
+    }
+    const runtime = getArcaRuntimeConfig('produccion')
+    const sql = new PythonOdbcSqlServer({ database: runtime.sql.database })
+    assertRuntimeDatabase({ runtime, sqlSummary: sql.getConnectionSummary() })
+    const service = new FiscalBacklogAuthorizationService({
+      sql,
+      representada: payload?.representada || process.env.ARCA_REPRESENTADA_CUIT || '20220334857'
+    })
+    const result = service.preview({ desde: payload?.desde, hasta: payload?.hasta })
+    return { environment: runtime.environment, db: sql.getConnectionSummary(), result }
+  } catch (error) {
+    console.error('Failed fiscal backlog preview:', error)
+    return {
+      error: 'fiscal_backlog_preview_failed',
+      details: getUserFacingError(error, 'No se pudo previsualizar las facturas pendientes.')
+    }
+  }
+})
+
+ipcMain.handle('fiscal:authorize_backlog', async (_event, payload) => {
+  try {
+    if (payload?.environment !== 'produccion') {
+      return { error: 'invalid_environment', details: 'La regularizacion fiscal solo esta habilitada en produccion.' }
+    }
+    const runtime = getArcaRuntimeConfig('produccion')
+    const sql = new PythonOdbcSqlServer({ database: runtime.sql.database })
+    assertRuntimeDatabase({ runtime, sqlSummary: sql.getConnectionSummary() })
+    const service = new FiscalBacklogAuthorizationService({
+      sql,
+      representada: payload?.representada || process.env.ARCA_REPRESENTADA_CUIT || '20220334857'
+    })
+    const result = await service.processAll({
+      confirmation: payload?.confirmation,
+      desde: payload?.desde,
+      hasta: payload?.hasta
+    })
+    return { environment: runtime.environment, db: sql.getConnectionSummary(), result }
+  } catch (error) {
+    console.error('Failed fiscal backlog authorization:', error)
+    return {
+      error: 'fiscal_backlog_failed',
+      details: getUserFacingError(error, 'No se pudieron autorizar las facturas pendientes.')
+    }
+  }
+})
+
+const buildDispensersRuntime = payload => {
+  const runtime = getArcaRuntimeConfig(payload?.environment || 'produccion')
+  const sql = runtime.sqlMode === 'python-odbc'
+    ? new PythonOdbcSqlServer({ database: runtime.sql.database })
+    : new LocalSqlServer()
+
+  assertRuntimeDatabase({ runtime, sqlSummary: sql.getConnectionSummary() })
+  const repository = new DispensersRepository(sql)
+  const service = new DispensersService({ repository })
+  return { runtime, sql, service }
+}
+
+const dispensersHandler = (channel, action) => {
+  ipcMain.handle(channel, async (_event, payload) => {
+    try {
+      const { runtime, sql, service } = buildDispensersRuntime(payload)
+      const result = await service[action](payload || {})
+      return { environment: runtime.environment, db: sql.getConnectionSummary(), result }
+    } catch (error) {
+      console.error(`Failed dispensers handler ${channel}:`, error)
+      return {
+        error: 'dispensers_failed',
+        details: getUserFacingError(error, 'No se pudo completar el movimiento de dispenser.')
+      }
+    }
+  })
+}
+
+dispensersHandler('dispensers:initial_data', 'getInitialData')
+dispensersHandler('dispensers:search_locations', 'searchLocations')
+dispensersHandler('dispensers:client_dispensers', 'getClientDispensers')
+dispensersHandler('dispensers:dispenser', 'getDispenser')
+dispensersHandler('dispensers:preview', 'previewOperation')
+dispensersHandler('dispensers:save', 'saveOperation')
 
 ipcMain.handle('abonos:preview', async (_event, payload) => {
   try {
@@ -1085,6 +1233,7 @@ ipcMain.handle('abonos:preview', async (_event, payload) => {
         dispensers: candidate.dispensers,
         items: candidate.items,
         periodo: candidate.periodo,
+        fecha_vencimiento: candidate.fecha_vencimiento,
         estado: candidate.estado_preview,
         motivo: candidate.motivo_preview,
         warnings: candidate.motivo_preview ? [candidate.motivo_preview] : []
@@ -1124,6 +1273,127 @@ ipcMain.handle('abonos:generate', async (_event, payload) => {
     return {
       error: 'abonos_generate_failed',
       details: getUserFacingError(error, 'No se pudo generar el lote de abonos.')
+    }
+  }
+})
+
+ipcMain.handle('cc:preview', async (_event, payload) => {
+  try {
+    const { runtime, sql, service } = buildCuentaCorrienteRuntime(payload)
+    const request = buildCuentaCorrientePayload(payload)
+    return {
+      environment: runtime.environment,
+      escribe_db: false,
+      llama_arca: false,
+      db: sql.getConnectionSummary(),
+      ...service.buildPreview(request)
+    }
+  } catch (error) {
+    console.error('Failed to preview cuenta corriente:', error)
+    return {
+      error: 'cc_preview_failed',
+      details: getUserFacingError(error, 'No se pudo generar el preview de cuentas corrientes.')
+    }
+  }
+})
+
+ipcMain.handle('clientes:onboarding_initial_data', async () => {
+  try {
+    return buildClientOnboardingRuntime().getInitialData()
+  } catch (error) {
+    return { error: 'client_onboarding_initial_data_failed', details: getUserFacingError(error, 'No se pudieron cargar los datos de alta.') }
+  }
+})
+
+ipcMain.handle('clientes:onboarding_create', async (_event, payload) => {
+  try {
+    return buildClientOnboardingRuntime().createClient(payload)
+  } catch (error) {
+    return { error: 'client_onboarding_create_failed', details: getUserFacingError(error, 'No se pudo crear el cliente.') }
+  }
+})
+
+ipcMain.handle('clientes:onboarding_delivery_context', async (_event, payload) => {
+  try {
+    return buildClientOnboardingRuntime().getDeliveryPointContext(payload)
+  } catch (error) {
+    return { error: 'client_onboarding_delivery_context_failed', details: getUserFacingError(error, 'No se pudo consultar el cliente.') }
+  }
+})
+
+ipcMain.handle('clientes:onboarding_billing_client_context', async (_event, payload) => {
+  try {
+    return buildClientOnboardingRuntime().getBillingClientContext(payload)
+  } catch (error) {
+    return { error: 'client_onboarding_billing_context_failed', details: getUserFacingError(error, 'No se pudo consultar el cliente para facturacion.') }
+  }
+})
+
+ipcMain.handle('clientes:onboarding_search_streets', async (_event, payload) => {
+  try {
+    return buildClientOnboardingRuntime().searchStreets(payload)
+  } catch (error) {
+    return { error: 'client_onboarding_search_streets_failed', details: getUserFacingError(error, 'No se pudieron buscar calles.') }
+  }
+})
+
+ipcMain.handle('clientes:onboarding_create_delivery', async (_event, payload) => {
+  try {
+    return buildClientOnboardingRuntime().createDeliveryPoint(payload)
+  } catch (error) {
+    return { error: 'client_onboarding_create_delivery_failed', details: getUserFacingError(error, 'No se pudo crear el punto de entrega.') }
+  }
+})
+
+ipcMain.handle('clientes:onboarding_search_route_references', async (_event, payload) => {
+  try {
+    return buildClientOnboardingRuntime().searchRouteReferences(payload)
+  } catch (error) {
+    return { error: 'client_onboarding_search_route_references_failed', details: getUserFacingError(error, 'No se pudieron buscar referencias de ruta.') }
+  }
+})
+
+ipcMain.handle('clientes:onboarding_reference_routes', async (_event, payload) => {
+  try {
+    return buildClientOnboardingRuntime().getReferenceRoutes(payload)
+  } catch (error) {
+    return { error: 'client_onboarding_reference_routes_failed', details: getUserFacingError(error, 'No se pudieron cargar las rutas de referencia.') }
+  }
+})
+
+ipcMain.handle('clientes:onboarding_preview_route', async (_event, payload) => {
+  try {
+    return buildClientOnboardingRuntime().previewRouteAssignment(payload)
+  } catch (error) {
+    return { error: 'client_onboarding_preview_route_failed', details: getUserFacingError(error, 'No se pudo preparar la ruta.') }
+  }
+})
+
+ipcMain.handle('clientes:onboarding_create_route', async (_event, payload) => {
+  try {
+    return buildClientOnboardingRuntime().createRouteAssignment(payload)
+  } catch (error) {
+    return { error: 'client_onboarding_create_route_failed', details: getUserFacingError(error, 'No se pudo asignar la ruta.') }
+  }
+})
+
+ipcMain.handle('cc:generate', async (_event, payload) => {
+  try {
+    if (payload?.environment !== 'produccion') {
+      return { error: 'invalid_environment', details: 'La facturacion de cuentas corrientes desde UI esta habilitada solo para produccion.' }
+    }
+    if (payload?.confirmation !== CC_PRODUCTION_CONFIRMATION) {
+      return { error: 'confirmation_required', details: 'Confirmacion explicita invalida.' }
+    }
+    const { runtime, service } = buildCuentaCorrienteRuntime(payload)
+    const request = buildCuentaCorrientePayload(payload)
+    const result = await service.processBatch(request)
+    return { modo: 'CONFIRMADO_PRODUCCION', environment: runtime.environment, ...result }
+  } catch (error) {
+    console.error('Failed to generate cuenta corriente:', error)
+    return {
+      error: 'cc_generate_failed',
+      details: getUserFacingError(error, 'No se pudo facturar el lote de cuentas corrientes.')
     }
   }
 })

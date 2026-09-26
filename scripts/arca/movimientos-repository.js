@@ -1,9 +1,15 @@
 const { ArcaApiProvider } = require('./arca-api-provider')
-const { postFactura } = require('./arca-api-read-only-client')
+const { postFactura, postCreditNote } = require('./arca-api-read-only-client')
 const { PendingFiscalPreflight } = require('./pending-fiscal-preflight')
+const { LegacyInvoiceRepository } = require('./legacy-invoice-repository')
+const { assertNoCobroReceiptConflict } = require('./fiscal-cobro-guard')
 
 function sqlString(value) {
   return String(value ?? '').replace(/'/g, "''")
+}
+
+function quoteIdentifier(value) {
+  return `[${String(value ?? '').replace(/]/g, ']]')}]`
 }
 
 function sqlDate(value, name = 'date') {
@@ -94,6 +100,24 @@ function normalizeCaeFchVto(value) {
     return raw
   }
   throw new Error('ARCA caeFchVto must be YYYYMMDD or YYYY-MM-DD.')
+}
+
+function isoToYyyymmdd(value) {
+  return sqlDate(value, 'date').replace(/-/g, '')
+}
+
+function monthRangeFromDate(value) {
+  const iso = sqlDate(String(value || '').slice(0, 10), 'fecha_vencimiento')
+  const [year, month] = iso.split('-').map(Number)
+  return {
+    firstDate: `${year}-${String(month).padStart(2, '0')}-01`,
+    lastDate: `${year}-${String(month).padStart(2, '0')}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, '0')}`
+  }
+}
+
+const CREDIT_NOTE_BY_INVOICE_TYPE = {
+  FA: { tipoComprobante: 'NA', cbteTipo: 3 },
+  FB: { tipoComprobante: 'NB', cbteTipo: 8 }
 }
 
 function normalizeVentaItems(items) {
@@ -477,6 +501,291 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES;
     }
   }
 
+  getVentaItems({ tipoComprobante, prefijo, numero } = {}) {
+    const tipo = normalizeTipo(tipoComprobante, ['FA', 'FB', 'FC', 'CI', 'NA', 'NB'], 'tipoComprobante')
+    const pref = intValue(prefijo, 'prefijo')
+    const num = positiveInt(numero, 'numero')
+
+    return this.sql.queryJson(
+      forJson(`
+SELECT
+  CAST(vi.orden AS int) AS orden,
+  LTRIM(RTRIM(COALESCE(NULLIF(i.denominacion, ''), NULLIF(i.denom_corto, ''), CONCAT('Item ', vi.cod_item)))) AS denominacion,
+  CAST(vi.cantidad AS decimal(18, 2)) AS cantidad,
+  CAST(vi.precio AS decimal(18, 2)) AS precio,
+  CAST(vi.importe AS decimal(18, 2)) AS importe,
+  CAST(vi.tasa_iva AS decimal(18, 2)) AS tasa_iva,
+  CAST(COALESCE(vi.litros_abonados, 0) AS decimal(18, 2)) AS litros_abonados
+FROM dbo.VentasItems AS vi
+LEFT JOIN dbo.Item AS i
+  ON i.cod_item = vi.cod_item
+WHERE LTRIM(RTRIM(vi.tipo_comprobante)) = '${sqlString(tipo)}'
+  AND vi.prefijo = ${pref}
+  AND vi.numero = ${num}
+ORDER BY vi.orden
+FOR JSON PATH, INCLUDE_NULL_VALUES;
+`)
+    ) || []
+  }
+
+  getCreditInvoices({ codCliente, nroLugarEntrega } = {}) {
+    const cod = positiveInt(codCliente, 'codCliente')
+    const lugar = positiveInt(nroLugarEntrega, 'nroLugarEntrega')
+
+    return this.sql.queryJson(
+      forJson(`
+SELECT
+  LTRIM(RTRIM(v.tipo_comprobante)) AS tipo_comprobante,
+  CAST(v.prefijo AS int) AS prefijo,
+  CAST(v.numero AS int) AS numero,
+  CONVERT(varchar(10), v.fecha_operacion, 23) AS fecha_operacion,
+  CAST(SUM(COALESCE(vi.importe, 0)) AS decimal(18, 2)) AS total,
+  NULLIF(LTRIM(RTRIM(v.cae)), '') AS cae
+FROM dbo.Ventas AS v
+LEFT JOIN dbo.VentasItems AS vi
+  ON vi.tipo_comprobante = v.tipo_comprobante
+ AND vi.prefijo = v.prefijo
+ AND vi.numero = v.numero
+WHERE v.cod_cliente = ${cod}
+  AND v.nro_lugar_entrega = ${lugar}
+  AND LTRIM(RTRIM(v.tipo_comprobante)) IN ('FA', 'FB')
+  AND v.prefijo IN (7, 8)
+  AND NULLIF(LTRIM(RTRIM(COALESCE(v.cae, ''))), '') IS NOT NULL
+GROUP BY v.tipo_comprobante, v.prefijo, v.numero, v.fecha_operacion, v.cae
+ORDER BY v.fecha_operacion DESC, v.prefijo DESC, v.numero DESC
+FOR JSON PATH, INCLUDE_NULL_VALUES;
+`)
+    ) || []
+  }
+
+  getCreditDependencyConstraints() {
+    return this.sql.queryJson(
+      forJson(`
+SELECT DISTINCT
+  OBJECT_SCHEMA_NAME(fk.parent_object_id) AS child_schema,
+  OBJECT_NAME(fk.parent_object_id) AS child_table,
+  fk.name AS constraint_name
+FROM sys.foreign_keys AS fk
+WHERE OBJECT_SCHEMA_NAME(fk.referenced_object_id) = 'dbo'
+  AND OBJECT_NAME(fk.referenced_object_id) IN ('Ventas', 'MovFisicos')
+  AND OBJECT_NAME(fk.parent_object_id) IN ('VentasItems', 'CobrosAplicados', 'MovFisicosItems', 'MovFisicosEquipos')
+ORDER BY child_table, constraint_name
+FOR JSON PATH, INCLUDE_NULL_VALUES;
+`)
+    ) || []
+  }
+
+  convertAuthorizedInvoiceToCredit({ original, credit, fechaEmision, syncTalonario = true }) {
+    const oldTipo = normalizeTipo(original?.tipoComprobante, ['FA', 'FB'], 'original.tipoComprobante')
+    const oldPrefijo = intValue(original?.prefijo, 'original.prefijo')
+    const oldNumero = positiveInt(original?.numero, 'original.numero')
+    const mapping = CREDIT_NOTE_BY_INVOICE_TYPE[oldTipo]
+    const newTipo = mapping.tipoComprobante
+    const newPrefijo = intValue(credit?.ptoVta, 'credit.ptoVta')
+    const newNumero = positiveInt(credit?.cbteNro, 'credit.cbteNro')
+    const cae = sqlString(credit?.cae)
+    const caeFchVto = sqlString(normalizeCaeFchVto(credit?.caeFchVto))
+    const fecha = sqlDate(fechaEmision, 'fechaEmision')
+    const constraints = this.getCreditDependencyConstraints()
+    const disableConstraintsSql = constraints
+      .map(row => `ALTER TABLE ${quoteIdentifier(row.child_schema)}.${quoteIdentifier(row.child_table)} NOCHECK CONSTRAINT ${quoteIdentifier(row.constraint_name)};`)
+      .join('\n')
+    const enableConstraintsSql = constraints
+      .map(row => `ALTER TABLE ${quoteIdentifier(row.child_schema)}.${quoteIdentifier(row.child_table)} WITH CHECK CHECK CONSTRAINT ${quoteIdentifier(row.constraint_name)};`)
+      .join('\n')
+
+    return this.sql.executeWriteBatch(`
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+DECLARE @ventas_items int = 0;
+DECLARE @cobros_aplicados int = 0;
+DECLARE @movfisicos int = 0;
+DECLARE @movfisicos_items int = 0;
+DECLARE @movfisicos_equipos int = 0;
+DECLARE @movfisicos_ci int = 0;
+DECLARE @movfisicos_ci_items int = 0;
+DECLARE @movfisicos_ci_equipos int = 0;
+DECLARE @ventas int = 0;
+DECLARE @numero_ci int = NULL;
+DECLARE @cod_cliente int = NULL;
+DECLARE @nro_lugar_entrega int = NULL;
+
+IF NOT EXISTS (
+  SELECT 1
+  FROM dbo.Ventas WITH (UPDLOCK, HOLDLOCK)
+  WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(oldTipo)}'
+    AND prefijo = ${oldPrefijo}
+    AND numero = ${oldNumero}
+    AND NULLIF(LTRIM(RTRIM(COALESCE(cae, ''))), '') IS NOT NULL
+)
+BEGIN
+  THROW 52020, 'Factura original no encontrada o sin CAE.', 1;
+END;
+
+SELECT
+  @numero_ci = CAST(numero_ci AS int),
+  @cod_cliente = CAST(cod_cliente AS int),
+  @nro_lugar_entrega = CAST(nro_lugar_entrega AS int)
+FROM dbo.Ventas WITH (UPDLOCK, HOLDLOCK)
+WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(oldTipo)}'
+  AND prefijo = ${oldPrefijo}
+  AND numero = ${oldNumero};
+
+IF NOT EXISTS (
+  SELECT 1 FROM dbo.TipoComprobante WITH (HOLDLOCK)
+  WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(newTipo)}'
+)
+BEGIN
+  THROW 52021, 'Tipo de comprobante NC no configurado en NAVIERA.', 1;
+END;
+
+-- Ventas has a composite FK to Talonario. This row records an ARCA-assigned NC;
+-- it is never consulted to choose the fiscal number.
+IF NOT EXISTS (
+  SELECT 1 FROM dbo.Talonario WITH (UPDLOCK, HOLDLOCK)
+  WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(newTipo)}'
+    AND prefijo = ${newPrefijo}
+)
+BEGIN
+  ${syncTalonario
+    ? `INSERT INTO dbo.Talonario (tipo_comprobante, prefijo, ult_numero)
+  VALUES ('${sqlString(newTipo)}', ${newPrefijo}, 0);`
+    : "THROW 52025, 'No existe el Talonario requerido por la FK de la NC.', 1;"}
+END;
+
+IF EXISTS (
+  SELECT 1
+  FROM dbo.Ventas WITH (UPDLOCK, HOLDLOCK)
+  WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(newTipo)}'
+    AND prefijo = ${newPrefijo}
+    AND numero = ${newNumero}
+)
+BEGIN
+  THROW 52022, 'La NC autorizada ya existe en NAVIERA.', 1;
+END;
+
+IF @numero_ci IS NOT NULL AND EXISTS (
+  SELECT 1
+  FROM dbo.MovFisicos WITH (UPDLOCK, HOLDLOCK)
+  WHERE tipo_comprobante = '${sqlString(newTipo)}'
+    AND prefijo_remito = ${newPrefijo}
+    AND numero_remito = ${newNumero}
+)
+BEGIN
+  THROW 52024, 'Ya existe un movimiento fisico con la identidad de la NC.', 1;
+END;
+
+${disableConstraintsSql}
+
+UPDATE dbo.VentasItems
+SET tipo_comprobante = '${sqlString(newTipo)}', prefijo = ${newPrefijo}, numero = ${newNumero}
+WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(oldTipo)}' AND prefijo = ${oldPrefijo} AND numero = ${oldNumero};
+SET @ventas_items = @@ROWCOUNT;
+
+UPDATE dbo.CobrosAplicados
+SET tipo_comprobante = '${sqlString(newTipo)}', prefijo = ${newPrefijo}, numero = ${newNumero}
+WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(oldTipo)}' AND prefijo = ${oldPrefijo} AND numero = ${oldNumero};
+SET @cobros_aplicados = @@ROWCOUNT;
+
+UPDATE dbo.MovFisicosEquipos
+SET tipo_comprobante = '${sqlString(newTipo)}', prefijo_remito = ${newPrefijo}, numero_remito = ${newNumero}
+WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(oldTipo)}' AND prefijo_remito = ${oldPrefijo} AND numero_remito = ${oldNumero};
+SET @movfisicos_equipos = @@ROWCOUNT;
+
+UPDATE dbo.MovFisicosItems
+SET tipo_comprobante = '${sqlString(newTipo)}', prefijo_remito = ${newPrefijo}, numero_remito = ${newNumero}
+WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(oldTipo)}' AND prefijo_remito = ${oldPrefijo} AND numero_remito = ${oldNumero};
+SET @movfisicos_items = @@ROWCOUNT;
+
+UPDATE dbo.MovFisicos
+SET tipo_comprobante = '${sqlString(newTipo)}', prefijo_remito = ${newPrefijo}, numero_remito = ${newNumero}
+WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(oldTipo)}' AND prefijo_remito = ${oldPrefijo} AND numero_remito = ${oldNumero};
+SET @movfisicos = @@ROWCOUNT;
+
+-- A fiscal Venta created from a CI owns that CI movement through numero_ci.
+-- When it becomes an NC, the original physical movement must follow the NC too.
+UPDATE dbo.MovFisicosEquipos
+SET tipo_comprobante = '${sqlString(newTipo)}', prefijo_remito = ${newPrefijo}, numero_remito = ${newNumero}
+WHERE tipo_comprobante = 'CI'
+  AND prefijo_remito = 0
+  AND numero_remito = @numero_ci
+  AND EXISTS (
+    SELECT 1 FROM dbo.MovFisicos AS mf
+    WHERE mf.tipo_comprobante = 'CI'
+      AND mf.prefijo_remito = 0
+      AND mf.numero_remito = @numero_ci
+      AND mf.cod_cliente = @cod_cliente
+      AND mf.nro_lugar_entrega = @nro_lugar_entrega
+  );
+SET @movfisicos_ci_equipos = @@ROWCOUNT;
+
+UPDATE dbo.MovFisicosItems
+SET tipo_comprobante = '${sqlString(newTipo)}', prefijo_remito = ${newPrefijo}, numero_remito = ${newNumero}
+WHERE tipo_comprobante = 'CI'
+  AND prefijo_remito = 0
+  AND numero_remito = @numero_ci
+  AND EXISTS (
+    SELECT 1 FROM dbo.MovFisicos AS mf
+    WHERE mf.tipo_comprobante = 'CI'
+      AND mf.prefijo_remito = 0
+      AND mf.numero_remito = @numero_ci
+      AND mf.cod_cliente = @cod_cliente
+      AND mf.nro_lugar_entrega = @nro_lugar_entrega
+  );
+SET @movfisicos_ci_items = @@ROWCOUNT;
+
+UPDATE dbo.MovFisicos
+SET tipo_comprobante = '${sqlString(newTipo)}', prefijo_remito = ${newPrefijo}, numero_remito = ${newNumero}
+WHERE tipo_comprobante = 'CI'
+  AND prefijo_remito = 0
+  AND numero_remito = @numero_ci
+  AND cod_cliente = @cod_cliente
+  AND nro_lugar_entrega = @nro_lugar_entrega;
+SET @movfisicos_ci = @@ROWCOUNT;
+
+UPDATE dbo.Ventas
+SET tipo_comprobante = '${sqlString(newTipo)}',
+    prefijo = ${newPrefijo},
+    numero = ${newNumero},
+    fecha_operacion = '${sqlString(fecha)}',
+    Mcampo_control = 'N',
+    cae = '${cae}',
+    fecha_vencimiento_cae = '${caeFchVto}',
+    numero_ci = NULL
+WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(oldTipo)}' AND prefijo = ${oldPrefijo} AND numero = ${oldNumero};
+SET @ventas = @@ROWCOUNT;
+
+IF @ventas <> 1
+BEGIN
+  THROW 52023, 'La transformacion de la Venta no afecto exactamente una fila.', 1;
+END;
+
+${enableConstraintsSql}
+
+${syncTalonario
+  ? `UPDATE dbo.Talonario
+SET ult_numero = CASE
+  WHEN CAST(ult_numero AS int) < ${newNumero} THEN ${newNumero}
+  ELSE ult_numero
+END
+WHERE LTRIM(RTRIM(tipo_comprobante)) = '${sqlString(newTipo)}'
+  AND prefijo = ${newPrefijo};`
+  : '-- La numeracion fiscal la determina ARCA; no sincronizar Talonario.'}
+
+COMMIT TRANSACTION;
+
+SELECT 'ok' AS status,
+  '${sqlString(oldTipo)}' AS original_tipo, ${oldPrefijo} AS original_prefijo, ${oldNumero} AS original_numero,
+  '${sqlString(newTipo)}' AS nc_tipo, ${newPrefijo} AS nc_prefijo, ${newNumero} AS nc_numero,
+  @ventas AS ventas, @ventas_items AS ventas_items, @cobros_aplicados AS cobros_aplicados,
+  @movfisicos AS movfisicos, @movfisicos_items AS movfisicos_items, @movfisicos_equipos AS movfisicos_equipos,
+  @movfisicos_ci AS movfisicos_ci, @movfisicos_ci_items AS movfisicos_ci_items,
+  @movfisicos_ci_equipos AS movfisicos_ci_equipos
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES;
+`)
+  }
+
   getPendingVentas({ codCliente, nroLugarEntrega, limit = 50 } = {}) {
     const cod = positiveInt(codCliente, 'codCliente')
     const lugar = positiveInt(nroLugarEntrega, 'nroLugarEntrega')
@@ -551,26 +860,24 @@ DECLARE @ref date = '${sqlString(ref)}';
 DECLARE @desde date = DATEADD(day, -62, @ref);
 
 SELECT
-  CONVERT(varchar(10), v.fecha_vencimiento, 23) AS fecha_periodo_abono,
   LTRIM(RTRIM(v.tipo_comprobante)) AS tipo_comprobante,
   CAST(v.prefijo AS int) AS prefijo,
   CAST(v.numero AS int) AS numero,
-  CAST(vi.cod_item AS int) AS cod_item,
-  LTRIM(RTRIM(i.denominacion)) AS item,
-  CAST(vi.cantidad AS decimal(18, 2)) AS cantidad,
-  CAST(vi.litros_abonados AS decimal(18, 2)) AS litros_abonados
+  CONVERT(varchar(10), v.fecha_vencimiento, 23) AS fecha_periodo_abono
 FROM dbo.Ventas AS v
-INNER JOIN dbo.VentasItems AS vi
-  ON vi.tipo_comprobante = v.tipo_comprobante
- AND vi.prefijo = v.prefijo
- AND vi.numero = v.numero
-LEFT JOIN dbo.Item AS i
-  ON i.cod_item = vi.cod_item
 WHERE v.cod_cliente = ${cod}
   AND v.nro_lugar_entrega = ${lugar}
-  AND CONVERT(date, v.fecha_vencimiento) BETWEEN @desde AND @ref
-  AND COALESCE(vi.litros_abonados, 0) > 0
-ORDER BY v.fecha_vencimiento DESC, v.numero DESC, vi.orden
+  -- Keep recent history for safety, but include every newer abono so a future period can be assigned manually.
+  AND CONVERT(date, v.fecha_vencimiento) >= @desde
+  AND EXISTS (
+    SELECT 1
+    FROM dbo.VentasItems AS vi
+    WHERE vi.tipo_comprobante = v.tipo_comprobante
+      AND vi.prefijo = v.prefijo
+      AND vi.numero = v.numero
+      AND COALESCE(vi.litros_abonados, 0) > 0
+  )
+ORDER BY v.fecha_vencimiento DESC, v.numero DESC
 FOR JSON PATH, INCLUDE_NULL_VALUES;
 `)
     ) || []
@@ -942,7 +1249,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES;
 `)
   }
 
-  executeInsertVentaFiscal({ tipoComprobante, prefijo, numero, numeroCi, fecha, codCliente, nroLugarEntrega, ventaItems, movItems, cae, caeFchVto }) {
+  executeInsertVentaFiscal({ tipoComprobante, prefijo, numero, numeroCi, fecha, fechaMovimiento, codCliente, nroLugarEntrega, ventaItems, movItems, cae, caeFchVto }) {
     const ventaValues = ventaItems
       .map(item => `(
         '${sqlString(tipoComprobante)}', ${prefijo}, ${numero}, ${item.orden}, ${item.cod_item}, ${item.cantidad}, ${item.precio},
@@ -967,6 +1274,11 @@ BEGIN
   THROW 52007, 'Venta fiscal already exists.', 1;
 END;
 
+IF EXISTS (SELECT 1 FROM dbo.Cobros WITH (UPDLOCK, HOLDLOCK) WHERE tipo_comprobante_cobro = '${sqlString(tipoComprobante)}' AND prefijo_recibo = ${prefijo} AND numero_recibo = ${numero})
+BEGIN
+  THROW 52010, 'Fiscal number is already used by a legacy Cobro.', 1;
+END;
+
 IF EXISTS (SELECT 1 FROM dbo.Ventas WITH (UPDLOCK, HOLDLOCK) WHERE numero_ci = ${numeroCi})
 BEGIN
   THROW 52009, 'A Venta already exists for this CI number.', 1;
@@ -982,7 +1294,7 @@ BEGIN
       AND numero_remito = ${numeroCi}
       AND cod_cliente = ${codCliente}
       AND nro_lugar_entrega = ${nroLugarEntrega}
-      AND CONVERT(date, fecha_remito) = '${sqlString(fecha)}'
+      AND CONVERT(date, fecha_remito) = '${sqlString(fechaMovimiento)}'
   )
   BEGIN
     THROW 52008, 'Movimiento CI already exists for another client/date.', 1;
@@ -1012,7 +1324,7 @@ BEGIN
 INSERT INTO dbo.MovFisicos
 (tipo_comprobante, prefijo_remito, numero_remito, fecha_remito, cod_cliente, nro_lugar_entrega, saca_M)
 VALUES
-('CI', 0, ${numeroCi}, '${sqlString(fecha)}', ${codCliente}, ${nroLugarEntrega}, NULL);
+('CI', 0, ${numeroCi}, '${sqlString(fechaMovimiento)}', ${codCliente}, ${nroLugarEntrega}, NULL);
 END;
 
 INSERT INTO dbo.MovFisicosItems
@@ -1136,7 +1448,7 @@ FOR JSON PATH, INCLUDE_NULL_VALUES;
     ) || []
 
     const fiscalLinkedVentas = linkedVentas.filter(row =>
-      ['FA', 'FB'].includes(compact(row.tipo_comprobante))
+      ['FA', 'FB', 'NA', 'NB'].includes(compact(row.tipo_comprobante))
     )
 
     return {
@@ -1182,7 +1494,7 @@ END;
 
 IF EXISTS (
   SELECT 1 FROM dbo.Ventas
-  WHERE tipo_comprobante IN ('FA', 'FB')
+  WHERE tipo_comprobante IN ('FA', 'FB', 'NA', 'NB')
     AND (
       (
         tipo_comprobante = '${sqlString(tipo)}' AND prefijo = ${pref} AND numero = ${num}
@@ -1197,7 +1509,7 @@ IF EXISTS (
     )
 )
 BEGIN
-  THROW 52010, 'Movimiento is linked to a fiscal FA/FB venta and cannot be deleted here.', 1;
+  THROW 52010, 'Movimiento is linked to a fiscal FA/FB/NA/NB venta and cannot be deleted here.', 1;
 END;
 
 DECLARE @affected_receipts TABLE (
@@ -1284,9 +1596,10 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES;
 }
 
 class MovimientosService {
-  constructor({ repository, arcaPostFactura = postFactura } = {}) {
+  constructor({ repository, arcaPostFactura = postFactura, arcaPostCreditNote = postCreditNote } = {}) {
     this.repository = repository
     this.arcaPostFactura = arcaPostFactura
+    this.arcaPostCreditNote = arcaPostCreditNote
   }
 
   buildPendingFiscalPreflight(payload = {}) {
@@ -1305,8 +1618,7 @@ class MovimientosService {
 
   getInitialData() {
     return {
-      items: this.repository.getItems({ limit: 4 }),
-      suggestedCiNumber: this.repository.getSuggestedCiNumber()
+      items: this.repository.getItems({ limit: 4 })
     }
   }
 
@@ -1316,6 +1628,14 @@ class MovimientosService {
 
   getAccountState(payload) {
     return this.repository.getAccountState(payload)
+  }
+
+  getVentaItems(payload) {
+    return this.repository.getVentaItems(payload)
+  }
+
+  getCreditInvoices(payload) {
+    return this.repository.getCreditInvoices(payload)
   }
 
   getAvailableAbonos(payload) {
@@ -1360,6 +1680,9 @@ class MovimientosService {
     if (mode === 'venta-factura') {
       return this.previewVentaFactura(payload)
     }
+    if (mode === 'nota-credito') {
+      return this.previewNotaCredito(payload)
+    }
     throw new Error('Unsupported movimientos mode.')
   }
 
@@ -1376,6 +1699,9 @@ class MovimientosService {
     }
     if (mode === 'venta-factura') {
       return this.saveVentaFactura(payload)
+    }
+    if (mode === 'nota-credito') {
+      return this.saveNotaCredito(payload)
     }
     throw new Error('Unsupported movimientos mode.')
   }
@@ -1516,13 +1842,22 @@ class MovimientosService {
 
   previewVentaFactura(payload) {
     const base = this.basePayload(payload)
+    const fechaMovimiento = sqlDate(payload.fechaMovimiento || base.fecha, 'fechaMovimiento')
     const tipoComprobante = normalizeTipo(payload.tipoComprobante, ['FA', 'FB'], 'tipoComprobante')
+    const tipofactura = compact(base.cliente.tipofactura).toUpperCase()
+    const tipoFiscalEsperado = tipofactura === 'A' ? 'FA' : tipofactura === 'B' ? 'FB' : null
+    if (!tipoFiscalEsperado) {
+      throw new Error(`Cliente sin tipo fiscal electronico habilitado (CategoriaIva.tipofactura=${tipofactura || '-'}).`)
+    }
+    if (tipoComprobante !== tipoFiscalEsperado) {
+      throw new Error(`El cliente corresponde a ${tipoFiscalEsperado}; no se puede autorizar como ${tipoComprobante}.`)
+    }
     const numeroCi = positiveInt(payload.numeroCi, 'numeroCi')
     const ventaItems = normalizeVentaItems(payload.items)
     const movItems = normalizeMovItems(payload.movItems || payload.items, { requireAbono: false })
     const dbReady = this.repository.getVentaMovementReadiness({
       numeroCi,
-      fecha: base.fecha,
+      fecha: fechaMovimiento,
       codCliente: base.codCliente,
       nroLugarEntrega: base.nroLugarEntrega
     })
@@ -1553,7 +1888,11 @@ class MovimientosService {
       venta: { tipoComprobante, prefijo: 8, numero },
       movimiento: { tipoComprobante: 'CI', prefijo: 0, numero: numeroCi },
       fecha: base.fecha,
-      preflight: this.buildPendingFiscalPreflight(payload).buildPreview({ targetDate: base.fecha }),
+      fechaMovimiento,
+      preflight: this.buildPendingFiscalPreflight(payload).buildPreview({
+        targetDate: base.fecha,
+        tipo: tipoComprobante
+      }),
       ventaItems,
       movItems,
       dbReady,
@@ -1567,8 +1906,14 @@ class MovimientosService {
     if (payload.confirmation !== 'AUTORIZAR_Y_GUARDAR') {
       throw new Error('Explicit fiscal confirmation is required.')
     }
-    const preflight = await this.buildPendingFiscalPreflight(payload).processBefore({
-      targetDate: preview.fecha
+    const fiscalPreflight = this.buildPendingFiscalPreflight(payload)
+    const preflight = await fiscalPreflight.processBefore({
+      targetDate: preview.fecha,
+      tipo: preview.venta.tipoComprobante
+    })
+    const expectedArca = await fiscalPreflight.assertNextFiscalIdentityIsAvailable({
+      tipo: preview.venta.tipoComprobante,
+      prefijo: 8
     })
     const response = await this.arcaPostFactura({
       payload: preview.arca.payload,
@@ -1589,20 +1934,11 @@ class MovimientosService {
     }
 
     try {
-      const saved = this.repository.executeInsertVentaFiscal({
-        tipoComprobante: preview.venta.tipoComprobante,
+      assertNoCobroReceiptConflict(this.repository.sql, {
+        tipo: preview.venta.tipoComprobante,
         prefijo: 8,
-        numero: cbteNro,
-        numeroCi: preview.movimiento.numero,
-        fecha: preview.fecha,
-        codCliente: preview.cliente.cod_cliente,
-        nroLugarEntrega: preview.cliente.nro_lugar_entrega,
-        ventaItems: preview.ventaItems,
-        movItems: preview.movItems,
-        cae,
-        caeFchVto: normalizeCaeFchVto(caeFchVto)
+        numero: cbteNro
       })
-      return { status: 'ok', preflight, arca: response, saved }
     } catch (error) {
       return {
         status: 'arca_authorized_db_failed',
@@ -1610,6 +1946,129 @@ class MovimientosService {
         arca: response,
         cae,
         caeFchVto,
+        arcaExpectedNumber: expectedArca.proximoComprobante,
+        localError: error instanceof Error ? error.message : String(error)
+      }
+    }
+
+    try {
+      const saved = this.repository.executeInsertVentaFiscal({
+        tipoComprobante: preview.venta.tipoComprobante,
+        prefijo: 8,
+        numero: cbteNro,
+        numeroCi: preview.movimiento.numero,
+        fecha: preview.fecha,
+        fechaMovimiento: preview.fechaMovimiento,
+        codCliente: preview.cliente.cod_cliente,
+        nroLugarEntrega: preview.cliente.nro_lugar_entrega,
+        ventaItems: preview.ventaItems,
+        movItems: preview.movItems,
+        cae,
+        caeFchVto: normalizeCaeFchVto(caeFchVto)
+      })
+      return { status: 'ok', preflight, arca: response, saved, arcaExpectedNumber: expectedArca.proximoComprobante }
+    } catch (error) {
+      return {
+        status: 'arca_authorized_db_failed',
+        preflight,
+        arca: response,
+        cae,
+        caeFchVto,
+        localError: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  previewNotaCredito(payload) {
+    const tipoComprobante = normalizeTipo(payload.tipoComprobante, ['FA', 'FB'], 'tipoComprobante')
+    const prefijo = intValue(payload.prefijo, 'prefijo')
+    const numero = positiveInt(payload.numero, 'numero')
+    const fecha = sqlDate(payload.fecha || todayIsoDate(), 'fecha')
+    if (![7, 8].includes(prefijo)) {
+      throw new Error('La NC solo esta habilitada para comprobantes FA/FB de punto 7 u 8.')
+    }
+
+    const legacyRepository = new LegacyInvoiceRepository(this.repository.sql)
+    const invoice = legacyRepository.getInvoice({ tipo: tipoComprobante, prefijo, numero })
+    if (!invoice.venta || !invoice.items.length) {
+      throw new Error('Factura original no encontrada o sin VentasItems.')
+    }
+    if (!invoice.venta.cae) {
+      throw new Error('La factura original no tiene CAE; no se puede solicitar una NC.')
+    }
+
+    const mapping = CREDIT_NOTE_BY_INVOICE_TYPE[tipoComprobante]
+    const concept = prefijo === 7 ? 2 : 1
+    const provider = new ArcaApiProvider({
+      environment: 'produccion',
+      representada: payload.representada,
+      ptoVta: prefijo,
+      concepto: concept,
+      fechaHomologacion: fecha,
+      legacyPriceMode: 'gross'
+    })
+    const arca = provider.buildCreditNotePreview(invoice)
+    arca.payload.cbteFch = isoToYyyymmdd(fecha)
+
+    if (concept === 2) {
+      const period = monthRangeFromDate(invoice.venta.fecha_vencimiento)
+      arca.payload.concepto = 2
+      arca.payload.fchServDesde = isoToYyyymmdd(period.firstDate)
+      arca.payload.fchServHasta = isoToYyyymmdd(period.lastDate)
+      arca.payload.fchVtoPago = isoToYyyymmdd(fecha)
+    }
+
+    return {
+      mode: 'nota-credito',
+      original: { tipoComprobante, prefijo, numero },
+      credit: { tipoComprobante: mapping.tipoComprobante, cbteTipo: mapping.cbteTipo, prefijo },
+      fecha,
+      total: arca.totals.legacyGrossTotal,
+      arca
+    }
+  }
+
+  async saveNotaCredito(payload) {
+    const preview = this.previewNotaCredito(payload)
+    if (payload.confirmation !== 'AUTORIZAR_NC_Y_GUARDAR') {
+      throw new Error('Confirmacion explicita requerida para solicitar la NC.')
+    }
+
+    const response = await this.arcaPostCreditNote({
+      payload: preview.arca.payload,
+      idempotencyKey: `PROD-NC-${preview.original.tipoComprobante}-${preview.original.prefijo}-${preview.original.numero}`
+    })
+    const body = response.response || {}
+    const result = body.resultado || body.result || body.Resultado
+    const cbteNro = Number(body.cbteNro ?? body.cbte_nro ?? body.numero)
+    const cae = body.cae || body.CAE
+    const caeFchVto = body.caeFchVto || body.vencimientoCAE || body.fecha_vencimiento_cae
+    const ptoVta = Number(body.ptoVta ?? body.pto_vta)
+    const responseCbteTipo = Number(body.cbteTipo ?? body.cbte_tipo)
+
+    if (result !== 'A' || !cbteNro || !cae || !caeFchVto) {
+      return { status: 'arca_rejected', original: preview.original, arca: response }
+    }
+    if (ptoVta !== preview.original.prefijo) {
+      throw new Error(`ARCA devolvio punto de venta ${ptoVta}; se esperaba ${preview.original.prefijo}. No se modifico NAVIERA.`)
+    }
+    if (Number.isFinite(responseCbteTipo) && responseCbteTipo !== preview.credit.cbteTipo) {
+      throw new Error(`ARCA devolvio tipo ${responseCbteTipo}; se esperaba NC tipo ${preview.credit.cbteTipo}. No se modifico NAVIERA.`)
+    }
+
+    try {
+      const saved = this.repository.convertAuthorizedInvoiceToCredit({
+        original: preview.original,
+        credit: { ptoVta, cbteNro, cae, caeFchVto },
+        fechaEmision: preview.fecha
+      })
+      return { status: 'ok', original: preview.original, credit: { ...preview.credit, numero: cbteNro, cae, caeFchVto }, arca: response, saved }
+    } catch (error) {
+      return {
+        status: 'arca_authorized_db_failed',
+        original: preview.original,
+        credit: { ...preview.credit, numero: cbteNro, cae, caeFchVto },
+        arca: response,
         localError: error instanceof Error ? error.message : String(error)
       }
     }

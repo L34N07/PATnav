@@ -21,6 +21,28 @@ const ERROR_MESSAGE_DURATION_MS = 2600
 
 type DatasetKind = "none" | "clients" | "irregularidades"
 
+type FiscalBacklogPreview = {
+  range?: { desde?: string | null; hasta?: string | null }
+  pendingCount?: number
+  bySeries?: Array<{
+    tipo: string
+    prefijo: number
+    pending: number
+    firstNumber: number | null
+    lastNumber: number | null
+  }>
+}
+
+const todayIsoDate = () => {
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+const firstDayOfMonth = () => `${todayIsoDate().slice(0, 8)}01`
+
 export default function TestView() {
   const [columns, setColumns] = useState<string[]>([])
   const [datasetRows, setDatasetRows] = useState<DataRow[]>([])
@@ -35,6 +57,10 @@ export default function TestView() {
   const [isLoading, setIsLoading] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [fiscalDesde, setFiscalDesde] = useState(firstDayOfMonth)
+  const [fiscalHasta, setFiscalHasta] = useState(todayIsoDate)
+  const [fiscalPreview, setFiscalPreview] = useState<FiscalBacklogPreview | null>(null)
+  const [authorizeFiscalPending, setAuthorizeFiscalPending] = useState(false)
 
   const [codCliente, setCodCliente] = useState("")
   const [razonSocial, setRazonSocial] = useState("")
@@ -169,6 +195,108 @@ export default function TestView() {
     }
   }
 
+  const handleAuthorizeFiscalBacklog = async () => {
+    if (!authorizeFiscalPending) {
+      setErrorMessage("Confirme la autorizacion de facturas pendientes.")
+      return
+    }
+    if (!electronAPI?.authorizeFiscalBacklog) {
+      setErrorMessage("La autorizacion fiscal no esta disponible.")
+      return
+    }
+    if (
+      fiscalPreview?.range?.desde !== fiscalDesde ||
+      fiscalPreview?.range?.hasta !== fiscalHasta
+    ) {
+      setErrorMessage("Primero previsualice las facturas pendientes para este rango.")
+      return
+    }
+
+    setIsLoading(true)
+    clearMessages()
+    try {
+      const response = await electronAPI.authorizeFiscalBacklog({
+        environment: "produccion",
+        confirmation: "AUTORIZAR_PENDIENTES_FISCALES",
+        desde: fiscalDesde,
+        hasta: fiscalHasta
+      })
+      if (response.error) {
+        throw new Error(response.details || response.error)
+      }
+      const summary = (response.result as { summary?: Record<string, unknown> } | undefined)?.summary || {}
+      const authorized = Number(summary.authorized || 0)
+      const failed = Number(summary.failed || 0)
+      const skipped = Number(summary.skipped || 0)
+      const correctedDates = Number(summary.fechasCorregidas || 0)
+      const results = (response.result as { results?: Array<Record<string, unknown>> } | undefined)?.results || []
+      const firstFailure = results.find(result => !result.ok && !result.skipped)
+      setStatusMessage(
+        `${authorized} autorizada${authorized === 1 ? "" : "s"}; ${correctedDates} fecha${correctedDates === 1 ? "" : "s"} corregida${correctedDates === 1 ? "" : "s"}.`
+      )
+      if (failed || skipped) {
+        const original = firstFailure?.original as Record<string, unknown> | undefined
+        const label = original
+          ? `${String(original.tipo || "")}/${String(original.prefijo || "")}-${String(original.numero || "")}`
+          : ""
+        const detail = typeof firstFailure?.error === "string" ? firstFailure.error : ""
+        setErrorMessage(
+          `${failed} serie(s) con error; ${skipped} factura(s) no procesada(s) por su serie.` +
+            (label ? ` Primer bloqueo: ${label}.` : "") +
+            (detail ? ` ${detail}` : "")
+        )
+      }
+      setAuthorizeFiscalPending(false)
+    } catch (error) {
+      console.error("No se pudieron autorizar las facturas pendientes:", error)
+      setErrorMessage(error instanceof Error ? error.message : "No se pudieron autorizar las facturas pendientes.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handlePreviewFiscalBacklog = async () => {
+    if (!electronAPI?.previewFiscalBacklog) {
+      setErrorMessage("La previsualizacion fiscal no esta disponible.")
+      return
+    }
+
+    setIsLoading(true)
+    clearMessages()
+    try {
+      const response = await electronAPI.previewFiscalBacklog({
+        environment: "produccion",
+        desde: fiscalDesde,
+        hasta: fiscalHasta
+      })
+      if (response.error) {
+        throw new Error(response.details || response.error)
+      }
+      const preview = (response.result || null) as FiscalBacklogPreview | null
+      setFiscalPreview(preview)
+      setAuthorizeFiscalPending(false)
+      setStatusMessage(`${Number(preview?.pendingCount || 0)} factura(s) pendiente(s) en el rango.`)
+    } catch (error) {
+      console.error("No se pudieron previsualizar las facturas pendientes:", error)
+      setFiscalPreview(null)
+      setErrorMessage(error instanceof Error ? error.message : "No se pudieron previsualizar las facturas pendientes.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleFiscalDesdeChange = (value: string) => {
+    setFiscalDesde(value)
+    setFiscalPreview(null)
+    setAuthorizeFiscalPending(false)
+  }
+
+  const handleFiscalHastaChange = (value: string) => {
+    setFiscalHasta(value)
+    setFiscalPreview(null)
+    setAuthorizeFiscalPending(false)
+  }
+
   const handleUpdateClient = async () => {
     if (!editEnabled || !selectedRow || columns.length < CLIENT_COLUMNS.length) {
       console.warn("No client selected or editing disabled.")
@@ -296,6 +424,15 @@ export default function TestView() {
           isLoading={isLoading}
           onFetchClients={handleFetchClients}
           onFetchIrregularidades={handleFetchIrregularidades}
+          fiscalDesde={fiscalDesde}
+          fiscalHasta={fiscalHasta}
+          onFiscalDesdeChange={handleFiscalDesdeChange}
+          onFiscalHastaChange={handleFiscalHastaChange}
+          fiscalPreview={fiscalPreview}
+          onPreviewFiscalBacklog={handlePreviewFiscalBacklog}
+          authorizeFiscalPending={authorizeFiscalPending}
+          onAuthorizeFiscalPendingChange={setAuthorizeFiscalPending}
+          onAuthorizeFiscalBacklog={handleAuthorizeFiscalBacklog}
           columns={columns}
           codCliente={codCliente}
           razonSocial={razonSocial}

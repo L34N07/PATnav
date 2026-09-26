@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
 import { usePagination } from "../../../hooks/usePagination"
 import StatusToasts from "../../StatusToasts"
+import SpanishDateInput from "../../SpanishDateInput"
 import DataTable from "../DataTable"
 import { type DataRow, pickRowValue, toDisplayValue } from "../dataModel"
 
@@ -812,11 +813,10 @@ export default function HojaDeRutaView() {
 
               <label className="hoja-ruta-field hoja-ruta-field--compact hoja-ruta-field--date">
                 Fecha de recorrido
-                <input
-                  type="date"
+                <SpanishDateInput
                   value={fechaRecorrido}
-                  onChange={event => setFechaRecorrido(event.target.value)}
-                  required
+                  onChange={setFechaRecorrido}
+                  ariaLabel="Fecha de recorrido"
                   disabled={isSaving}
                 />
               </label>

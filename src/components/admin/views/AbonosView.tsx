@@ -7,17 +7,17 @@ import type {
 } from "../../../global"
 import { useAutoDismissMessage } from "../../../hooks/useAutoDismissMessage"
 import StatusToasts from "../../StatusToasts"
+import SpanishDateInput from "../../SpanishDateInput"
+import CuentaCorrienteBillingView from "./CuentaCorrienteBillingView"
 
 const SUCCESS_MESSAGE_DURATION_MS = 2500
 const ERROR_MESSAGE_DURATION_MS = 4000
 const CONFIRMATION = "CONFIRMAR_ABONOS_PRODUCCION"
 const TABLE_FILTERS = [
-  { key: "todos", label: "Todos" },
-  { key: "listos", label: "Listos" },
+  { key: "todos", label: "Todos los listos" },
   { key: "fa", label: "FA/7" },
   { key: "fb", label: "FB/7" },
-  { key: "fc", label: "FC/4" },
-  { key: "descartados", label: "Descartados" }
+  { key: "fc", label: "FC/4" }
 ] as const
 
 type TableFilter = (typeof TABLE_FILTERS)[number]["key"]
@@ -59,12 +59,18 @@ const buildRequest = (desde: string, hasta: string, fechaEmision: string, limit:
   limit
 })
 
-const candidateKey = (candidate: AbonosPreviewCandidate, index: number) =>
-  `${candidate.tipo}-${candidate.prefijo}-${candidate.cliente}-${candidate.punto}-${index}`
+const candidateKey = (candidate: AbonosPreviewCandidate) =>
+  `${candidate.cliente}/${candidate.punto}`
 
 const formatCount = (value: unknown) => {
   const number = Number(value)
   return Number.isFinite(number) ? String(number) : "-"
+}
+
+const formatPeriod = (value: unknown) => {
+  const raw = String(value ?? "")
+  const match = raw.match(/^(\d{4})(\d{2})$/)
+  return match ? `${match[2]}/${match[1]}` : raw || "-"
 }
 
 export default function AbonosView() {
@@ -74,6 +80,8 @@ export default function AbonosView() {
   const [fechaEmision, setFechaEmision] = useState(todayIsoDate)
   const [limit, setLimit] = useState("250")
   const [tableFilter, setTableFilter] = useState<TableFilter>("todos")
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedCandidateKeys, setSelectedCandidateKeys] = useState<Set<string>>(new Set())
   const [confirmationChecked, setConfirmationChecked] = useState(false)
   const [preview, setPreview] = useState<AbonosPreviewResult | null>(null)
   const [generation, setGeneration] = useState<AbonosGenerateResult | null>(null)
@@ -81,6 +89,7 @@ export default function AbonosView() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [section, setSection] = useState<"abonos" | "cc">("abonos")
 
   useAutoDismissMessage(statusMessage, setStatusMessage, SUCCESS_MESSAGE_DURATION_MS)
   useAutoDismissMessage(errorMessage, setErrorMessage, ERROR_MESSAGE_DURATION_MS)
@@ -96,18 +105,14 @@ export default function AbonosView() {
   )
 
   const summary = preview?.resumen
-  const candidates = preview?.candidatos ?? []
-  const readyCount = Number(summary?.listos_para_generar || 0)
+  const candidates = useMemo(
+    () => (preview?.candidatos ?? []).filter(candidate => candidate.estado !== "descartado"),
+    [preview]
+  )
   const filteredCandidates = useMemo(
     () =>
       candidates.filter(candidate => {
         const type = `${candidate.tipo}/${candidate.prefijo}`.toUpperCase()
-        if (tableFilter === "listos") {
-          return candidate.estado !== "descartado"
-        }
-        if (tableFilter === "descartados") {
-          return candidate.estado === "descartado"
-        }
         if (tableFilter === "fa") {
           return type === "FA/7"
         }
@@ -121,11 +126,11 @@ export default function AbonosView() {
       }),
     [candidates, tableFilter]
   )
-  const visibleCount = filteredCandidates.length
+  const selectedCount = selectionMode ? selectedCandidateKeys.size : candidates.length
   const discardReasons = summary?.descartados_por_motivo ?? []
   const canGenerate =
     Boolean(preview && !preview.error) &&
-    readyCount > 0 &&
+    selectedCount > 0 &&
     confirmationChecked &&
     !isGenerating
 
@@ -133,6 +138,8 @@ export default function AbonosView() {
     clearMessages()
     setGeneration(null)
     setConfirmationChecked(false)
+    setSelectionMode(false)
+    setSelectedCandidateKeys(new Set())
 
     if (!electronAPI?.previewAbonos) {
       setErrorMessage("Servicio de abonos no disponible.")
@@ -146,7 +153,7 @@ export default function AbonosView() {
         throw new Error(result.details || result.error)
       }
       setPreview(result)
-      const ready = result.resumen?.listos_para_generar ?? 0
+      const ready = (result.candidatos ?? []).filter(candidate => candidate.estado !== "descartado").length
       setStatusMessage(ready > 0 ? `${ready} abonos listos para generar.` : "No hay abonos listos.")
     } catch (error) {
       console.error("No se pudo previsualizar abonos:", error)
@@ -173,7 +180,10 @@ export default function AbonosView() {
     try {
       const result = await electronAPI.generateAbonos({
         ...request,
-        confirmation: confirmationChecked ? CONFIRMATION : ""
+        confirmation: confirmationChecked ? CONFIRMATION : "",
+        selectedCandidates: candidates
+          .filter(candidate => !selectionMode || selectedCandidateKeys.has(candidateKey(candidate)))
+          .map(candidate => ({ codCliente: candidate.cliente, nroLugarEntrega: candidate.punto }))
       })
       if (result?.error) {
         throw new Error(result.details || result.error)
@@ -187,25 +197,68 @@ export default function AbonosView() {
     } finally {
       setIsGenerating(false)
     }
-  }, [canGenerate, clearMessages, confirmationChecked, electronAPI, request])
+  }, [canGenerate, candidates, clearMessages, confirmationChecked, electronAPI, request, selectedCandidateKeys, selectionMode])
+
+  const toggleCandidate = (candidate: AbonosPreviewCandidate) => {
+    const key = candidateKey(candidate)
+    setGeneration(null)
+    setConfirmationChecked(false)
+    if (!selectionMode) {
+      setSelectionMode(true)
+      setSelectedCandidateKeys(new Set([key]))
+      return
+    }
+    setSelectedCandidateKeys(current => {
+      const next = new Set(current)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
+  const resetSelection = () => {
+    setSelectionMode(false)
+    setSelectedCandidateKeys(new Set())
+    setGeneration(null)
+    setConfirmationChecked(false)
+  }
+
+  const generationByCandidate = useMemo(() => {
+    const entries = (generation?.resultados ?? []).map(result => [
+      `${result.cod_cliente}/${result.nro_lugar_entrega}`,
+      result
+    ])
+    return new Map(entries)
+  }, [generation])
+
+  if (section === "cc") {
+    return <CuentaCorrienteBillingView onShowAbonos={() => setSection("abonos")} />
+  }
 
   return (
     <div className="content abonos-layout">
       <StatusToasts statusMessage={statusMessage} errorMessage={errorMessage} />
 
       <main className="abonos-main">
+        <div className="abonos-mode-tabs" role="tablist" aria-label="Tipo de facturacion">
+          <button className="abonos-mode-tabs--active" type="button" aria-selected="true">Abonos</button>
+          <button type="button" onClick={() => setSection("cc")}>Cuentas corrientes</button>
+        </div>
         <div className="abonos-toolbar">
           <label className="abonos-field">
             <span>Desde</span>
-            <input type="date" value={desde} onChange={event => setDesde(event.target.value)} />
+            <SpanishDateInput value={desde} onChange={setDesde} ariaLabel="Desde" />
           </label>
           <label className="abonos-field">
             <span>Hasta</span>
-            <input type="date" value={hasta} onChange={event => setHasta(event.target.value)} />
+            <SpanishDateInput value={hasta} onChange={setHasta} ariaLabel="Hasta" />
           </label>
           <label className="abonos-field">
             <span>Emision</span>
-            <input type="date" value={fechaEmision} onChange={event => setFechaEmision(event.target.value)} />
+            <SpanishDateInput value={fechaEmision} onChange={setFechaEmision} ariaLabel="Emision" />
           </label>
           <label className="abonos-field abonos-field--small">
             <span>Filas preview</span>
@@ -275,12 +328,17 @@ export default function AbonosView() {
             ))}
           </div>
           <div className="abonos-table-caption">
-            Mostrando {visibleCount} filas de {candidates.length} cargadas. Listos para generar: {readyCount || 0}.
+            {selectionMode
+              ? `${selectedCount} de ${candidates.length} clientes seleccionados.`
+              : `Todos los ${candidates.length} clientes listos estan seleccionados.`}
+            {selectionMode ? (
+              <button type="button" className="abonos-reset-selection" onClick={resetSelection}>Seleccionar todos</button>
+            ) : null}
           </div>
           <table className="abonos-table">
             <thead>
               <tr>
-                <th>Estado</th>
+                <th>Seleccion</th>
                 <th>Cliente</th>
                 <th>Punto</th>
                 <th>Razon Social</th>
@@ -290,14 +348,29 @@ export default function AbonosView() {
                 <th>Items</th>
                 <th>Periodo</th>
                 <th>Total</th>
-                <th>Motivo</th>
+                <th>Resultado</th>
               </tr>
             </thead>
             <tbody>
               {filteredCandidates.length ? (
-                filteredCandidates.map((candidate, index) => (
-                  <tr key={candidateKey(candidate, index)}>
-                    <td>{candidate.estado || "listo"}</td>
+                filteredCandidates.map(candidate => {
+                  const key = candidateKey(candidate)
+                  const selected = !selectionMode || selectedCandidateKeys.has(key)
+                  const result = generationByCandidate.get(key) as Record<string, unknown> | undefined
+                  const resultText = result
+                    ? result.ok
+                      ? result.cae
+                        ? `CAE ${result.cae}`
+                        : "Generado interno"
+                      : String(result.error || "Error al generar")
+                    : "Pendiente"
+                  return (
+                  <tr
+                    key={key}
+                    className={`${selected ? "abonos-table-row--selected" : ""}${result && !result.ok ? " abonos-table-row--error" : ""}`}
+                    onClick={() => toggleCandidate(candidate)}
+                  >
+                    <td><span className={`abonos-selection-mark${selected ? " abonos-selection-mark--checked" : ""}`}>{selected ? "Si" : "No"}</span></td>
                     <td>{candidate.cliente}</td>
                     <td>{candidate.punto}</td>
                     <td>{candidate.razon_social || "-"}</td>
@@ -305,14 +378,15 @@ export default function AbonosView() {
                     <td>{candidate.destino}</td>
                     <td>{candidate.dispensers}</td>
                     <td>{candidate.items}</td>
-                    <td>{candidate.periodo}</td>
+                    <td>{formatPeriod(candidate.periodo)}</td>
                     <td>{formatMoney(candidate.total)}</td>
-                    <td>{candidate.motivo || candidate.warnings?.join("; ") || "-"}</td>
+                    <td>{resultText}</td>
                   </tr>
-                ))
+                  )
+                })
               ) : (
                 <tr>
-                  <td colSpan={11}>Sin filas para mostrar con este filtro.</td>
+                  <td colSpan={11}>Sin clientes listos para mostrar con este filtro.</td>
                 </tr>
               )}
             </tbody>
@@ -328,7 +402,7 @@ export default function AbonosView() {
               checked={confirmationChecked}
               onChange={event => setConfirmationChecked(event.target.checked)}
             />
-            <span>Confirmar generacion y CAE</span>
+            <span>Confirmar generacion de {selectedCount} abonos</span>
           </label>
           <button className="fetch-button fetch-button--success" type="button" onClick={generate} disabled={!canGenerate}>
             {isGenerating ? "Generando..." : "Generar abonos"}
@@ -343,7 +417,7 @@ export default function AbonosView() {
           <span>DB</span>
           <strong>{preview?.escribe_db ? "escribe" : "preview"}</strong>
           <span>Clientes ignorados</span>
-          <strong>1130, 2537</strong>
+          <strong>1130</strong>
         </div>
 
         {discardReasons.length ? (
@@ -358,9 +432,6 @@ export default function AbonosView() {
           </div>
         ) : null}
 
-        {generation?.resumen ? (
-          <pre className="abonos-result">{JSON.stringify(generation.resumen, null, 2)}</pre>
-        ) : null}
       </aside>
     </div>
   )

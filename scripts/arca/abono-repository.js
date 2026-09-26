@@ -18,7 +18,7 @@ function parseLimit(value) {
   return parsed
 }
 
-const DEFAULT_IGNORED_ABONO_CLIENTS = [1130, 2537]
+const DEFAULT_IGNORED_ABONO_CLIENTS = [1130]
 
 function getIgnoredAbonoClients() {
   const configured = String(process.env.PATNAV_ABONOS_IGNORED_CLIENTS || '')
@@ -319,6 +319,7 @@ SELECT
       dispensers,
       items,
       '${period.yyyymm}' AS periodo,
+      fecha_vencimiento,
       total_bruto,
       CASE
         WHEN tipofactura NOT IN ('A', 'B', 'C') OR tipofactura IS NULL THEN 'descartado'

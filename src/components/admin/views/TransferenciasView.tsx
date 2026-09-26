@@ -104,7 +104,7 @@ const comprobanteFromVenta = (venta: TransferVentaResult): SelectedComprobante =
 })
 
 const isVentaBlocked = (venta: TransferVentaResult) =>
-  toDisplayValue(venta.mcampo_control).toUpperCase() === "P"
+  Boolean(toDisplayValue(venta.mcampo_control).trim())
 
 const getVentaKey = (venta: TransferVentaResult) =>
   `${toDisplayValue(venta.tipo_comprobante)}-${toDisplayValue(venta.prefijo)}-${toDisplayValue(venta.numero)}`
