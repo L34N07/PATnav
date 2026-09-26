@@ -253,14 +253,14 @@ export default function ClientOnboardingView() {
         <section><h3>1. Cliente</h3><div className="client-onboarding-grid">
           <label className="client-onboarding-field client-onboarding-field--wide"><span>Razon social</span><input required maxLength={60} value={form.razonSocial} onChange={event => update("razonSocial", event.target.value)} /></label>
           <label className="client-onboarding-field client-onboarding-field--wide"><span>Domicilio fiscal</span><input required maxLength={30} value={form.domFiscal1} onChange={event => update("domFiscal1", event.target.value)} /></label>
-          <label className="client-onboarding-field"><span>CUIT / ID</span><input required maxLength={18} inputMode="numeric" placeholder="CUIT o identificador" value={form.cuit} onChange={event => update("cuit", event.target.value)} /></label>
+          <label className="client-onboarding-field"><span>CUIT / DNI</span><input required maxLength={18} inputMode="numeric" placeholder="CUIT o DNI" value={form.cuit} onChange={event => update("cuit", event.target.value)} /></label>
           <label className="client-onboarding-field"><span>Tipo de cliente</span><select value={form.tipoCliente} onChange={event => update("tipoCliente", event.target.value)}>{TIPO_CLIENTE.map(option => <option key={option.value} value={option.value}>{option.value} - {option.label}</option>)}</select></label>
           <label className="client-onboarding-field"><span>Facturacion CC</span>{isCuentaCorriente ? <select value={form.tipoFactCtaCte} onChange={event => update("tipoFactCtaCte", event.target.value)}><option value="1">1 - Factura compartida</option><option value="2">2 - Factura por punto</option></select> : <input readOnly value={tipoCliente === 1 ? "2 - Factura por punto" : "No aplica"} />}</label>
           <label className="client-onboarding-field"><span>Lista de precios</span>{isCuentaCorriente ? <select required value={form.codLista} onChange={event => update("codLista", event.target.value)}><option value="">Seleccionar</option>{listas.map(lista => <option key={lista.codigo} value={lista.codigo}>{lista.codigo} - {lista.descripcion}</option>)}</select> : <input readOnly value="No aplica" />}</label>
-          <label className="client-onboarding-field"><span>Limite de credito</span><input inputMode="decimal" placeholder="Sin limite" value={form.limiteCredito} onChange={event => update("limiteCredito", event.target.value)} /></label>
+          <label className="client-onboarding-field"><span>Limite de credito Lts</span><input inputMode="decimal" placeholder="Sin limite" value={form.limiteCredito} onChange={event => update("limiteCredito", event.target.value)} /></label>
           <label className="client-onboarding-field"><span>Limite de facturacion</span><input inputMode="decimal" placeholder="Sin limite" value={form.limiteFacturacion} onChange={event => update("limiteFacturacion", event.target.value)} /></label>
           <label className="client-onboarding-field"><span>Frecuencia</span><input readOnly value="M - Mensual" /></label>
-          <label className="client-onboarding-field"><span>Tipo de cobro</span><select value={form.tipoCobro} onChange={event => update("tipoCobro", event.target.value)}><option value="N">N - Sin definir</option><option value="L">L</option><option value="U">U</option></select></label>
+          <label className="client-onboarding-field"><span>Tipo de cobro</span><select value={form.tipoCobro} onChange={event => update("tipoCobro", event.target.value)}><option value="N">N - Sin definir</option><option value="L">L - Por Lugar</option><option value="U">U - Unificado</option></select></label>
           <label className="client-onboarding-field"><span>Categoria IVA</span><select required value={form.codCategoria} onChange={event => update("codCategoria", event.target.value)}><option value="">Seleccionar</option>{categorias.map(category => <option key={category.codigo} value={category.codigo}>{category.codigo} - {category.descripcion} ({facturaEsperada(category.tipo_factura)})</option>)}</select></label>
         </div></section>
         <footer className="client-onboarding-footer"><span>Estado inicial: activo (0) · Consumo minimo CC: 0</span><button className="fetch-button fetch-button--success" type="submit" disabled={loading || savingClient}>{savingClient ? "Creando..." : "Crear cliente"}</button></footer>
@@ -368,7 +368,7 @@ function OnboardingBillingStep({
         const response = await electronAPI.movimientosSearchLocations({ environment: "produccion", query, limit: 25 })
         if (response?.error) throw new Error(response.details || response.error)
         const byLocation = new Map<string, { cod_cliente: number; nro_lugar_entrega: number; direccion?: string | null }>()
-        for (const row of (response?.result || []) as Array<RecordRow>) {
+        for (const row of (response?.result || []) as unknown as Array<RecordRow>) {
           const code = Number(row.cod_cliente)
           const deliveryPoint = Number(row.nro_lugar_entrega)
           const key = `${code}/${deliveryPoint}`
@@ -392,10 +392,11 @@ function OnboardingBillingStep({
     const timer = window.setTimeout(async () => {
       try {
         const response = await electronAPI.clientOnboardingBillingClientContext({ codCliente: clientCode })
-        if (response?.error) throw new Error(response.details || response.error)
-        if (!response?.cod_cliente) throw new Error("Cliente inexistente.")
-        setClientContext(response as RecordRow)
-        setClientSearch(current => /^\d+$/.test(current.trim()) ? display((response.ultimo_punto as RecordRow | null)?.direccion) || current : current)
+        if (response && "error" in response) throw new Error(display(response.details) || display(response.error))
+        if (!response || !("cod_cliente" in response) || !response.cod_cliente) throw new Error("Cliente inexistente.")
+        const context = response as RecordRow
+        setClientContext(context)
+        setClientSearch(current => /^\d+$/.test(current.trim()) ? display((context.ultimo_punto as RecordRow | null)?.direccion) || current : current)
         setSuggestions([])
       } catch (error) {
         setClientContext(null)
@@ -777,10 +778,10 @@ function OnboardingRouteStep({
     <h3>4. Ruta</h3>
     <div className="client-onboarding-grid">
       <label className="client-onboarding-field client-onboarding-field--wide"><span>Direccion de referencia</span><input value={referenceSearch} placeholder="Cliente, calle o numero" onChange={event => { setReferenceSearch(event.target.value); setReference(null); setRoute(null); setRouteOptions([]); setPreview(null) }} />{reference && <small>Referencia elegida: Cliente {reference.cod_cliente} / Punto {reference.nro_lugar_entrega}</small>}{referenceRows.length > 0 && <span className="client-onboarding-route-results">{referenceRows.map(row => <button type="button" key={`${row.cod_cliente}-${row.nro_lugar_entrega}`} onClick={() => void selectReference(row)}><strong>{row.razon_social}</strong><span>{row.direccion}</span><small>Cliente {row.cod_cliente} / Punto {row.nro_lugar_entrega}</small></button>)}</span>}</label>
-      <label className="client-onboarding-field"><span>Cliente / punto nuevo</span><span className="client-onboarding-route-target"><input inputMode="numeric" value={targetClient} onFocus={event => event.currentTarget.select()} onChange={event => { setTargetClient(event.target.value.replace(/\D/g, "").slice(0, 4)); setPreview(null) }} /><i>/</i><input inputMode="numeric" value={targetPoint} onFocus={event => event.currentTarget.select()} onChange={event => { setTargetPoint(event.target.value.replace(/\D/g, "").slice(0, 2)); setPreview(null) }} /></span></label>
-      <label className="client-onboarding-field client-onboarding-field--wide"><span>Ruta despues de la referencia</span><select disabled={!reference} value={route ? `${route.cod_ruta}|${route.orden_circuito}` : ""} onChange={event => { const selected = routeOptions.find(option => `${option.cod_ruta}|${option.orden_circuito}` === event.target.value) || null; setRoute(selected); setPreview(null) }}><option value="">Seleccionar</option>{routeOptions.map(option => <option key={`${option.cod_ruta}-${option.orden_circuito}`} value={`${option.cod_ruta}|${option.orden_circuito}`}>{option.cod_ruta} - {option.ruta_descripcion} (orden {option.orden_circuito})</option>)}</select></label>
-      <label className="client-onboarding-field"><span>L-Entrega</span><select value={lEntrega} onChange={event => setLEntrega(event.target.value)}><option value="S">S</option><option value="N">N</option></select></label>
-      <label className="client-onboarding-field"><span>L-Cobro</span><select value={lCobro} onChange={event => setLCobro(event.target.value)}><option value="S">S</option><option value="N">N</option><option value="B-MP">B-MP</option><option value="BA">BA</option><option value="BC">BC</option></select></label>
+      <label className="client-onboarding-field"><span>Cliente Nuevo</span><span className="client-onboarding-route-target"><input inputMode="numeric" value={targetClient} onFocus={event => event.currentTarget.select()} onChange={event => { setTargetClient(event.target.value.replace(/\D/g, "").slice(0, 4)); setPreview(null) }} /><i>/</i><input inputMode="numeric" value={targetPoint} onFocus={event => event.currentTarget.select()} onChange={event => { setTargetPoint(event.target.value.replace(/\D/g, "").slice(0, 2)); setPreview(null) }} /></span></label>
+      <label className="client-onboarding-field client-onboarding-field--wide"><span>Ruta</span><select disabled={!reference} value={route ? `${route.cod_ruta}|${route.orden_circuito}` : ""} onChange={event => { const selected = routeOptions.find(option => `${option.cod_ruta}|${option.orden_circuito}` === event.target.value) || null; setRoute(selected); setPreview(null) }}><option value="">Seleccionar</option>{routeOptions.map(option => <option key={`${option.cod_ruta}-${option.orden_circuito}`} value={`${option.cod_ruta}|${option.orden_circuito}`}>{option.cod_ruta} - {option.ruta_descripcion} (orden {option.orden_circuito})</option>)}</select></label>
+      <label className="client-onboarding-field"><span>Lugar Entrega</span><select value={lEntrega} onChange={event => setLEntrega(event.target.value)}><option value="S">Si</option><option value="N">No</option></select></label>
+      <label className="client-onboarding-field"><span>Lugar de Cobro</span><select value={lCobro} onChange={event => setLCobro(event.target.value)}><option value="S">Si</option><option value="N">No</option><option value="B-MP">B-MP (Mercado Pago)</option><option value="BA">BA (Banco Ahorro)</option><option value="BC">BC (Banco Corriente)</option></select></label>
     </div>
     <div className={`client-onboarding-route-preview${preview ? " client-onboarding-route-preview--ready" : ""}`}>
       {preview ? `La ruta normalizara ${preview.clientes_a_espaciar} cliente(s) en saltos de 5. La referencia quedara en ${preview.orden_referencia_normalizado}; el nuevo punto se insertara en ${preview.orden_nuevo}.` : "Seleccione una direccion de referencia y una de sus rutas para calcular el orden."}
